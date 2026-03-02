@@ -60,6 +60,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data.storyId = storyId ?? null;
     }
 
+    // Track when a video is shelved for the 90-day auto-deletion clock
+    if (rest.status === "SHELVED") {
+      const existing = await prisma.video.findUnique({ where: { id }, select: { status: true } });
+      if (existing && existing.status !== "SHELVED") {
+        data.shelvedAt = new Date();
+      }
+    } else if (rest.status !== undefined) {
+      data.shelvedAt = null;
+    }
+
     const video = await prisma.video.update({
       where: { id },
       data,

@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { cn, initials, STORY_STATUS_LABELS } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
@@ -12,6 +13,7 @@ interface VideoCardProps {
 
 const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   DRAFT: "outline",
+  SCHEDULED: "secondary",
   PUBLISHED_ITERATING: "secondary",
   PUBLISHED_FINAL: "default",
   SHELVED: "destructive",
@@ -33,12 +35,14 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
         {/* Top row: slug + badges */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="font-semibold leading-none">{video.slug}</span>
-          <Badge
-            variant={STATUS_BADGE_VARIANT[video.status] ?? "outline"}
-            className="text-[10px] px-1.5 py-0"
-          >
-            {STORY_STATUS_LABELS[video.status] ?? video.status}
-          </Badge>
+          {video.status !== "DRAFT" && (
+            <Badge
+              variant={STATUS_BADGE_VARIANT[video.status] ?? "outline"}
+              className="text-[10px] px-1.5 py-0"
+            >
+              {STORY_STATUS_LABELS[video.status] ?? video.status}
+            </Badge>
+          )}
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
             Video
           </Badge>
@@ -51,23 +55,28 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
           </p>
         )}
 
-        {/* Bottom row: people chips + time */}
+        {/* Bottom row: people chips + AI tag + time */}
         <div className="flex items-center justify-between gap-2">
-          {video.assignments.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {video.assignments.map((a) => (
-                <span
-                  key={`${a.personId}-${a.role}`}
-                  className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                  title={a.person.name}
-                >
-                  {initials(a.person.name)}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <span />
-          )}
+          <div className="flex flex-wrap items-center gap-1">
+            {video.assignments.map((a) => (
+              <span
+                key={`${a.personId}-${a.role}`}
+                className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                title={a.person.name}
+              >
+                {initials(a.person.name)}
+              </span>
+            ))}
+            {video.aiContributed && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                title="AI Contributed"
+              >
+                <Sparkles className="size-2.5 pointer-events-none" />
+                AI
+              </span>
+            )}
+          </div>
 
           {/* Time label — only show if not TBD */}
           {!video.onlinePubDateTBD && video.onlinePubDate && (

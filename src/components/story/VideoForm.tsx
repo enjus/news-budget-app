@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -34,29 +34,32 @@ import {
   type CreateVideoInput,
 } from "@/lib/validations"
 import { STORY_STATUS_LABELS, cn } from "@/lib/utils"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { useStories } from "@/lib/hooks/useStories"
 import type { VideoWithRelations } from "@/types/index"
 
 const STATUS_OPTIONS = [
   "DRAFT",
+  "SCHEDULED",
   "PUBLISHED_ITERATING",
   "PUBLISHED_FINAL",
   "SHELVED",
 ] as const
 
-function toLocalDatetimeValue(date: Date | string | null | undefined): string {
-  if (!date) return ""
-  const d = typeof date === "string" ? new Date(date) : date
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+interface VideoFormInitialValues {
+  onlinePubDate?: string | null
+  onlinePubDateTBD?: boolean
+  storyId?: string | null
 }
 
 interface VideoFormProps {
   video?: VideoWithRelations
+  initialValues?: VideoFormInitialValues
   onSuccess?: (id: string) => void
 }
 
-export function VideoForm({ video, onSuccess }: VideoFormProps) {
+export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
   const isEdit = !!video
   const [storyPickerOpen, setStoryPickerOpen] = useState(false)
 
@@ -85,35 +88,56 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
           onlinePubDateTBD: video.onlinePubDateTBD,
           notes: video.notes ?? "",
           notifyTeam: video.notifyTeam,
+          aiContributed: video.aiContributed,
+          youtubeUrl: video.youtubeUrl ?? "",
+          reelsUrl: video.reelsUrl ?? "",
+          tiktokUrl: video.tiktokUrl ?? "",
+          otherUrl: video.otherUrl ?? "",
         }
       : {
           slug: "",
           budgetLine: "",
           isEnterprise: false,
           status: "DRAFT",
-          storyId: null,
-          onlinePubDate: null,
-          onlinePubDateTBD: true,
+          storyId: initialValues?.storyId ?? null,
+          onlinePubDate: initialValues?.onlinePubDate ?? null,
+          onlinePubDateTBD: initialValues?.onlinePubDateTBD ?? true,
           notes: "",
           notifyTeam: false,
+          aiContributed: false,
+          youtubeUrl: "",
+          reelsUrl: "",
+          tiktokUrl: "",
+          otherUrl: "",
         },
   })
+
+  const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
 
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const storyId = watch("storyId")
 
   const selectedStory = stories.find((s) => s.id === storyId) ?? null
 
+  const notifyRef = useRef(false)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
+    const notify = notifyRef.current
+    notifyRef.current = false
     try {
       const payload: Record<string, unknown> = {
         ...data,
+        notifyTeam: notify,
         onlinePubDate: data.onlinePubDateTBD
           ? null
           : data.onlinePubDate
             ? new Date(data.onlinePubDate).toISOString()
             : null,
+        youtubeUrl: data.youtubeUrl?.trim() || null,
+        reelsUrl: data.reelsUrl?.trim() || null,
+        tiktokUrl: data.tiktokUrl?.trim() || null,
+        otherUrl: data.otherUrl?.trim() || null,
       }
 
       const url = isEdit ? `/api/videos/${video!.id}` : "/api/videos"
@@ -131,7 +155,10 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
       }
 
       const saved = await res.json()
-      toast.success(isEdit ? "Video updated" : "Video created")
+      toast.success(isEdit
+        ? notify ? "Video updated — team notified" : "Video updated"
+        : "Video created"
+      )
       onSuccess?.(saved.id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
@@ -145,12 +172,16 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
         <Label htmlFor="vf-slug">Slug</Label>
         <Input
           id="vf-slug"
-          {...register("slug")}
-          placeholder="my-video-slug"
+          {...slugRegister}
+          placeholder="HARBOR CLEANUP VIDEO"
           aria-invalid={!!errors.slug}
+          onBlur={(e) => {
+            setValue("slug", e.target.value.toUpperCase(), { shouldValidate: true })
+            slugOnBlur(e)
+          }}
         />
         <p className="text-xs text-muted-foreground">
-          Lowercase letters, numbers, and hyphens only
+          All caps with spaces (e.g. HARBOR CLEANUP VIDEO)
         </p>
         {errors.slug && (
           <p className="text-xs text-destructive">{errors.slug.message}</p>
@@ -213,7 +244,7 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
             )}
           />
           <Label htmlFor="vf-enterprise" className="cursor-pointer font-normal">
-            Enterprise piece
+            Add to Enterprise Budget
           </Label>
         </div>
       </div>
@@ -236,7 +267,7 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
               <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[400px] p-0" align="start">
+          <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start">
             <Command>
               <CommandInput placeholder="Search stories..." />
               <CommandList>
@@ -323,18 +354,9 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
               name="onlinePubDate"
               control={control}
               render={({ field }) => (
-                <Input
-                  type="datetime-local"
-                  className="flex-1"
-                  value={field.value ? toLocalDatetimeValue(field.value) : ""}
-                  onChange={(e) => {
-                    if (!e.target.value) {
-                      field.onChange(null)
-                    } else {
-                      field.onChange(new Date(e.target.value).toISOString())
-                    }
-                  }}
-                  aria-invalid={!!errors.onlinePubDate}
+                <DateTimePicker
+                  value={field.value ?? null}
+                  onChange={field.onChange}
                 />
               )}
             />
@@ -343,6 +365,35 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
         {errors.onlinePubDate && (
           <p className="text-xs text-destructive">{String(errors.onlinePubDate.message)}</p>
         )}
+      </div>
+
+      {/* Platform URLs */}
+      <div className="space-y-3">
+        <p className="text-sm font-medium">Platform Links</p>
+        {(["youtubeUrl", "reelsUrl", "tiktokUrl", "otherUrl"] as const).map((field) => {
+          const labels: Record<typeof field, string> = {
+            youtubeUrl: "YouTube",
+            reelsUrl: "Reels",
+            tiktokUrl: "TikTok",
+            otherUrl: "Other",
+          }
+          return (
+            <div key={field} className="flex items-center gap-3">
+              <Label htmlFor={`vf-${field}`} className="w-16 shrink-0 text-sm">
+                {labels[field]}
+              </Label>
+              <Input
+                id={`vf-${field}`}
+                {...register(field)}
+                placeholder="https://"
+                className="flex-1"
+              />
+              {errors[field] && (
+                <p className="text-xs text-destructive">{errors[field]?.message}</p>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* Notes */}
@@ -360,26 +411,36 @@ export function VideoForm({ video, onSuccess }: VideoFormProps) {
         )}
       </div>
 
-      {/* Notify Team */}
+      {/* AI Contributed */}
       <div className="flex items-center gap-2">
         <Controller
-          name="notifyTeam"
+          name="aiContributed"
           control={control}
           render={({ field }) => (
             <Checkbox
-              id="vf-notify"
+              id="vf-ai"
               checked={field.value}
               onCheckedChange={field.onChange}
             />
           )}
         />
-        <Label htmlFor="vf-notify" className="cursor-pointer font-normal">
-          Notify team when published
+        <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
+          AI Contributed
         </Label>
       </div>
 
       {/* Submit */}
       <div className="flex justify-end gap-2 pt-2">
+        {isEdit && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={() => { notifyRef.current = true; handleSubmit(onSubmit)() }}
+          >
+            {isSubmitting ? "Saving..." : "Save & Notify Team"}
+          </Button>
+        )}
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Video"}
         </Button>

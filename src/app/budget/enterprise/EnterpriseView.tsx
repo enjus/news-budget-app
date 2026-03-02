@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import Link from "next/link"
 import useSWR from "swr"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, addDays } from "date-fns"
 import { Plus, GripVertical, CalendarDays } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
@@ -34,7 +34,12 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 function formatGroupDate(dateStr: string): string {
   if (dateStr === "TBD") return "TBD"
   try {
-    return format(parseISO(dateStr), "EEEE, MMMM d, yyyy")
+    const monday = parseISO(dateStr)
+    const sunday = addDays(monday, 6)
+    if (monday.getMonth() === sunday.getMonth()) {
+      return `${format(monday, "MMM d")} – ${format(sunday, "d, yyyy")}`
+    }
+    return `${format(monday, "MMM d")} – ${format(sunday, "MMM d, yyyy")}`
   } catch {
     return dateStr
   }
@@ -47,6 +52,7 @@ interface DroppableSectionProps {
   label: string
   count: number
   itemIds: string[]
+  newStoryHref: string
   children: React.ReactNode
 }
 
@@ -55,6 +61,7 @@ function DroppableSection({
   label,
   count,
   itemIds,
+  newStoryHref,
   children,
 }: DroppableSectionProps) {
   const { setNodeRef, isOver } = useDroppable({ id: groupDate })
@@ -70,6 +77,10 @@ function DroppableSection({
             {count}
           </span>
         </div>
+        <Link href={newStoryHref} title="New story for this date" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
+          <Plus className="size-3" />
+          New Story
+        </Link>
       </div>
 
       {/* Drop zone */}
@@ -110,7 +121,7 @@ function ActiveItemOverlay({ activeId, groups }: ActiveItemOverlayProps) {
     if (activeId.startsWith("story-")) {
       const id = activeId.slice("story-".length)
       const story = group.stories.find((s) => s.id === id)
-      if (story) return <StoryCard story={story} isDragging />
+      if (story) return <StoryCard story={story} isDragging hideEnterpriseTag />
     }
     if (activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
@@ -148,7 +159,11 @@ export function EnterpriseView() {
       if (!selected) return
       setCalendarOpen(false)
 
-      const dateStr = format(selected, "yyyy-MM-dd")
+      // Snap to Monday of the selected week
+      const day = selected.getDay()
+      const monday = new Date(selected)
+      monday.setDate(selected.getDate() + (day === 0 ? -6 : 1 - day))
+      const dateStr = format(monday, "yyyy-MM-dd")
 
       // Don't add if already present
       if (groups.some((g) => g.date === dateStr)) return
@@ -280,7 +295,8 @@ export function EnterpriseView() {
             printPubDate: null,
           }
         } else {
-          const midnight = new Date(`${targetDate}T00:00:00.000Z`)
+          // Local midnight so dates group correctly in the user's timezone
+          const midnight = new Date(`${targetDate}T00:00:00`)
           patchBody = {
             onlinePubDateTBD: false,
             onlinePubDate: midnight.toISOString(),
@@ -319,7 +335,7 @@ export function EnterpriseView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Enterprise Stories &amp; Videos</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Add Date button with calendar popover */}
           <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
             <PopoverTrigger asChild>
@@ -338,7 +354,7 @@ export function EnterpriseView() {
           </Popover>
 
           <Button asChild size="sm">
-            <Link href="/stories/new">
+            <Link href="/stories/new?isEnterprise=true">
               <Plus className="size-4" />
               New Story
             </Link>
@@ -378,7 +394,7 @@ export function EnterpriseView() {
                 </p>
                 <div className="mt-4 flex justify-center gap-2">
                   <Button asChild size="sm">
-                    <Link href="/stories/new">Add a story</Link>
+                    <Link href="/stories/new?isEnterprise=true">Add a story</Link>
                   </Button>
                   <Button asChild size="sm" variant="outline">
                     <Link href="/videos/new">Add a video</Link>
@@ -393,6 +409,14 @@ export function EnterpriseView() {
                 ]
                 const count = group.stories.length + group.videos.length
 
+                const newStoryHref = (() => {
+                  if (group.date === "TBD") {
+                    return "/stories/new?isEnterprise=true"
+                  }
+                  const iso = encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())
+                  return `/stories/new?isEnterprise=true&onlinePubDate=${iso}&onlinePubDateTBD=false&printPubDate=${iso}&printPubDateTBD=false`
+                })()
+
                 return (
                   <DroppableSection
                     key={group.date}
@@ -400,6 +424,7 @@ export function EnterpriseView() {
                     label={formatGroupDate(group.date)}
                     count={count}
                     itemIds={itemIds}
+                    newStoryHref={newStoryHref}
                   >
                     {group.stories.map((story) => (
                       <SortableCard
@@ -409,7 +434,7 @@ export function EnterpriseView() {
                         <div className="flex items-start gap-1">
                           <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
                           <div className="min-w-0 flex-1">
-                            <StoryCard story={story} />
+                            <StoryCard story={story} hideEnterpriseTag />
                           </div>
                         </div>
                       </SortableCard>

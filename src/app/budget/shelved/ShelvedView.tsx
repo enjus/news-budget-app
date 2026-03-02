@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArchiveRestore } from "lucide-react"
+import { ArchiveRestore, Trash2 } from "lucide-react"
+import { differenceInDays } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -22,14 +23,26 @@ import { useVideos } from "@/lib/hooks/useVideos"
 import { STORY_STATUS_LABELS } from "@/lib/utils"
 import { toast } from "sonner"
 
+function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
+  if (!shelvedAt) return null
+  const daysShelved = differenceInDays(new Date(), new Date(shelvedAt))
+  const daysLeft = Math.max(0, 90 - daysShelved)
+  const urgent = daysLeft <= 14
+  return (
+    <span className={`text-xs font-medium ${urgent ? "text-destructive" : "text-muted-foreground"}`}>
+      {daysLeft === 0 ? "Deletes soon" : `${daysLeft}d left`}
+    </span>
+  )
+}
+
 export function ShelvedView() {
   const { stories, isLoading: storiesLoading, mutate: mutateStories } = useStories({ status: "SHELVED" })
   const { videos, isLoading: videosLoading, mutate: mutateVideos } = useVideos({ status: "SHELVED" })
-  const [unarchiving, setUnarchiving] = useState<string | null>(null)
+  const [working, setWorking] = useState<string | null>(null)
   const isLoading = storiesLoading || videosLoading
 
   async function unarchive(type: "story" | "video", id: string) {
-    setUnarchiving(id)
+    setWorking(id)
     try {
       const res = await fetch(`/api/${type === "story" ? "stories" : "videos"}/${id}`, {
         method: "PATCH",
@@ -37,13 +50,30 @@ export function ShelvedView() {
         body: JSON.stringify({ status: "DRAFT" }),
       })
       if (!res.ok) throw new Error("Failed to unarchive")
-      toast.success(`${type === "story" ? "Story" : "Video"} returned to Draft`)
+      toast.success(`${type === "story" ? "Story" : "Video"} returned to "In the works"`)
       mutateStories()
       mutateVideos()
     } catch {
       toast.error("Failed to unarchive. Please try again.")
     } finally {
-      setUnarchiving(null)
+      setWorking(null)
+    }
+  }
+
+  async function deleteItem(type: "story" | "video", id: string) {
+    setWorking(id)
+    try {
+      const res = await fetch(`/api/${type === "story" ? "stories" : "videos"}/${id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) throw new Error("Failed to delete")
+      toast.success(`${type === "story" ? "Story" : "Video"} permanently deleted`)
+      mutateStories()
+      mutateVideos()
+    } catch {
+      toast.error("Failed to delete. Please try again.")
+    } finally {
+      setWorking(null)
     }
   }
 
@@ -52,7 +82,7 @@ export function ShelvedView() {
       <div>
         <h2 className="text-lg font-semibold">Shelved Content</h2>
         <p className="text-sm text-muted-foreground">
-          Stories and videos on hold. Unarchive to return them to Draft status.
+          Shelved items are automatically deleted after 90 days. Unarchive to reset the clock.
         </p>
       </div>
 
@@ -78,13 +108,13 @@ export function ShelvedView() {
                 {stories.map((story) => (
                   <div
                     key={story.id}
-                    className="flex items-center justify-between rounded-lg border bg-card p-4"
+                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4"
                   >
                     <Link
                       href={`/stories/${story.id}`}
-                      className="flex-1 space-y-0.5 hover:opacity-80 transition-opacity"
+                      className="flex-1 space-y-0.5 hover:opacity-80 transition-opacity min-w-0"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{story.slug}</span>
                         <Badge variant="destructive" className="text-xs">
                           {STORY_STATUS_LABELS["SHELVED"]}
@@ -92,37 +122,63 @@ export function ShelvedView() {
                         {story.isEnterprise && (
                           <Badge variant="secondary" className="text-xs">Enterprise</Badge>
                         )}
+                        <DaysLeftBadge shelvedAt={story.shelvedAt} />
                       </div>
-                      <p className="text-sm text-muted-foreground">{story.budgetLine}</p>
+                      <p className="text-sm text-muted-foreground truncate">{story.budgetLine}</p>
                     </Link>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="ml-4 shrink-0"
-                          disabled={unarchiving === story.id}
-                        >
-                          <ArchiveRestore className="size-4" />
-                          Unarchive
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Unarchive story?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            &ldquo;{story.slug}&rdquo; will be returned to Draft status and appear
-                            in the Daily Budget view.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => unarchive("story", story.id)}>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Unarchive */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={working === story.id}>
+                            <ArchiveRestore className="size-4" />
                             Unarchive
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Unarchive story?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              &ldquo;{story.slug}&rdquo; will be returned to "In the works" status.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => unarchive("story", story.id)}>
+                              Unarchive
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      {/* Delete */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={working === story.id}
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30">
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Permanently delete story?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              &ldquo;{story.slug}&rdquo; will be permanently deleted. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                              onClick={() => deleteItem("story", story.id)}
+                            >
+                              Delete permanently
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -143,49 +199,73 @@ export function ShelvedView() {
                 {videos.map((video) => (
                   <div
                     key={video.id}
-                    className="flex items-center justify-between rounded-lg border bg-card p-4"
+                    className="flex flex-wrap items-start justify-between gap-3 rounded-lg border bg-card p-4"
                   >
                     <Link
                       href={`/videos/${video.id}`}
-                      className="flex-1 space-y-0.5 hover:opacity-80 transition-opacity"
+                      className="flex-1 space-y-0.5 hover:opacity-80 transition-opacity min-w-0"
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{video.slug}</span>
                         <Badge variant="destructive" className="text-xs">
                           {STORY_STATUS_LABELS["SHELVED"]}
                         </Badge>
                         <Badge variant="outline" className="text-xs">Video</Badge>
+                        <DaysLeftBadge shelvedAt={video.shelvedAt} />
                       </div>
-                      <p className="text-sm text-muted-foreground">{video.budgetLine}</p>
+                      <p className="text-sm text-muted-foreground truncate">{video.budgetLine}</p>
                     </Link>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="ml-4 shrink-0"
-                          disabled={unarchiving === video.id}
-                        >
-                          <ArchiveRestore className="size-4" />
-                          Unarchive
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Unarchive video?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            &ldquo;{video.slug}&rdquo; will be returned to Draft status and appear
-                            in the Daily Budget view.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => unarchive("video", video.id)}>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={working === video.id}>
+                            <ArchiveRestore className="size-4" />
                             Unarchive
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Unarchive video?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              &ldquo;{video.slug}&rdquo; will be returned to "In the works" status.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => unarchive("video", video.id)}>
+                              Unarchive
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm" disabled={working === video.id}
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30">
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Permanently delete video?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              &ldquo;{video.slug}&rdquo; will be permanently deleted. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-white hover:bg-destructive/90"
+                              onClick={() => deleteItem("video", video.id)}
+                            >
+                              Delete permanently
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -6,21 +6,29 @@ export const PersonRoleEnum = z.enum([
   "REPORTER",
   "EDITOR",
   "PHOTOGRAPHER",
+  "VIDEOGRAPHER",
   "GRAPHIC_DESIGNER",
   "PUBLICATION_DESIGNER",
   "OTHER",
 ]);
 
-export const AssignmentRoleEnum = z.enum(["REPORTER", "EDITOR", "OTHER"]);
+export const AssignmentRoleEnum = z.enum(["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]);
 
 export const VisualTypeEnum = z.enum(["PHOTO", "GRAPHIC"]);
 
 export const StoryStatusEnum = z.enum([
   "DRAFT",
+  "SCHEDULED",
   "PUBLISHED_ITERATING",
   "PUBLISHED_FINAL",
   "SHELVED",
 ]);
+
+// Empty string → null before URL validation so blank inputs don't error
+const optionalUrl = z.preprocess(
+  (v) => (v === "" ? null : v),
+  z.string().url("Must be a valid URL").nullable().optional()
+);
 
 // ─── Person ───────────────────────────────────────────────────────────────────
 
@@ -40,8 +48,8 @@ export const createStorySchema = z.object({
     .min(1, "Slug is required")
     .max(60)
     .regex(
-      /^[a-z0-9-]+$/,
-      "Slug must be lowercase letters, numbers, and hyphens only"
+      /^[A-Z0-9 ]+$/,
+      "Slug must be uppercase letters, numbers, and spaces only"
     ),
   budgetLine: z.string().min(1, "Budget line is required").max(500),
   isEnterprise: z.boolean().default(false),
@@ -51,11 +59,34 @@ export const createStorySchema = z.object({
   printPubDate: z.string().datetime({ offset: true }).nullable().optional(),
   printPubDateTBD: z.boolean().default(true),
   notes: z.string().max(5000).nullable().optional(),
+  wordCount: z.number().int().min(0).nullable().optional(),
   notifyTeam: z.boolean().default(false),
+  aiContributed: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
+  postUrl: optionalUrl,
 });
 
-export const updateStorySchema = createStorySchema.partial();
+export const updateStorySchema = z.object({
+  slug: z
+    .string()
+    .min(1, "Slug is required")
+    .max(60)
+    .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
+    .optional(),
+  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  isEnterprise: z.boolean().optional(),
+  status: StoryStatusEnum.optional(),
+  onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
+  onlinePubDateTBD: z.boolean().optional(),
+  printPubDate: z.string().datetime({ offset: true }).nullable().optional(),
+  printPubDateTBD: z.boolean().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  wordCount: z.number().int().min(0).nullable().optional(),
+  notifyTeam: z.boolean().optional(),
+  aiContributed: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+  postUrl: optionalUrl,
+});
 
 // ─── Assignment ───────────────────────────────────────────────────────────────
 
@@ -82,8 +113,8 @@ export const createVideoSchema = z.object({
     .min(1, "Slug is required")
     .max(60)
     .regex(
-      /^[a-z0-9-]+$/,
-      "Slug must be lowercase letters, numbers, and hyphens only"
+      /^[A-Z0-9 ]+$/,
+      "Slug must be uppercase letters, numbers, and spaces only"
     ),
   budgetLine: z.string().min(1, "Budget line is required").max(500),
   isEnterprise: z.boolean().default(false),
@@ -93,10 +124,36 @@ export const createVideoSchema = z.object({
   onlinePubDateTBD: z.boolean().default(true),
   notes: z.string().max(5000).nullable().optional(),
   notifyTeam: z.boolean().default(false),
+  aiContributed: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
+  youtubeUrl: optionalUrl,
+  reelsUrl: optionalUrl,
+  tiktokUrl: optionalUrl,
+  otherUrl: optionalUrl,
 });
 
-export const updateVideoSchema = createVideoSchema.partial();
+export const updateVideoSchema = z.object({
+  slug: z
+    .string()
+    .min(1, "Slug is required")
+    .max(60)
+    .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
+    .optional(),
+  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  isEnterprise: z.boolean().optional(),
+  status: StoryStatusEnum.optional(),
+  storyId: z.string().cuid().nullable().optional(),
+  onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
+  onlinePubDateTBD: z.boolean().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  notifyTeam: z.boolean().optional(),
+  aiContributed: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+  youtubeUrl: optionalUrl,
+  reelsUrl: optionalUrl,
+  tiktokUrl: optionalUrl,
+  otherUrl: optionalUrl,
+});
 
 export const createVideoAssignmentSchema = z.object({
   personId: z.string().cuid(),

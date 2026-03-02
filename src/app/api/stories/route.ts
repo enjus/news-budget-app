@@ -21,6 +21,14 @@ export async function GET(request: NextRequest) {
     if (status) {
       // Explicit status filter — show exactly that status (including SHELVED if requested)
       where.status = status;
+
+      // When fetching shelved items, first auto-delete any that exceeded 90 days
+      if (status === "SHELVED") {
+        const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+        await prisma.story.deleteMany({
+          where: { status: "SHELVED", shelvedAt: { lte: cutoff } },
+        });
+      }
     } else {
       // Default: exclude SHELVED
       where.status = { not: "SHELVED" };

@@ -24,8 +24,6 @@ interface VisualSectionProps {
   onUpdate: () => void
 }
 
-const VISUAL_ROLES = ["PHOTOGRAPHER", "GRAPHIC_DESIGNER", "PUBLICATION_DESIGNER"]
-
 export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC">("PHOTO")
@@ -33,7 +31,6 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
   const [newPersonId, setNewPersonId] = useState<string>("")
 
   const { people } = usePeople()
-  const visualPeople = people.filter((p) => VISUAL_ROLES.includes(p.defaultRole))
 
   async function handleAdd() {
     setIsAdding(true)
@@ -144,15 +141,15 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
         />
 
         <Select
-          value={newPersonId}
-          onValueChange={setNewPersonId}
+          value={newPersonId || "__none__"}
+          onValueChange={(v) => setNewPersonId(v === "__none__" ? "" : v)}
         >
           <SelectTrigger className="h-8 w-[180px]">
             <SelectValue placeholder="Assign person (optional)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Unassigned</SelectItem>
-            {visualPeople.map((p) => (
+            <SelectItem value="__none__">Unassigned</SelectItem>
+            {people.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.name}
               </SelectItem>

@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -19,27 +20,31 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { STORY_STATUS_LABELS } from "@/lib/utils"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import type { StoryWithRelations } from "@/types/index"
 
 const STATUS_OPTIONS = [
   "DRAFT",
+  "SCHEDULED",
   "PUBLISHED_ITERATING",
   "PUBLISHED_FINAL",
   "SHELVED",
 ] as const
 
+interface StoryFormInitialValues {
+  onlinePubDate?: string | null
+  onlinePubDateTBD?: boolean
+  printPubDate?: string | null
+  printPubDateTBD?: boolean
+  isEnterprise?: boolean
+}
+
 interface StoryFormProps {
   story?: StoryWithRelations
+  initialValues?: StoryFormInitialValues
   onSuccess?: (id: string) => void
 }
 
-function toLocalDatetimeValue(date: Date | string | null | undefined): string {
-  if (!date) return ""
-  const d = typeof date === "string" ? new Date(date) : date
-  // Format as YYYY-MM-DDTHH:mm for datetime-local input
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
 
 function toLocalDateValue(date: Date | string | null | undefined): string {
   if (!date) return ""
@@ -48,7 +53,7 @@ function toLocalDateValue(date: Date | string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export function StoryForm({ story, onSuccess }: StoryFormProps) {
+export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
   const isEdit = !!story
 
   const {
@@ -56,6 +61,7 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateStoryInput>({
     // zodResolver returns Resolver<Input> but form uses Output type; cast is safe here
@@ -76,31 +82,44 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
             : null,
           printPubDateTBD: story.printPubDateTBD,
           notes: story.notes ?? "",
+          wordCount: (story as any).wordCount ?? null,
           notifyTeam: story.notifyTeam,
+          aiContributed: story.aiContributed,
+          postUrl: story.postUrl ?? "",
         }
       : {
           slug: "",
           budgetLine: "",
-          isEnterprise: false,
+          isEnterprise: initialValues?.isEnterprise ?? false,
           status: "DRAFT",
-          onlinePubDate: null,
-          onlinePubDateTBD: true,
-          printPubDate: null,
-          printPubDateTBD: true,
+          onlinePubDate: initialValues?.onlinePubDate ?? null,
+          onlinePubDateTBD: initialValues?.onlinePubDateTBD ?? true,
+          printPubDate: initialValues?.printPubDate ?? null,
+          printPubDateTBD: initialValues?.printPubDateTBD ?? true,
           notes: "",
+          wordCount: null,
           notifyTeam: false,
+          aiContributed: false,
+          postUrl: "",
         },
   })
 
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const printPubDateTBD = watch("printPubDateTBD")
 
+  const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
+
+  const notifyRef = useRef(false)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
+    const notify = notifyRef.current
+    notifyRef.current = false
     try {
       // Convert local datetime string to ISO offset string
       const payload: Record<string, unknown> = {
         ...data,
+        notifyTeam: notify,
         onlinePubDate: data.onlinePubDateTBD
           ? null
           : data.onlinePubDate
@@ -128,7 +147,10 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
       }
 
       const saved = await res.json()
-      toast.success(isEdit ? "Story updated" : "Story created")
+      toast.success(isEdit
+        ? notify ? "Story updated — team notified" : "Story updated"
+        : "Story created"
+      )
       onSuccess?.(saved.id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
@@ -142,12 +164,16 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
         <Label htmlFor="sf-slug">Slug</Label>
         <Input
           id="sf-slug"
-          {...register("slug")}
-          placeholder="my-story-slug"
+          {...slugRegister}
+          placeholder="CITY COUNCIL VOTE"
           aria-invalid={!!errors.slug}
+          onBlur={(e) => {
+            setValue("slug", e.target.value.toUpperCase(), { shouldValidate: true })
+            slugOnBlur(e)
+          }}
         />
         <p className="text-xs text-muted-foreground">
-          Lowercase letters, numbers, and hyphens only (e.g. city-council-vote)
+          All caps with spaces (e.g. CITY COUNCIL VOTE)
         </p>
         {errors.slug && (
           <p className="text-xs text-destructive">{errors.slug.message}</p>
@@ -210,7 +236,7 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
             )}
           />
           <Label htmlFor="sf-enterprise" className="cursor-pointer font-normal">
-            Enterprise story
+            Add to Enterprise Budget
           </Label>
         </div>
       </div>
@@ -241,18 +267,9 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
               name="onlinePubDate"
               control={control}
               render={({ field }) => (
-                <Input
-                  type="datetime-local"
-                  className="flex-1"
-                  value={field.value ? toLocalDatetimeValue(field.value) : ""}
-                  onChange={(e) => {
-                    if (!e.target.value) {
-                      field.onChange(null)
-                    } else {
-                      field.onChange(new Date(e.target.value).toISOString())
-                    }
-                  }}
-                  aria-invalid={!!errors.onlinePubDate}
+                <DateTimePicker
+                  value={field.value ?? null}
+                  onChange={field.onChange}
                 />
               )}
             />
@@ -263,9 +280,9 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
         )}
       </div>
 
-      {/* Print Pub Date */}
+      {/* Daily Edition Pub Date */}
       <div className="space-y-1.5">
-        <Label>Print Pub Date</Label>
+        <Label>Daily Edition Pub Date</Label>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Controller
@@ -312,6 +329,35 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
         )}
       </div>
 
+      {/* Word Count + Post URL */}
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="space-y-1.5 w-36">
+          <Label htmlFor="sf-word-count">Word Count</Label>
+          <Input
+            id="sf-word-count"
+            type="number"
+            min={0}
+            {...register("wordCount", { setValueAs: (v) => (v === "" || v === null ? null : Number(v)) })}
+            placeholder="e.g. 800"
+          />
+          {errors.wordCount && (
+            <p className="text-xs text-destructive">{errors.wordCount.message}</p>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-[200px] space-y-1.5">
+          <Label htmlFor="sf-post-url">Post URL</Label>
+          <Input
+            id="sf-post-url"
+            {...register("postUrl")}
+            placeholder="https://"
+          />
+          {errors.postUrl && (
+            <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
+          )}
+        </div>
+      </div>
+
       {/* Notes */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-notes">Notes</Label>
@@ -327,26 +373,36 @@ export function StoryForm({ story, onSuccess }: StoryFormProps) {
         )}
       </div>
 
-      {/* Notify Team */}
+      {/* AI Contributed */}
       <div className="flex items-center gap-2">
         <Controller
-          name="notifyTeam"
+          name="aiContributed"
           control={control}
           render={({ field }) => (
             <Checkbox
-              id="sf-notify"
+              id="sf-ai"
               checked={field.value}
               onCheckedChange={field.onChange}
             />
           )}
         />
-        <Label htmlFor="sf-notify" className="cursor-pointer font-normal">
-          Notify team when published
+        <Label htmlFor="sf-ai" className="cursor-pointer font-normal">
+          AI Contributed
         </Label>
       </div>
 
       {/* Submit */}
       <div className="flex justify-end gap-2 pt-2">
+        {isEdit && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={() => { notifyRef.current = true; handleSubmit(onSubmit)() }}
+          >
+            {isSubmitting ? "Saving..." : "Save & Notify Team"}
+          </Button>
+        )}
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Story"}
         </Button>

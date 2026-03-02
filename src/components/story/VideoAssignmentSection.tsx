@@ -85,6 +85,8 @@ export function VideoAssignmentSection({
       <PersonPicker
         onSelect={handleAdd}
         excludeIds={assignedIds}
+        roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
+        defaultRole="VIDEOGRAPHER"
         label={isAdding ? "Adding..." : "Add person"}
       />
     </div>

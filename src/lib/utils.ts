@@ -6,51 +6,78 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const TIME_SLOTS = [
-  "TBD",
-  "6:00 AM",
-  "7:00 AM",
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-  "6:00 PM",
-  "7:00 PM",
-  "8:00 PM",
-  "9:00 PM",
-  "10:00 PM",
-  "11:00 PM",
-] as const;
-
-export type TimeSlotValue = (typeof TIME_SLOTS)[number];
-
-/** Convert a time slot label to the hour (0–23), or null for TBD */
-export function slotToHour(slot: string): number | null {
-  if (slot === "TBD") return null;
-  const match = slot.match(/^(\d+):00 (AM|PM)$/);
-  if (!match) return null;
-  let hour = parseInt(match[1], 10);
-  if (match[2] === "PM" && hour !== 12) hour += 12;
-  if (match[2] === "AM" && hour === 12) hour = 0;
-  return hour;
+export interface TimeBucket {
+  id: string;
+  label: string;
+  description: string;
+  /** Default local hour (0–23) to assign when dropping into this bucket, or null for TBD */
+  defaultHour: number | null;
+  defaultMinute: number | null;
+  /** Inclusive start, in minutes from local midnight. Absent for TBD. */
+  startMinutes?: number;
+  /** Inclusive end, in minutes from local midnight. Absent for TBD. */
+  endMinutes?: number;
 }
 
-/** Convert an hour (0–23) to its TIME_SLOTS label, or TBD if unmatched */
-export function hourToSlot(hour: number): string {
-  const slot = TIME_SLOTS.find((s) => slotToHour(s) === hour);
-  return slot ?? "TBD";
-}
+export const TIME_BUCKETS: TimeBucket[] = [
+  {
+    id: "TBD",
+    label: "TBD",
+    description: "No publication time set",
+    defaultHour: null,
+    defaultMinute: null,
+  },
+  {
+    id: "MORNING",
+    label: "4–7:30 AM",
+    description: "Morning newsletter deadline",
+    defaultHour: 7,
+    defaultMinute: 30,
+    startMinutes: 4 * 60,
+    endMinutes: 7 * 60 + 30,
+  },
+  {
+    id: "MIDDAY",
+    label: "7:30 AM–Noon",
+    description: "Afternoon newsletter deadline",
+    defaultHour: 12,
+    defaultMinute: 0,
+    startMinutes: 7 * 60 + 30,
+    endMinutes: 12 * 60,
+  },
+  {
+    id: "AFTERNOON",
+    label: "Noon–5 PM",
+    description: "Daily edition cutoff for most stories",
+    defaultHour: 17,
+    defaultMinute: 0,
+    startMinutes: 12 * 60,
+    endMinutes: 17 * 60,
+  },
+  {
+    id: "EVENING",
+    label: "5 PM & Later",
+    description: "Consider holding for the morning",
+    defaultHour: 23,
+    defaultMinute: 0,
+    startMinutes: 17 * 60,
+    endMinutes: 24 * 60,
+  },
+];
 
-/** Given a Date (with time), return the TIME_SLOTS label for its hour */
-export function dateToSlot(date: Date | string): string {
-  const d = typeof date === "string" ? parseISO(date) : date;
-  return hourToSlot(d.getHours());
+/** Assign a Date to a TIME_BUCKETS id using local time */
+export function dateToBucket(date: Date): string {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  for (const bucket of TIME_BUCKETS) {
+    if (bucket.startMinutes !== undefined && bucket.endMinutes !== undefined) {
+      // Inclusive end: items exactly at a boundary (e.g. 7:30, 5:00 PM) go to the
+      // earlier bucket because buckets are checked in order.
+      if (minutes >= bucket.startMinutes && minutes <= bucket.endMinutes) {
+        return bucket.id;
+      }
+    }
+  }
+  return "TBD";
 }
 
 /** Format a nullable pub date for display */
@@ -89,7 +116,8 @@ export function initials(name: string): string {
 }
 
 export const STORY_STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Draft",
+  DRAFT: "In the works",
+  SCHEDULED: "Scheduled",
   PUBLISHED_ITERATING: "Published (Iterating)",
   PUBLISHED_FINAL: "Published (Final)",
   SHELVED: "Shelved",
@@ -99,6 +127,7 @@ export const PERSON_ROLE_LABELS: Record<string, string> = {
   REPORTER: "Reporter",
   EDITOR: "Editor",
   PHOTOGRAPHER: "Photographer",
+  VIDEOGRAPHER: "Videographer",
   GRAPHIC_DESIGNER: "Graphic Designer",
   PUBLICATION_DESIGNER: "Publication Designer",
   OTHER: "Other",

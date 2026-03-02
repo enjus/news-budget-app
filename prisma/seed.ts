@@ -2,9 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { addHours, startOfDay } from "date-fns";
 
-const prisma = new PrismaClient({
-  datasourceUrl: process.env.DATABASE_URL ?? "file:./prisma/dev.db",
-});
+const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding database...");
@@ -40,7 +38,7 @@ async function main() {
   // Stories
   const s1 = await prisma.story.create({
     data: {
-      slug: "city-budget-vote",
+      slug: "CITY BUDGET VOTE",
       budgetLine: "City council expected to pass $2.3B budget with cuts to parks and transit",
       isEnterprise: false,
       status: "DRAFT",
@@ -53,7 +51,7 @@ async function main() {
 
   const s2 = await prisma.story.create({
     data: {
-      slug: "tech-layoffs-local",
+      slug: "TECH LAYOFFS LOCAL",
       budgetLine: "Regional tech firms announce 400 layoffs ahead of Q2",
       isEnterprise: false,
       status: "DRAFT",
@@ -66,7 +64,7 @@ async function main() {
 
   const s3 = await prisma.story.create({
     data: {
-      slug: "school-merger-probe",
+      slug: "SCHOOL MERGER PROBE",
       budgetLine: "State investigates whether school merger violated equity rules",
       isEnterprise: true,
       status: "DRAFT",
@@ -79,7 +77,7 @@ async function main() {
 
   const s4 = await prisma.story.create({
     data: {
-      slug: "harbor-cleanup",
+      slug: "HARBOR CLEANUP",
       budgetLine: "EPA orders emergency harbor cleanup after chemical spill",
       isEnterprise: false,
       status: "PUBLISHED_ITERATING",
@@ -92,7 +90,7 @@ async function main() {
 
   const s5 = await prisma.story.create({
     data: {
-      slug: "transit-strike-deal",
+      slug: "TRANSIT STRIKE DEAL",
       budgetLine: "Transit union and city reach tentative 3-year contract deal",
       isEnterprise: false,
       status: "PUBLISHED_FINAL",
@@ -105,7 +103,7 @@ async function main() {
 
   const s6 = await prisma.story.create({
     data: {
-      slug: "arts-funding-cut",
+      slug: "ARTS FUNDING CUT",
       budgetLine: "Mayor proposes 30% cut to arts council grants",
       isEnterprise: true,
       status: "DRAFT",
@@ -118,10 +116,11 @@ async function main() {
 
   const s7 = await prisma.story.create({
     data: {
-      slug: "water-main-break",
+      slug: "WATER MAIN BREAK",
       budgetLine: "Downtown water main break disrupts morning commute",
       isEnterprise: false,
       status: "SHELVED",
+      shelvedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // shelved 10 days ago
       onlinePubDateTBD: true,
       printPubDateTBD: true,
       notes: "Story overtaken by events. Shelved pending further developments.",
@@ -131,7 +130,7 @@ async function main() {
 
   const s8 = await prisma.story.create({
     data: {
-      slug: "election-preview",
+      slug: "ELECTION PREVIEW",
       budgetLine: "November primary: five key races to watch across the county",
       isEnterprise: true,
       status: "DRAFT",
@@ -143,7 +142,7 @@ async function main() {
 
   const s9 = await prisma.story.create({
     data: {
-      slug: "housing-data-2026",
+      slug: "HOUSING DATA 2026",
       budgetLine: "New data: home prices up 12% year-over-year in metro area",
       isEnterprise: false,
       status: "DRAFT",
@@ -156,7 +155,7 @@ async function main() {
 
   const s10 = await prisma.story.create({
     data: {
-      slug: "fire-station-closure",
+      slug: "FIRE STATION CLOSURE",
       budgetLine: "Two fire stations to close under proposed budget, union warns of safety risks",
       isEnterprise: true,
       status: "DRAFT",

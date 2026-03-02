@@ -55,6 +55,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data.printPubDate = printPubDate ? new Date(printPubDate) : null;
     }
 
+    // Track when a story is shelved for the 90-day auto-deletion clock
+    if (rest.status === "SHELVED") {
+      const existing = await prisma.story.findUnique({ where: { id }, select: { status: true } });
+      if (existing && existing.status !== "SHELVED") {
+        data.shelvedAt = new Date();
+      }
+    } else if (rest.status !== undefined) {
+      // Moving out of SHELVED — reset the clock
+      data.shelvedAt = null;
+    }
+
     const story = await prisma.story.update({
       where: { id },
       data,

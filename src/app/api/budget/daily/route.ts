@@ -1,28 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { TIME_BUCKETS, dateToBucket } from "@/lib/utils";
 import type { DailyBudgetSlot, StoryWithRelations, VideoWithRelations } from "@/types";
-
-const TIME_SLOTS = [
-  "TBD",
-  "6:00 AM",
-  "7:00 AM",
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-  "6:00 PM",
-  "7:00 PM",
-  "8:00 PM",
-  "9:00 PM",
-  "10:00 PM",
-  "11:00 PM",
-];
 
 const storyInclude = {
   assignments: { include: { person: true } },
@@ -34,34 +13,6 @@ const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
 } as const;
-
-/**
- * Derive a TIME_SLOTS value from a Date. Maps to the nearest hour slot.
- * Hours are interpreted in UTC to be consistent with stored datetimes.
- */
-function deriveTimeSlot(date: Date): string {
-  const hour = date.getUTCHours();
-  const minute = date.getUTCMinutes();
-
-  // If before 6 AM, treat as TBD rather than showing no slot
-  if (hour < 6) return "TBD";
-
-  // Format to match TIME_SLOTS strings
-  const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-  const ampm = hour >= 12 ? "PM" : "AM";
-  const slotLabel = `${displayHour}:${minute < 30 ? "00" : "00"} ${ampm}`;
-
-  // Round to the nearest whole hour slot
-  const roundedHour = hour;
-  const roundedDisplayHour = roundedHour > 12 ? roundedHour - 12 : roundedHour === 0 ? 12 : roundedHour;
-  const roundedAmpm = roundedHour >= 12 ? "PM" : "AM";
-  const roundedLabel = `${roundedDisplayHour}:00 ${roundedAmpm}`;
-
-  // Suppress unused variable warning
-  void slotLabel;
-
-  return TIME_SLOTS.includes(roundedLabel) ? roundedLabel : "TBD";
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -76,68 +27,78 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "date must be in YYYY-MM-DD format" }, { status: 400 });
     }
 
-    const dayStart = new Date(`${date}T00:00:00.000Z`);
-    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    // Use local midnight so bucket times stay consistent with the user's clock
+    const dayStart = new Date(`${date}T00:00:00`);
+    const dayEnd = new Date(`${date}T23:59:59.999`);
 
-    // Fetch stories: TBD ones always show, date-specific ones filtered by day
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
         where: {
           status: { not: "SHELVED" },
           OR: [
+            // Stories with a scheduled online pub date on this day
+            { onlinePubDateTBD: false, onlinePubDate: { gte: dayStart, lte: dayEnd } },
+            // TBD stories persist on every day's budget until shelved or assigned a time
             { onlinePubDateTBD: true },
-            {
-              onlinePubDateTBD: false,
-              onlinePubDate: { gte: dayStart, lte: dayEnd },
-            },
           ],
         },
         include: storyInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
-      }) as Promise<StoryWithRelations[]>,
+      }) as unknown as StoryWithRelations[],
 
       prisma.video.findMany({
         where: {
           status: { not: "SHELVED" },
           OR: [
+            { onlinePubDateTBD: false, onlinePubDate: { gte: dayStart, lte: dayEnd } },
             { onlinePubDateTBD: true },
-            {
-              onlinePubDateTBD: false,
-              onlinePubDate: { gte: dayStart, lte: dayEnd },
-            },
           ],
         },
         include: videoInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
-      }) as Promise<VideoWithRelations[]>,
+      }) as unknown as VideoWithRelations[],
     ]);
 
-    // Build slot map
-    const slotMap = new Map<string, DailyBudgetSlot>();
-    for (const slot of TIME_SLOTS) {
-      slotMap.set(slot, { slot, stories: [], videos: [] });
+    // Initialise all 5 buckets (always return all of them, including empty ones)
+    const bucketMap = new Map<string, DailyBudgetSlot>();
+    for (const bucket of TIME_BUCKETS) {
+      bucketMap.set(bucket.id, { slot: bucket.id, stories: [], videos: [] });
     }
 
     for (const story of stories) {
-      const slot = story.onlinePubDateTBD || !story.onlinePubDate
-        ? "TBD"
-        : deriveTimeSlot(story.onlinePubDate);
-      const bucket = slotMap.get(slot) ?? slotMap.get("TBD")!;
+      const bucketId =
+        story.onlinePubDateTBD || !story.onlinePubDate
+          ? "TBD"
+          : dateToBucket(new Date(story.onlinePubDate));
+      const bucket = bucketMap.get(bucketId) ?? bucketMap.get("TBD")!;
       bucket.stories.push(story);
     }
 
     for (const video of videos) {
-      const slot = video.onlinePubDateTBD || !video.onlinePubDate
-        ? "TBD"
-        : deriveTimeSlot(video.onlinePubDate);
-      const bucket = slotMap.get(slot) ?? slotMap.get("TBD")!;
+      const bucketId =
+        video.onlinePubDateTBD || !video.onlinePubDate
+          ? "TBD"
+          : dateToBucket(new Date(video.onlinePubDate));
+      const bucket = bucketMap.get(bucketId) ?? bucketMap.get("TBD")!;
       bucket.videos.push(video);
     }
 
-    // Only return slots that have content
-    const slots = TIME_SLOTS
-      .map((slot) => slotMap.get(slot)!)
-      .filter((slot) => slot.stories.length > 0 || slot.videos.length > 0);
+    // Sort within each bucket by onlinePubDate ascending (TBD items last)
+    for (const slot of bucketMap.values()) {
+      slot.stories.sort((a, b) => {
+        if (!a.onlinePubDate) return 1
+        if (!b.onlinePubDate) return -1
+        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime()
+      })
+      slot.videos.sort((a, b) => {
+        if (!a.onlinePubDate) return 1
+        if (!b.onlinePubDate) return -1
+        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime()
+      })
+    }
+
+    // Return all buckets in definition order
+    const slots = TIME_BUCKETS.map((b) => bucketMap.get(b.id)!);
 
     return NextResponse.json({ date, slots });
   } catch (error) {

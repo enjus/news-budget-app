@@ -37,8 +37,12 @@ model Story {
   printPubDate     DateTime?
   printPubDateTBD  Boolean  @default(true)
   notes            String?
+  wordCount        Int?
   notifyTeam       Boolean  @default(false)
+  aiContributed    Boolean  @default(false)
   sortOrder        Int      @default(0)
+  shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
+  postUrl          String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -87,7 +91,13 @@ model Video {
   onlinePubDateTBD Boolean  @default(true)
   notes            String?
   notifyTeam       Boolean  @default(false)
+  aiContributed    Boolean  @default(false)
   sortOrder        Int      @default(0)
+  shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
+  youtubeUrl       String?
+  reelsUrl         String?
+  tiktokUrl        String?
+  otherUrl         String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

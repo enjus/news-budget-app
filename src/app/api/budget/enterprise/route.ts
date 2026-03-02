@@ -14,9 +14,24 @@ const videoInclude = {
 } as const;
 
 /**
- * Derive the date bucket key for an enterprise item.
+ * Return the Monday of the week containing `date` as a YYYY-MM-DD string.
+ * Weeks are Monday–Sunday.
+ */
+function getMondayOfWeek(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const dayStr = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${dayStr}`;
+}
+
+/**
+ * Derive the week bucket key for an enterprise item.
  * - If both onlinePubDateTBD and printPubDateTBD are true → "TBD"
- * - Otherwise use the earliest non-TBD date (prefer onlinePubDate, fall back to printPubDate)
+ * - Otherwise use the Monday of the week containing the earliest non-TBD date
  */
 function getDateBucket(
   onlinePubDateTBD: boolean,
@@ -32,15 +47,8 @@ function getDateBucket(
 
   if (candidates.length === 0) return "TBD";
 
-  // Prefer the earliest date
   candidates.sort((a, b) => a.getTime() - b.getTime());
-  const earliest = candidates[0];
-
-  // Format as YYYY-MM-DD in UTC
-  const year = earliest.getUTCFullYear();
-  const month = String(earliest.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(earliest.getUTCDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getMondayOfWeek(candidates[0]);
 }
 
 export async function GET() {

@@ -48,7 +48,7 @@ export type ContentItem =
   | { type: "video"; item: VideoWithRelations };
 
 export type DailyBudgetSlot = {
-  slot: string; // TIME_SLOTS value
+  slot: string; // TIME_BUCKETS id
   stories: StoryWithRelations[];
   videos: VideoWithRelations[];
 };
@@ -57,4 +57,9 @@ export type EnterpriseDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
   stories: StoryWithRelations[];
   videos: VideoWithRelations[];
+};
+
+export type EditionDateGroup = {
+  date: string; // YYYY-MM-DD or "TBD"
+  stories: StoryWithRelations[];
 };

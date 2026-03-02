@@ -27,13 +27,14 @@ import {
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { Person } from "@/types/index"
 
-export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "OTHER"
+export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "VIDEOGRAPHER" | "OTHER"
 
-const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "OTHER"]
+const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]
 
 const ROLE_LABELS: Record<AssignmentRoleValue, string> = {
   REPORTER: "Reporter",
   EDITOR: "Editor",
+  VIDEOGRAPHER: "Videographer",
   OTHER: "Other",
 }
 
@@ -41,6 +42,7 @@ interface PersonPickerProps {
   onSelect: (person: Person, role: AssignmentRoleValue) => void
   excludeIds?: string[]
   roles?: AssignmentRoleValue[]
+  defaultRole?: AssignmentRoleValue
   label?: string
 }
 
@@ -48,11 +50,12 @@ export function PersonPicker({
   onSelect,
   excludeIds = [],
   roles = ALL_ROLES,
+  defaultRole = "REPORTER",
   label = "Add person",
 }: PersonPickerProps) {
   const [open, setOpen] = useState(false)
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
-  const [selectedRole, setSelectedRole] = useState<AssignmentRoleValue>("REPORTER")
+  const [selectedRole, setSelectedRole] = useState<AssignmentRoleValue>(defaultRole)
   const { people, isLoading } = usePeople()
 
   const filteredPeople = people.filter((p) => !excludeIds.includes(p.id))
@@ -61,7 +64,7 @@ export function PersonPicker({
     if (!selectedPerson) return
     onSelect(selectedPerson, selectedRole)
     setSelectedPerson(null)
-    setSelectedRole("REPORTER")
+    setSelectedRole(defaultRole)
     setOpen(false)
   }
 
@@ -81,7 +84,7 @@ export function PersonPicker({
             <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[280px] p-0" align="start">
+        <PopoverContent className="w-[min(280px,calc(100vw-2rem))] p-0" align="start">
           <Command>
             <CommandInput placeholder="Search people..." />
             <CommandList>

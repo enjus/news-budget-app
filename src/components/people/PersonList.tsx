@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -65,8 +66,8 @@ export function PersonList() {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full min-w-[560px] text-sm">
         <thead className="bg-muted/50">
           <tr>
             <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
@@ -81,7 +82,11 @@ export function PersonList() {
             const count = totalAssignments(person)
             return (
               <tr key={person.id} className="hover:bg-muted/30 transition-colors">
-                <td className="px-4 py-3 font-medium">{person.name}</td>
+                <td className="px-4 py-3 font-medium">
+                  <Link href={`/people/${person.id}`} className="hover:underline">
+                    {person.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{person.email}</td>
                 <td className="px-4 py-3">{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</td>
                 <td className="px-4 py-3">{count}</td>

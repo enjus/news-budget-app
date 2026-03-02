@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status;
+
+      // Auto-delete videos shelved for more than 90 days
+      if (status === "SHELVED") {
+        const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+        await prisma.video.deleteMany({
+          where: { status: "SHELVED", shelvedAt: { lte: cutoff } },
+        });
+      }
     } else {
       where.status = { not: "SHELVED" };
     }

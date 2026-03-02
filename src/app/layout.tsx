@@ -4,6 +4,7 @@ import "./globals.css"
 import { TopNav } from "@/components/layout/TopNav"
 import { Toaster } from "@/components/ui/sonner"
 import { SWRProvider } from "@/components/providers/SWRProvider"
+import { ThemeProvider } from "@/components/providers/ThemeProvider"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,15 +27,17 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <SWRProvider>
-          <TopNav />
-          <main className="min-h-[calc(100vh-3.5rem)]">
-            {children}
-          </main>
-          <Toaster />
-        </SWRProvider>
+        <ThemeProvider>
+          <SWRProvider>
+            <TopNav />
+            <main className="min-h-[calc(100vh-3.5rem)]">
+              {children}
+            </main>
+            <Toaster />
+          </SWRProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

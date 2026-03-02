@@ -7,17 +7,19 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
   DragOverlay,
 } from "@dnd-kit/core"
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
 
 interface DndProviderProps {
   onDragEnd: (event: DragEndEvent) => void
+  onDragStart?: (event: DragStartEvent) => void
   children: React.ReactNode
   overlayContent?: React.ReactNode
 }
 
-export function DndProvider({ onDragEnd, children, overlayContent }: DndProviderProps) {
+export function DndProvider({ onDragEnd, onDragStart, children, overlayContent }: DndProviderProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -30,7 +32,7 @@ export function DndProvider({ onDragEnd, children, overlayContent }: DndProvider
   )
 
   return (
-    <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+    <DndContext sensors={sensors} onDragEnd={onDragEnd} onDragStart={onDragStart}>
       {children}
       <DragOverlay>{overlayContent ?? null}</DragOverlay>
     </DndContext>
