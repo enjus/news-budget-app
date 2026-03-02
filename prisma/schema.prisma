@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// All enum-like fields use String with validation enforced at the API layer via Zod.
+// Valid values documented in src/lib/validations.ts.
+// This keeps the schema DB-agnostic and migration-friendly (sqlite → postgresql).
+
+model Person {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  // PersonRole: REPORTER | EDITOR | PHOTOGRAPHER | GRAPHIC_DESIGNER | PUBLICATION_DESIGNER | OTHER
+  defaultRole String   @default("OTHER")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments      StoryAssignment[]
+  visuals          Visual[]
+  videoAssignments VideoAssignment[]
+}
+
+model Story {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  budgetLine       String
+  isEnterprise     Boolean  @default(false)
+  // StoryStatus: DRAFT | PUBLISHED_ITERATING | PUBLISHED_FINAL | SHELVED
+  status           String   @default("DRAFT")
+  onlinePubDate    DateTime?
+  onlinePubDateTBD Boolean  @default(true)
+  printPubDate     DateTime?
+  printPubDateTBD  Boolean  @default(true)
+  notes            String?
+  notifyTeam       Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assignments StoryAssignment[]
+  visuals     Visual[]
+  videos      Video[]
+}
+
+model StoryAssignment {
+  id       String   @id @default(cuid())
+  story    Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  storyId  String
+  person   Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  // AssignmentRole: REPORTER | EDITOR | OTHER
+  role     String
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, personId, role])
+}
+
+model Visual {
+  id          String   @id @default(cuid())
+  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  storyId     String
+  // VisualType: PHOTO | GRAPHIC
+  type        String
+  description String?
+  person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  personId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Videos can be standalone (storyId = null) or attached to a story.
+model Video {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  budgetLine       String
+  isEnterprise     Boolean  @default(false)
+  // StoryStatus: DRAFT | PUBLISHED_ITERATING | PUBLISHED_FINAL | SHELVED
+  status           String   @default("DRAFT")
+  storyId          String?
+  story            Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  onlinePubDate    DateTime?
+  onlinePubDateTBD Boolean  @default(true)
+  notes            String?
+  notifyTeam       Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assignments VideoAssignment[]
+}
+
+model VideoAssignment {
+  id       String   @id @default(cuid())
+  video    Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoId  String
+  person   Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  // AssignmentRole: REPORTER | EDITOR | OTHER
+  role     String
+  createdAt DateTime @default(now())
+
+  @@unique([videoId, personId, role])
+}
