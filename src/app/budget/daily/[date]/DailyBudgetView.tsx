@@ -19,7 +19,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, cn } from "@/lib/utils"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 
@@ -381,6 +381,13 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, children }: Age
 
 // ─── Agenda View ──────────────────────────────────────────────────────────────
 
+const BUCKET_NAMES: Record<string, string> = {
+  MORNING:   "Morning",
+  MIDDAY:    "Midday",
+  AFTERNOON: "Afternoon",
+  EVENING:   "Evening",
+}
+
 function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -580,6 +587,20 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           const itemIds = merged.map((m) => `${m.kind}-${m.item.id}`)
           const count = merged.length
 
+          // For dated days, group items by time bucket and show sub-headers.
+          // TBD days render flat (sub-headers would be redundant).
+          const bucketGroups = isTbd ? null : TIME_BUCKETS
+            .filter((b) => b.id !== "TBD")
+            .map((b) => ({
+              bucket: b,
+              items: merged.filter((m) =>
+                m.item.onlinePubDate
+                  ? dateToBucket(new Date(m.item.onlinePubDate)) === b.id
+                  : false
+              ),
+            }))
+            .filter((bg) => bg.items.length > 0)
+
           return (
             <AgendaDayRow
               key={group.date}
@@ -589,18 +610,42 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
               itemIds={itemIds}
               count={count}
             >
-              {merged.map((m) => (
-                <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
-                  <div className="flex items-start gap-1">
-                    <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                    <div className="min-w-0 flex-1">
-                      {m.kind === "story"
-                        ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
-                        : <VideoCard video={m.item as VideoWithRelations} />}
+              {bucketGroups ? (
+                <div className="space-y-3">
+                  {bucketGroups.map((bg) => (
+                    <div key={bg.bucket.id} className="space-y-1.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60 px-1">
+                        {BUCKET_NAMES[bg.bucket.id]} · {bg.bucket.label}
+                      </p>
+                      {bg.items.map((m) => (
+                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
+                          <div className="flex items-start gap-1">
+                            <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
+                            <div className="min-w-0 flex-1">
+                              {m.kind === "story"
+                                ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
+                                : <VideoCard video={m.item as VideoWithRelations} />}
+                            </div>
+                          </div>
+                        </SortableCard>
+                      ))}
                     </div>
-                  </div>
-                </SortableCard>
-              ))}
+                  ))}
+                </div>
+              ) : (
+                merged.map((m) => (
+                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
+                    <div className="flex items-start gap-1">
+                      <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
+                      <div className="min-w-0 flex-1">
+                        {m.kind === "story"
+                          ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
+                          : <VideoCard video={m.item as VideoWithRelations} />}
+                      </div>
+                    </div>
+                  </SortableCard>
+                ))
+              )}
             </AgendaDayRow>
           )
         })}
