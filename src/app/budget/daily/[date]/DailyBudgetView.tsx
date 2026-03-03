@@ -382,8 +382,8 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, children }: Age
 // ─── Agenda View ──────────────────────────────────────────────────────────────
 
 const BUCKET_NAMES: Record<string, string> = {
-  MORNING:   "Morning",
-  MIDDAY:    "Midday",
+  MORNING:   "Early",
+  MIDDAY:    "Morning",
   AFTERNOON: "Afternoon",
   EVENING:   "Evening",
 }
