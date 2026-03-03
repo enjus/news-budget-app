@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { EnterpriseDateGroup, StoryListItem, VideoWithRelations } from "@/types";
+import type { EnterpriseDateGroup, EnterpriseStoryItem, VideoWithRelations } from "@/types";
 
 export const dynamic = 'force-dynamic'
 
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { select: { id: true, type: true } },
+  videos: { select: { id: true } },
 } as const;
 
 const videoInclude = {
@@ -36,7 +37,7 @@ function getMondayOfWeek(date: Date): string {
  * - If both onlinePubDateTBD and printPubDateTBD are true → "TBD"
  * - Otherwise use the Monday of the week containing the earliest non-TBD date
  */
-function getDateBucket(story: StoryListItem): string {
+function getDateBucket(story: EnterpriseStoryItem): string {
   if (story.onlinePubDateTBD && story.printPubDateTBD) return "TBD";
 
   const candidates: Date[] = [];
@@ -70,7 +71,7 @@ export async function GET() {
         },
         include: storyInclude,
         orderBy: [{ onlinePubDate: "asc" }, { printPubDate: "asc" }, { createdAt: "asc" }],
-      }) as unknown as StoryListItem[],
+      }) as unknown as EnterpriseStoryItem[],
 
       // TBD: both dates unset, capped to prevent unbounded growth
       prisma.story.findMany({
@@ -83,7 +84,7 @@ export async function GET() {
         include: storyInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,
-      }) as unknown as StoryListItem[],
+      }) as unknown as EnterpriseStoryItem[],
 
       prisma.video.findMany({
         where: {

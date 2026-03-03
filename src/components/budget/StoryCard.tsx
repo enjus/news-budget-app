@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, initials, formatTime } from "@/lib/utils"
@@ -31,6 +31,7 @@ interface StoryCardProps {
   showPhotoIndicator?: boolean
   showWordCount?: boolean
   hideEnterpriseTag?: boolean
+  videoCount?: number
 }
 
 // Compact status + time chip shown top-right.
@@ -91,11 +92,12 @@ export function StoryCard({
   showPhotoIndicator,
   showWordCount,
   hideEnterpriseTag,
+  videoCount,
 }: StoryCardProps) {
   const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
   const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
   const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
-  const hasVisuals   = photoCount > 0 || graphicCount > 0 || mapCount > 0
+  const hasVisuals   = photoCount > 0 || graphicCount > 0 || mapCount > 0 || (videoCount ?? 0) > 0
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
@@ -137,8 +139,8 @@ export function StoryCard({
           <p className="line-clamp-1 text-xs text-muted-foreground">{story.budgetLine}</p>
         )}
 
-        {/* Visual indicators row — only when visuals are present */}
-        {showPhotoIndicator && hasVisuals && (
+        {/* Visual indicators row — only when visuals or linked videos are present */}
+        {hasVisuals && (
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {photoCount > 0 && (
               <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
@@ -156,6 +158,12 @@ export function StoryCard({
               <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                 <Map className="size-3.5 shrink-0" />
                 {mapCount}
+              </span>
+            )}
+            {(videoCount ?? 0) > 0 && (
+              <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+                <Video className="size-3.5 shrink-0" />
+                {videoCount}
               </span>
             )}
           </div>

@@ -23,6 +23,16 @@ export type StoryListItem = Prisma.StoryGetPayload<{
   };
 }>;
 
+// Enterprise list item — extends StoryListItem with a minimal videos relation
+// so cards can display a video count indicator.
+export type EnterpriseStoryItem = Prisma.StoryGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    visuals: { select: { id: true; type: true } };
+    videos: { select: { id: true } };
+  };
+}>;
+
 // ─── Video types ─────────────────────────────────────────────────────────────
 
 export type VideoWithRelations = Prisma.VideoGetPayload<{
@@ -66,7 +76,7 @@ export type DailyBudgetSlot = {
 
 export type EnterpriseDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
-  stories: StoryListItem[];
+  stories: EnterpriseStoryItem[];
   videos: VideoWithRelations[];
 };
 

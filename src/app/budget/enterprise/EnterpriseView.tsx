@@ -17,7 +17,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn } from "@/lib/utils"
-import type { EnterpriseDateGroup, StoryListItem, VideoWithRelations } from "@/types/index"
+import type { EnterpriseDateGroup, VideoWithRelations } from "@/types/index"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -374,7 +374,7 @@ export function EnterpriseView() {
             <div className="flex items-start gap-1">
               <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
               <div className="min-w-0 flex-1">
-                <StoryCard story={story} hideEnterpriseTag />
+                <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} />
               </div>
             </div>
           </SortableCard>
