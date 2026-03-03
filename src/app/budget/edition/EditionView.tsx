@@ -4,7 +4,7 @@ import { useState, useCallback } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO } from "date-fns"
-import { Plus, GripVertical, CalendarDays } from "lucide-react"
+import { Plus, GripVertical, CalendarDays, ChevronDown } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
@@ -122,6 +122,7 @@ function DroppableSection({ groupDate, label, editionType, count, itemIds, newSt
 export function EditionView() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
+  const [pastExpanded, setPastExpanded] = useState(false)
 
   const { data, isLoading, mutate } = useSWR<EditionResponse>(
     "/api/budget/edition",
@@ -305,49 +306,85 @@ export function EditionView() {
           onDragEnd={handleDragEnd}
           overlayContent={overlayContent()}
         >
-          <div className="space-y-8">
-            {groups.length === 0 ? (
-              <div className="rounded-lg border border-dashed py-16 text-center">
-                <p className="text-sm text-muted-foreground">No stories with a Daily Edition date yet.</p>
-                <div className="mt-4 flex justify-center">
-                  <Button asChild size="sm">
-                    <Link href="/stories/new">Add a story</Link>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              groups.map((group) => {
-                const itemIds = group.stories.map((s) => `story-${s.id}`)
+          {(() => {
+            const today = format(new Date(), "yyyy-MM-dd")
+            const pastGroups = groups.filter(
+              (g) => g.date !== "TBD" && g.date < today && g.stories.length > 0
+            )
+            const upcomingGroups = groups.filter(
+              (g) => g.date === "TBD" || g.date >= today
+            )
 
-                const newStoryHref = group.date === "TBD"
-                  ? "/stories/new"
-                  : `/stories/new?printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
-
-                return (
-                  <DroppableSection
-                    key={group.date}
-                    groupDate={group.date}
-                    label={formatGroupDate(group.date)}
-                    editionType={getEditionType(group.date)}
-                    count={group.stories.length}
-                    itemIds={itemIds}
-                    newStoryHref={newStoryHref}
-                  >
-                    {group.stories.map((story) => (
-                      <SortableCard key={`story-${story.id}`} id={`story-${story.id}`}>
-                        <div className="flex items-start gap-1">
-                          <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                          <div className="min-w-0 flex-1">
-                            <StoryCard story={story} showOnlinePubDate showPhotoIndicator />
-                          </div>
+            function renderGroup(group: EditionDateGroup) {
+              const itemIds = group.stories.map((s) => `story-${s.id}`)
+              const newStoryHref = group.date === "TBD"
+                ? "/stories/new"
+                : `/stories/new?printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
+              return (
+                <DroppableSection
+                  key={group.date}
+                  groupDate={group.date}
+                  label={formatGroupDate(group.date)}
+                  editionType={getEditionType(group.date)}
+                  count={group.stories.length}
+                  itemIds={itemIds}
+                  newStoryHref={newStoryHref}
+                >
+                  {group.stories.map((story) => (
+                    <SortableCard key={`story-${story.id}`} id={`story-${story.id}`}>
+                      <div className="flex items-start gap-1">
+                        <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
+                        <div className="min-w-0 flex-1">
+                          <StoryCard story={story} showOnlinePubDate showPhotoIndicator />
                         </div>
-                      </SortableCard>
-                    ))}
-                  </DroppableSection>
-                )
-              })
-            )}
-          </div>
+                      </div>
+                    </SortableCard>
+                  ))}
+                </DroppableSection>
+              )
+            }
+
+            return (
+              <div className="space-y-8">
+                {groups.length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-16 text-center">
+                    <p className="text-sm text-muted-foreground">No stories with a Daily Edition date yet.</p>
+                    <div className="mt-4 flex justify-center">
+                      <Button asChild size="sm">
+                        <Link href="/stories/new">Add a story</Link>
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* ── Past editions (collapsible) ── */}
+                    {pastGroups.length > 0 && (
+                      <div className="space-y-4">
+                        <button
+                          onClick={() => setPastExpanded((v) => !v)}
+                          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                        >
+                          <ChevronDown className={cn("size-4 transition-transform", pastExpanded && "rotate-180")} />
+                          <span className="font-medium">Past editions</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                            {pastGroups.reduce((n, g) => n + g.stories.length, 0)} stories
+                          </span>
+                        </button>
+                        {pastExpanded && (
+                          <div className="space-y-8 border-l-2 border-border/40 pl-6">
+                            {pastGroups.map(renderGroup)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── Upcoming + TBD ── */}
+                    {upcomingGroups.map(renderGroup)}
+                  </>
+                )}
+              </div>
+            )
+          })()}
         </DndProvider>
       )}
     </div>
