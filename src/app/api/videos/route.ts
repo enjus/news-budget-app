@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createVideoSchema } from "@/lib/validations";
 
+export const dynamic = 'force-dynamic'
+
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createStorySchema } from "@/lib/validations";
 
+export const dynamic = 'force-dynamic'
+
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { include: { person: true } },

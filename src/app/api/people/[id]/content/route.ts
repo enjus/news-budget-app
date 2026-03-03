@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { subDays } from "date-fns";
 
+export const dynamic = 'force-dynamic'
+
 type RouteContext = { params: Promise<{ id: string }> };
 
 export interface PersonContentItem {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays, subDays } from "date-fns";
 
+export const dynamic = 'force-dynamic'
+
 export interface SearchResult {
   type: "story" | "video";
   id: string;

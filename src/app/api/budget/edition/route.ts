@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { EditionDateGroup, StoryListItem } from "@/types";
 
+export const dynamic = 'force-dynamic'
+
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { select: { id: true, type: true } },

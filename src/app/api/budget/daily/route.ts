@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { TIME_BUCKETS, dateToBucket } from "@/lib/utils";
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types";
 
+export const dynamic = 'force-dynamic'
+
 // Lighter include for budget list views — no visuals.person, no videos relation.
 const storyInclude = {
   assignments: { include: { person: true } },
