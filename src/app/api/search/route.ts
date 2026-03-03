@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     };
 
     const textFilter = q
-      ? { OR: [{ slug: { contains: q } }, { budgetLine: { contains: q } }] }
+      ? { OR: [{ slug: { contains: q, mode: "insensitive" } }, { budgetLine: { contains: q, mode: "insensitive" } }] }
       : null;
 
     const [stories, videos] = await Promise.all([
