@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, initials } from "@/lib/utils"
+import { cn, initials, formatTime } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
 
 const WORD_COUNT_LIMIT = 1400
@@ -36,13 +36,7 @@ function StatusTimeChip({
   hideTime?: boolean
 }) {
   const hasTime = !story.onlinePubDateTBD && story.onlinePubDate
-  let time: string | null = null
-  if (hasTime && !hideTime) {
-    const d = new Date(story.onlinePubDate!)
-    // Pub times are stored as newsroom-time-as-UTC — read UTC fields for display
-    const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
-    time = fakeLocal.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-  }
+  const time = hasTime && !hideTime ? formatTime(story.onlinePubDate) : null
 
   switch (story.status) {
     case "PUBLISHED_FINAL":
@@ -90,7 +84,7 @@ export function StoryCard({
     if (story.onlinePubDateTBD || !story.onlinePubDate) return "TBD"
     const d = new Date(story.onlinePubDate)
     const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
-    return format(fakeLocal, "EEE, MMM d · h:mm a")
+    return `${format(fakeLocal, "EEE, MMM d")} · ${formatTime(story.onlinePubDate)}`
   }
 
   return (

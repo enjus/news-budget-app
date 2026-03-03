@@ -82,6 +82,17 @@ export function dateToBucket(date: Date): string {
   return "TBD";
 }
 
+/** Format a UTC-as-local ISO date as a short time string.
+ *  Omits ":00" for on-the-hour times (e.g. "9 AM" not "9:00 AM"). */
+export function formatTime(date: Date | string | null | undefined): string | null {
+  if (!date) return null;
+  const d = typeof date === "string" ? new Date(date) : date;
+  const fake = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+  return fake.getMinutes() === 0
+    ? fake.toLocaleTimeString([], { hour: "numeric" })
+    : fake.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 /** Format a nullable pub date for display.
  *  Pub times are stored as "newsroom time encoded as UTC", so we read UTC
  *  fields and create a synthetic local Date to let date-fns format correctly. */
@@ -92,7 +103,10 @@ export function formatPubDate(
   if (isTBD || !date) return "TBD";
   const d = typeof date === "string" ? new Date(date) : date;
   const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
-  return format(local, "MMM d, yyyy h:mm a");
+  const timePart = local.getMinutes() === 0
+    ? local.toLocaleTimeString([], { hour: "numeric" })
+    : local.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return `${format(local, "MMM d, yyyy")} ${timePart}`;
 }
 
 /** Format a nullable print date (date only) for display. */
