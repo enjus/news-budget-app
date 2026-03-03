@@ -33,9 +33,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "date must be in YYYY-MM-DD format" }, { status: 400 });
     }
 
-    // Use local midnight so bucket times stay consistent with the user's clock
-    const dayStart = new Date(`${date}T00:00:00`);
-    const dayEnd = new Date(`${date}T23:59:59.999`);
+    // Pub times are stored as newsroom-time-as-UTC, so query boundaries use UTC midnight.
+    const dayStart = new Date(`${date}T00:00:00Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
     // Split dated and TBD queries so the TBD cap can be applied independently.
     // A combined OR query cannot efficiently cap only the TBD branch.

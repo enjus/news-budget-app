@@ -36,13 +36,13 @@ function StatusTimeChip({
   hideTime?: boolean
 }) {
   const hasTime = !story.onlinePubDateTBD && story.onlinePubDate
-  const time =
-    hasTime && !hideTime
-      ? new Date(story.onlinePubDate!).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        })
-      : null
+  let time: string | null = null
+  if (hasTime && !hideTime) {
+    const d = new Date(story.onlinePubDate!)
+    // Pub times are stored as newsroom-time-as-UTC — read UTC fields for display
+    const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
+    time = fakeLocal.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+  }
 
   switch (story.status) {
     case "PUBLISHED_FINAL":
@@ -89,7 +89,8 @@ export function StoryCard({
   function formatOnlinePub(): string {
     if (story.onlinePubDateTBD || !story.onlinePubDate) return "TBD"
     const d = new Date(story.onlinePubDate)
-    return format(d, "EEE, MMM d · h:mm a")
+    const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
+    return format(fakeLocal, "EEE, MMM d · h:mm a")
   }
 
   return (

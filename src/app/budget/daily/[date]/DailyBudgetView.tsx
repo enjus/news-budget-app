@@ -202,9 +202,10 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
         } else {
           const h = String(targetBucket.defaultHour).padStart(2, "0")
           const m = String(targetBucket.defaultMinute ?? 0).padStart(2, "0")
+          // Store as newsroom-time-as-UTC: 7:30 AM → "...T07:30:00.000Z"
           patchBody = {
             onlinePubDateTBD: false,
-            onlinePubDate: new Date(`${date}T${h}:${m}:00`).toISOString(),
+            onlinePubDate: `${date}T${h}:${m}:00.000Z`,
           }
         }
         const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
@@ -277,7 +278,7 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
             if (!bucketDef || bucketDef.defaultHour === null) return `/${type}/new?onlinePubDateTBD=true`
             const h = String(bucketDef.defaultHour).padStart(2, "0")
             const m = String(bucketDef.defaultMinute ?? 0).padStart(2, "0")
-            const iso = encodeURIComponent(new Date(`${date}T${h}:${m}:00`).toISOString())
+            const iso = encodeURIComponent(`${date}T${h}:${m}:00.000Z`)
             return `/${type}/new?onlinePubDate=${iso}&onlinePubDateTBD=false`
           }
 
@@ -477,16 +478,17 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
         if (targetDate === "TBD") {
           patchBody = { onlinePubDateTBD: true, onlinePubDate: null }
         } else {
-          let newDateTime: Date
+          let newIso: string
           if (sourceItem && !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
+            // Preserve time-of-day using UTC values (newsroom-time-as-UTC convention)
             const existing = new Date(sourceItem.onlinePubDate)
-            const h = String(existing.getHours()).padStart(2, "0")
-            const m = String(existing.getMinutes()).padStart(2, "0")
-            newDateTime = new Date(`${targetDate}T${h}:${m}:00`)
+            const h = String(existing.getUTCHours()).padStart(2, "0")
+            const m = String(existing.getUTCMinutes()).padStart(2, "0")
+            newIso = `${targetDate}T${h}:${m}:00.000Z`
           } else {
-            newDateTime = new Date(`${targetDate}T00:00:00`)
+            newIso = `${targetDate}T00:00:00.000Z`
           }
-          patchBody = { onlinePubDateTBD: false, onlinePubDate: newDateTime.toISOString() }
+          patchBody = { onlinePubDateTBD: false, onlinePubDate: newIso }
         }
         const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
         await fetch(endpoint, {

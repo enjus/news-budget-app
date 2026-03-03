@@ -30,9 +30,9 @@ export interface AgendaResponse {
 }
 
 function localDateStr(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "start must be in YYYY-MM-DD format" }, { status: 400 });
     }
 
-    const startDate = new Date(`${start}T00:00:00`);
+    const startDate = new Date(`${start}T00:00:00Z`);
     const windowEnd = addDays(startDate, 7);
 
     const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([

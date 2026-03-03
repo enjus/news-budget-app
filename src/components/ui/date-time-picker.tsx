@@ -32,8 +32,14 @@ const MINUTES = ["00", "15", "30", "45"]
 export function DateTimePicker({ value, onChange, className }: DateTimePickerProps) {
   const [open, setOpen] = useState(false)
 
-  // Derive local date + time parts from the ISO value
-  const parsed = value ? new Date(value) : null
+  // Pub times are stored as newsroom-time-as-UTC. Convert UTC fields into a
+  // synthetic local Date so the Calendar and selects show the right values.
+  function toFakeLocal(iso: string): Date {
+    const d = new Date(iso)
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
+  }
+
+  const parsed = value ? toFakeLocal(value) : null
 
   const [date, setDate] = useState<Date | undefined>(parsed ?? undefined)
   const [hour, setHour] = useState<string>(
@@ -46,7 +52,8 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     parsed ? (parsed.getHours() >= 12 ? "PM" : "AM") : "AM"
   )
 
-  // Sync outward whenever any part changes
+  // Sync outward whenever any part changes.
+  // Emit as newsroom-time-as-UTC: "9:00 AM" on Mar 3 → "2026-03-03T09:00:00.000Z"
   useEffect(() => {
     if (!date) {
       onChange(null)
@@ -56,9 +63,12 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
       ampm === "AM"
         ? parseInt(hour, 10) % 12
         : (parseInt(hour, 10) % 12) + 12
-    const out = new Date(date)
-    out.setHours(h24, parseInt(minute, 10), 0, 0)
-    onChange(out.toISOString())
+    const y = String(date.getFullYear())
+    const mo = String(date.getMonth() + 1).padStart(2, "0")
+    const d = String(date.getDate()).padStart(2, "0")
+    const h = String(h24).padStart(2, "0")
+    const m = minute.padStart(2, "0")
+    onChange(`${y}-${mo}-${d}T${h}:${m}:00.000Z`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, hour, minute, ampm])
 
@@ -68,11 +78,11 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
       setDate(undefined)
       return
     }
-    const d = new Date(value)
-    setDate(d)
-    setHour(String(d.getHours() % 12 || 12))
-    setMinute(String(d.getMinutes()).padStart(2, "0"))
-    setAmpm(d.getHours() >= 12 ? "PM" : "AM")
+    const fake = toFakeLocal(value)
+    setDate(fake)
+    setHour(String(fake.getHours() % 12 || 12))
+    setMinute(String(fake.getMinutes()).padStart(2, "0"))
+    setAmpm(fake.getHours() >= 12 ? "PM" : "AM")
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 

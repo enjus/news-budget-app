@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -65,9 +65,11 @@ export const TIME_BUCKETS: TimeBucket[] = [
   },
 ];
 
-/** Assign a Date to a TIME_BUCKETS id using local time */
+/** Assign a Date to a TIME_BUCKETS id.
+ *  All pub times are stored as "newsroom time encoded as UTC" (07:30Z = 7:30 AM
+ *  newsroom time), so we always read UTC hours/minutes here. */
 export function dateToBucket(date: Date): string {
-  const minutes = date.getHours() * 60 + date.getMinutes();
+  const minutes = date.getUTCHours() * 60 + date.getUTCMinutes();
   for (const bucket of TIME_BUCKETS) {
     if (bucket.startMinutes !== undefined && bucket.endMinutes !== undefined) {
       // Inclusive end: items exactly at a boundary (e.g. 7:30, 5:00 PM) go to the
@@ -80,24 +82,28 @@ export function dateToBucket(date: Date): string {
   return "TBD";
 }
 
-/** Format a nullable pub date for display */
+/** Format a nullable pub date for display.
+ *  Pub times are stored as "newsroom time encoded as UTC", so we read UTC
+ *  fields and create a synthetic local Date to let date-fns format correctly. */
 export function formatPubDate(
   date: Date | string | null | undefined,
   isTBD: boolean
 ): string {
   if (isTBD || !date) return "TBD";
-  const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, "MMM d, yyyy h:mm a");
+  const d = typeof date === "string" ? new Date(date) : date;
+  const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+  return format(local, "MMM d, yyyy h:mm a");
 }
 
-/** Format a nullable print date (date only) for display */
+/** Format a nullable print date (date only) for display. */
 export function formatPrintDate(
   date: Date | string | null | undefined,
   isTBD: boolean
 ): string {
   if (isTBD || !date) return "TBD";
-  const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, "MMM d, yyyy");
+  const d = typeof date === "string" ? new Date(date) : date;
+  const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return format(local, "MMM d, yyyy");
 }
 
 /** Today as YYYY-MM-DD in local time */
