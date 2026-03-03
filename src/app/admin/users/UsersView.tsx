@@ -79,7 +79,9 @@ function UserForm({
         <Label htmlFor="u-email">Email</Label>
         <Input
           id="u-email"
-          type="email"
+          type="text"
+          inputMode="email"
+          autoComplete="off"
           value={data.email}
           onChange={(e) => setData((d) => ({ ...d, email: e.target.value }))}
           required
