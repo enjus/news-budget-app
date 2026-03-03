@@ -1,9 +1,10 @@
 export async function register() {
-  // Enable WAL mode for SQLite — allows reads to proceed concurrently with
-  // writes, which matters now that budget routes fire multiple parallel queries.
-  // Runs once at server startup before any requests are handled.
+  // Enable WAL mode for SQLite (local dev only) — allows reads to proceed
+  // concurrently with writes. Skipped when using a remote PostgreSQL database.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { prisma } = await import("@/lib/prisma")
-    await prisma.$queryRawUnsafe("PRAGMA journal_mode = WAL;")
+    if (process.env.DATABASE_URL?.startsWith("file:")) {
+      const { prisma } = await import("@/lib/prisma")
+      await prisma.$queryRawUnsafe("PRAGMA journal_mode = WAL;")
+    }
   }
 }
