@@ -54,7 +54,7 @@ function StatusTimeChip({
     case "PUBLISHED_ITERATING":
       return (
         <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-          {time ? `● ${time}` : "● Live"}
+          ● Live
         </span>
       )
     case "SHELVED":
