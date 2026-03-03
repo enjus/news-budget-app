@@ -54,7 +54,7 @@ function StatusTimeChip({
     case "PUBLISHED_ITERATING":
       return (
         <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-          {time ? `● Live · ${time}` : "● Live"}
+          {time ? `● ${time}` : "● Live"}
         </span>
       )
     case "SHELVED":
@@ -109,7 +109,7 @@ export function StoryCard({
         {/* Top row: slug + enterprise badge (left) · status/time chip (right) */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="font-semibold leading-none">{story.slug}</span>
+            <span className="font-semibold leading-none truncate">{story.slug}</span>
             {story.isEnterprise && !hideEnterpriseTag && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 Enterprise
