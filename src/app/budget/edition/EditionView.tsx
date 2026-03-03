@@ -41,18 +41,32 @@ function formatGroupDate(dateStr: string): string {
   }
 }
 
+// Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+const PRINT_DAYS = new Set([0, 3, 5, 6])
+
+function getEditionType(dateStr: string): "Print/Online Newspaper" | "Online Newspaper" | null {
+  if (dateStr === "TBD") return null
+  try {
+    const day = parseISO(dateStr).getDay()
+    return PRINT_DAYS.has(day) ? "Print/Online Newspaper" : "Online Newspaper"
+  } catch {
+    return null
+  }
+}
+
 // ─── Droppable Section ────────────────────────────────────────────────────────
 
 interface DroppableSectionProps {
   groupDate: string
   label: string
+  editionType: "Print/Online Newspaper" | "Online Newspaper" | null
   count: number
   itemIds: string[]
   newStoryHref: string
   children: React.ReactNode
 }
 
-function DroppableSection({ groupDate, label, count, itemIds, newStoryHref, children }: DroppableSectionProps) {
+function DroppableSection({ groupDate, label, editionType, count, itemIds, newStoryHref, children }: DroppableSectionProps) {
   const { setNodeRef, isOver } = useDroppable({ id: groupDate })
 
   return (
@@ -61,6 +75,16 @@ function DroppableSection({ groupDate, label, count, itemIds, newStoryHref, chil
         <div className="flex items-center gap-2">
           <CalendarDays className="size-4 text-muted-foreground" />
           <h3 className="font-semibold">{label}</h3>
+          {editionType && (
+            <span className={cn(
+              "rounded-md px-2 py-0.5 text-[10px] font-medium",
+              editionType === "Print/Online Newspaper"
+                ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                : "bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-400"
+            )}>
+              {editionType}
+            </span>
+          )}
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {count}
           </span>
@@ -304,6 +328,7 @@ export function EditionView() {
                     key={group.date}
                     groupDate={group.date}
                     label={formatGroupDate(group.date)}
+                    editionType={getEditionType(group.date)}
                     count={group.stories.length}
                     itemIds={itemIds}
                     newStoryHref={newStoryHref}
