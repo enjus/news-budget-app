@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addDays, subDays } from "date-fns";
 
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
     };
 
     const textFilter = q
-      ? { OR: [{ slug: { contains: q, mode: "insensitive" } }, { budgetLine: { contains: q, mode: "insensitive" } }] }
+      ? { OR: [{ slug: { contains: q, mode: Prisma.QueryMode.insensitive } }, { budgetLine: { contains: q, mode: Prisma.QueryMode.insensitive } }] }
       : null;
 
     const [stories, videos] = await Promise.all([

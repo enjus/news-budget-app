@@ -12,16 +12,33 @@ interface VideoCardProps {
 }
 
 const STATUS_BORDER: Record<string, string> = {
+  SCHEDULED:       "border-l-4 border-l-blue-400",
   PUBLISHED_FINAL: "border-l-4 border-l-emerald-500",
   SHELVED:         "border-l-4 border-l-red-400",
 }
 
+function isPastDue(onlinePubDate: Date | string): boolean {
+  const now = new Date()
+  const nowFake = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()))
+  return new Date(onlinePubDate) < nowFake
+}
+
 function VideoStatusChip({ video }: { video: VideoWithRelations }) {
-  const time = !video.onlinePubDateTBD && video.onlinePubDate
-    ? formatTime(video.onlinePubDate)
-    : null
+  const hasTime = !video.onlinePubDateTBD && video.onlinePubDate
+  const time = hasTime ? formatTime(video.onlinePubDate) : null
 
   switch (video.status) {
+    case "SCHEDULED": {
+      const overdue = hasTime && isPastDue(video.onlinePubDate!)
+      return (
+        <span className={cn(
+          "shrink-0 text-[10px] font-medium",
+          overdue ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"
+        )}>
+          {time ?? "Scheduled"}
+        </span>
+      )
+    }
     case "PUBLISHED_FINAL":
       return (
         <span className="shrink-0 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">

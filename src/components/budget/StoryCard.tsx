@@ -11,9 +11,17 @@ const WORD_COUNT_LIMIT = 1400
 
 // Left border accent keyed to status — DRAFT gets no override (default border)
 const STATUS_BORDER: Record<string, string> = {
+  SCHEDULED:           "border-l-4 border-l-blue-400",
   PUBLISHED_ITERATING: "border-l-4 border-l-amber-400",
   PUBLISHED_FINAL:     "border-l-4 border-l-emerald-500",
   SHELVED:             "border-l-4 border-l-red-400",
+}
+
+/** Compare a newsroom-time-as-UTC pub date against the current newsroom time. */
+function isPastDue(onlinePubDate: Date | string): boolean {
+  const now = new Date()
+  const nowFake = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()))
+  return new Date(onlinePubDate) < nowFake
 }
 
 interface StoryCardProps {
@@ -51,6 +59,17 @@ function StatusTimeChip({
           ● Live
         </span>
       )
+    case "SCHEDULED": {
+      const overdue = hasTime && isPastDue(story.onlinePubDate!)
+      return (
+        <span className={cn(
+          "shrink-0 text-[10px] font-medium",
+          overdue ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"
+        )}>
+          {time ?? "Scheduled"}
+        </span>
+      )
+    }
     case "SHELVED":
       return (
         <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
