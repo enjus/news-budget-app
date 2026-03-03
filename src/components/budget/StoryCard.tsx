@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, initials, formatTime } from "@/lib/utils"
@@ -205,6 +205,20 @@ export function StoryCard({
             >
               {wordCount.toLocaleString()} wds
             </span>
+          )}
+          {story.postUrl &&
+            (story.status === "PUBLISHED_FINAL" || story.status === "PUBLISHED_ITERATING") && (
+            <a
+              href={story.postUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+              title="Open published post"
+            >
+              <ExternalLink className="size-2.5" />
+              Post
+            </a>
           )}
         </div>
       </div>
