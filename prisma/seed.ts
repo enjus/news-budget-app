@@ -137,7 +137,7 @@ const TODAY_STORIES: Array<{
 
 const TODAY_VIDEOS: Array<{ slug: string; budgetLine: string; status: string; hour?: number; tbd?: boolean; isEnterprise?: boolean }> = [
   { slug: "COUNCIL MEETING PREVIEW", budgetLine: "What to watch at today's city council budget vote",                            status: "PUBLISHED_FINAL",     hour: 7  },
-  { slug: "BUDGET BREAKDOWN",        budgetLine: "What's in the city's $2.3B budget proposal — and what got cut",               status: "PUBLISHED_ITERATING", hour: 9  },
+  { slug: "BUDGET BREAKDOWN",        budgetLine: "What's in the city's $2.3B budget proposal — and what got cut",               status: "PUBLISHED_FINAL",     hour: 9  },
   { slug: "FIRE STATION TOUR",       budgetLine: "Inside one of the fire stations slated for closure under the proposed budget", status: "DRAFT",               hour: 12, isEnterprise: true },
   { slug: "RENTER STORIES",          budgetLine: "Metro renters share how rising housing costs are forcing them to move",        status: "DRAFT",               hour: 14 },
   { slug: "CLIMATE PLAN EXPLAINER",  budgetLine: "The city's 2035 climate goals — explained in two minutes",                    status: "DRAFT",               tbd: true },
