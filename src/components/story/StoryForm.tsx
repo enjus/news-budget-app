@@ -158,7 +158,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-slug">Slug</Label>

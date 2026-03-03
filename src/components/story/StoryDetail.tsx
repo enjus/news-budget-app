@@ -54,6 +54,11 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
 
+        <div className="flex items-center gap-2">
+          <Button type="submit" form="story-form" size="sm">
+            Save Changes
+          </Button>
+
         {story.status !== "SHELVED" && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -82,6 +87,7 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
             </AlertDialogContent>
           </AlertDialog>
         )}
+        </div>
       </div>
 
       {/* Shelved countdown banner */}
