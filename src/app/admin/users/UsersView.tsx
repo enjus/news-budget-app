@@ -108,8 +108,8 @@ function UserForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ADMIN">Admin</SelectItem>
-            <SelectItem value="EDITOR">Editor</SelectItem>
-            <SelectItem value="VIEWER">Viewer</SelectItem>
+            <SelectItem value="EDITOR">Edit</SelectItem>
+            <SelectItem value="VIEWER">View</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -244,7 +244,7 @@ export function UsersView() {
                             : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {user.appRole}
+                        {{ ADMIN: "Admin", EDITOR: "Edit", VIEWER: "View" }[user.appRole] ?? user.appRole}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
