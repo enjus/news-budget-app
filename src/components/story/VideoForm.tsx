@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -35,7 +35,7 @@ import {
 } from "@/lib/validations"
 import { STORY_STATUS_LABELS, cn } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
-import { useStories } from "@/lib/hooks/useStories"
+interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
 
 const STATUS_OPTIONS = [
@@ -61,8 +61,39 @@ interface VideoFormProps {
 export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
   const isEdit = !!video
   const [storyPickerOpen, setStoryPickerOpen] = useState(false)
+  const [query, setQuery] = useState("")
+  const [storyResults, setStoryResults] = useState<StoryPickerItem[]>([])
+  const [searching, setSearching] = useState(false)
 
-  const { stories, isLoading: storiesLoading } = useStories()
+  async function fetchStories(q: string) {
+    setSearching(true)
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+      setStoryResults(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (data.results as any[]).filter((r) => r.type === "story")
+      )
+    } catch { /* fail silently */ } finally {
+      setSearching(false)
+    }
+  }
+
+  // Fetch recent stories when picker opens; reset query
+  useEffect(() => {
+    if (!storyPickerOpen) return
+    setQuery("")
+    fetchStories("")
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyPickerOpen])
+
+  // Debounced search while picker is open and query is non-empty
+  useEffect(() => {
+    if (!storyPickerOpen || query === "") return
+    const timer = setTimeout(() => fetchStories(query), 300)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, storyPickerOpen])
 
   const {
     register,
@@ -116,7 +147,14 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const storyId = watch("storyId")
 
-  const selectedStory = stories.find((s) => s.id === storyId) ?? null
+  // For the trigger label: check live results first, then fall back to
+  // video.story (edit mode) in case the linked story is outside the search window
+  const selectedInResults = storyResults.find((r) => r.id === storyId)
+  const selectedStoryLabel = selectedInResults
+    ? `${selectedInResults.slug} — ${selectedInResults.budgetLine.slice(0, 50)}`
+    : storyId && video?.story
+      ? `${video.story.slug} — ${video.story.budgetLine.slice(0, 50)}`
+      : null
 
   const notifyRef = useRef(false)
 
@@ -260,18 +298,22 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
               aria-expanded={storyPickerOpen}
               className="w-full justify-between font-normal"
             >
-              {selectedStory
-                ? `${selectedStory.slug} — ${selectedStory.budgetLine.slice(0, 50)}`
-                : "None (standalone)"}
+              <span className="truncate">{selectedStoryLabel ?? "None (standalone)"}</span>
               <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[min(400px,calc(100vw-2rem))] p-0" align="start">
-            <Command>
-              <CommandInput placeholder="Search stories..." />
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder="Search stories..."
+                value={query}
+                onValueChange={setQuery}
+              />
               <CommandList>
-                {storiesLoading ? (
-                  <CommandEmpty>Loading...</CommandEmpty>
+                {searching ? (
+                  <CommandEmpty>Loading…</CommandEmpty>
+                ) : storyResults.length === 0 && query ? (
+                  <CommandEmpty>No stories found.</CommandEmpty>
                 ) : (
                   <>
                     <CommandGroup>
@@ -282,20 +324,15 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
                           setStoryPickerOpen(false)
                         }}
                       >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            !storyId ? "opacity-100" : "opacity-0"
-                          )}
-                        />
+                        <Check className={cn("mr-2 size-4", !storyId ? "opacity-100" : "opacity-0")} />
                         None (standalone)
                       </CommandItem>
                     </CommandGroup>
-                    <CommandGroup heading="Stories">
-                      {stories.map((story) => (
+                    <CommandGroup heading={query ? "Search Results" : "Recent Stories"}>
+                      {storyResults.map((story) => (
                         <CommandItem
                           key={story.id}
-                          value={`${story.slug} ${story.budgetLine}`}
+                          value={story.id}
                           onSelect={() => {
                             setValue("storyId", story.id)
                             setStoryPickerOpen(false)
@@ -316,9 +353,6 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
                         </CommandItem>
                       ))}
                     </CommandGroup>
-                    {stories.length === 0 && (
-                      <CommandEmpty>No stories found.</CommandEmpty>
-                    )}
                   </>
                 )}
               </CommandList>
