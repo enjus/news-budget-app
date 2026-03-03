@@ -12,6 +12,7 @@ import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DndProvider } from "@/components/dnd/DndProvider"
@@ -19,7 +20,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, cn } from "@/lib/utils"
-import type { DailyBudgetSlot, StoryWithRelations, VideoWithRelations } from "@/types/index"
+import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,17 +75,9 @@ function DroppableColumn({
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-foreground">
-            {count}
-          </span>
-          <Link href={newStoryHref} title="New story" className="rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground">
-            <FileText className="size-3" />
-          </Link>
-          <Link href={newVideoHref} title="New video" className="rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground">
-            <Video className="size-3" />
-          </Link>
-        </div>
+        <span className="rounded-full bg-background px-2 py-0.5 text-xs font-medium text-foreground">
+          {count}
+        </span>
       </div>
       <div
         ref={setNodeRef}
@@ -100,6 +93,20 @@ function DroppableColumn({
           <p className="py-4 text-center text-xs text-muted-foreground">Drop here</p>
         )}
       </div>
+      <div className="mt-2 flex gap-1.5">
+        <Button asChild size="sm" variant="outline" className="flex-1 gap-1.5 text-xs">
+          <Link href={newStoryHref}>
+            <Plus className="size-3.5" />
+            Story
+          </Link>
+        </Button>
+        <Button asChild size="sm" variant="outline" className="flex-1 gap-1.5 text-xs">
+          <Link href={newVideoHref}>
+            <Plus className="size-3.5" />
+            Video
+          </Link>
+        </Button>
+      </div>
     </div>
   )
 }
@@ -113,7 +120,8 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
 
   const { data, isLoading, mutate } = useSWR<DailyBudgetResponse>(
     ["/api/budget/daily", date],
-    () => fetcher(`/api/budget/daily?date=${date}`)
+    () => fetcher(`/api/budget/daily?date=${date}`),
+    { refreshInterval: 30_000 }
   )
 
   const [localSlots, setLocalSlots] = useState<DailyBudgetSlot[] | null>(null)
@@ -207,6 +215,8 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
         })
       } catch (err) {
         console.error("Failed to update item slot:", err)
+        setLocalSlots(null)
+        toast.error("Couldn't save — change reverted.")
       } finally {
         await mutate()
         setLocalSlots(null)
@@ -221,7 +231,7 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
     for (const slot of visibleSlots) {
       if (activeId.startsWith("story-")) {
         const story = slot.stories.find((s) => s.id === activeId.slice("story-".length))
-        if (story) return <StoryCard story={story} isDragging />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
       }
       if (activeId.startsWith("video-")) {
         const video = slot.videos.find((v) => v.id === activeId.slice("video-".length))
@@ -291,7 +301,7 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
                 <SortableCard key={`story-${story.id}`} id={`story-${story.id}`}>
                   <div className="flex items-start gap-1">
                     <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                    <div className="min-w-0 flex-1"><StoryCard story={story} /></div>
+                    <div className="min-w-0 flex-1"><StoryCard story={story} showWordCount showPhotoIndicator /></div>
                   </div>
                 </SortableCard>
               ))}
@@ -375,7 +385,8 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
 
   const { data, isLoading, mutate } = useSWR<AgendaResponse>(
     ["/api/budget/agenda", date],
-    () => fetcher(`/api/budget/agenda?start=${date}`)
+    () => fetcher(`/api/budget/agenda?start=${date}`),
+    { refreshInterval: 30_000 }
   )
 
   const [localData, setLocalData] = useState<AgendaResponse | null>(null)
@@ -407,7 +418,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       // Find source group and item
       const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
       let sourceDate: string | null = null
-      let sourceItem: StoryWithRelations | VideoWithRelations | null = null
+      let sourceItem: StoryListItem | VideoWithRelations | null = null
 
       for (const group of allGroups) {
         if (isStory) {
@@ -448,12 +459,12 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       }
 
       if (targetDate === "TBD") {
-        if (isStory && sourceItem) updatedTbd.stories.push(sourceItem as StoryWithRelations)
+        if (isStory && sourceItem) updatedTbd.stories.push(sourceItem as StoryListItem)
         else if (isVideo && sourceItem) updatedTbd.videos.push(sourceItem as VideoWithRelations)
       } else {
         const idx = updatedDays.findIndex((d) => d.date === targetDate)
         if (idx >= 0) {
-          if (isStory && sourceItem) updatedDays[idx].stories.push(sourceItem as StoryWithRelations)
+          if (isStory && sourceItem) updatedDays[idx].stories.push(sourceItem as StoryListItem)
           else if (isVideo && sourceItem) updatedDays[idx].videos.push(sourceItem as VideoWithRelations)
         }
       }
@@ -485,6 +496,8 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
         })
       } catch (err) {
         console.error("Failed to update agenda item date:", err)
+        setLocalData(null)
+        toast.error("Couldn't save — change reverted.")
       } finally {
         await mutate()
         setLocalData(null)
@@ -500,7 +513,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       const id = activeId.slice("story-".length)
       for (const g of allGroups) {
         const story = g.stories.find((s) => s.id === id)
-        if (story) return <StoryCard story={story} isDragging />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
       }
     }
     if (activeId.startsWith("video-")) {
@@ -551,7 +564,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
 
           // Merge stories and videos sorted by onlinePubDate ascending (null at end)
           const merged: Array<
-            | { kind: "story"; item: StoryWithRelations }
+            | { kind: "story"; item: StoryListItem }
             | { kind: "video"; item: VideoWithRelations }
           > = [
             ...stories.map((item) => ({ kind: "story" as const, item })),
@@ -580,7 +593,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                     <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
                     <div className="min-w-0 flex-1">
                       {m.kind === "story"
-                        ? <StoryCard story={m.item} />
+                        ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
                         : <VideoCard video={m.item as VideoWithRelations} />}
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { addDays, addHours, startOfDay } from "date-fns";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,7 @@ async function main() {
   console.log("Seeding database...");
 
   // Clear existing data
+  await prisma.user.deleteMany();
   await prisma.videoAssignment.deleteMany();
   await prisma.video.deleteMany();
   await prisma.visual.deleteMany();
@@ -570,8 +572,20 @@ async function main() {
     await prisma.videoAssignment.create({ data: a });
   }
 
+  // ─── Admin user ───────────────────────────────────────────────────────────
+
+  const adminHash = await bcrypt.hash("newsbudget2026", 12);
+  await prisma.user.create({
+    data: {
+      email: "admin@newsroom.com",
+      name: "Admin",
+      passwordHash: adminHash,
+      appRole: "ADMIN",
+    },
+  });
+
   console.log(
-    `Seed complete: 7 people, ${stories.length} stories, ${videos.length} videos, ` +
+    `Seed complete: 1 admin user, 7 people, ${stories.length} stories, ${videos.length} videos, ` +
     `${storyAssignments.length} story assignments, ${videoAssignments.length} video assignments, 17 visuals`
   );
 }

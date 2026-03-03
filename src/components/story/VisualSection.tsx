@@ -26,7 +26,7 @@ interface VisualSectionProps {
 
 export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
-  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC">("PHOTO")
+  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP">("PHOTO")
   const [newDescription, setNewDescription] = useState("")
   const [newPersonId, setNewPersonId] = useState<string>("")
 
@@ -88,8 +88,11 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
               key={visual.id}
               className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2"
             >
-              <Badge variant={visual.type === "PHOTO" ? "default" : "secondary"} className="shrink-0">
-                {visual.type === "PHOTO" ? "Photo" : "Graphic"}
+              <Badge
+                variant={visual.type === "PHOTO" ? "default" : "secondary"}
+                className="shrink-0"
+              >
+                {visual.type === "PHOTO" ? "Photo" : visual.type === "MAP" ? "Map" : "Graphic"}
               </Badge>
 
               {visual.description && (
@@ -123,13 +126,14 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
 
       {/* Add new visual */}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
-        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC")}>
-          <SelectTrigger className="h-8 w-[100px]">
+        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP")}>
+          <SelectTrigger className="h-8 w-[110px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="PHOTO">Photo</SelectItem>
             <SelectItem value="GRAPHIC">Graphic</SelectItem>
+            <SelectItem value="MAP">Map</SelectItem>
           </SelectContent>
         </Select>
 

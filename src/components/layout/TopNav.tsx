@@ -3,10 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Plus, Menu, X } from "lucide-react"
+import { useSession, signOut } from "next-auth/react"
+import { Plus, Menu, X, LogOut, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
-import { cn } from "@/lib/utils"
+import { cn, initials } from "@/lib/utils"
 
 const navLinks = [
   { label: "Daily", href: "/budget/daily" },
@@ -23,6 +25,8 @@ function isActive(pathname: string, href: string) {
 export function TopNav() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.appRole === "ADMIN"
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -55,7 +59,7 @@ export function TopNav() {
         {/* Search — always visible */}
         <SearchCommand />
 
-        {/* Desktop action buttons */}
+        {/* Desktop action buttons + user menu */}
         <div className="hidden md:flex items-center gap-2">
           <Button asChild size="sm">
             <Link href="/stories/new">
@@ -69,6 +73,41 @@ export function TopNav() {
               New Video
             </Link>
           </Button>
+
+          {session?.user && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                  aria-label="User menu"
+                >
+                  {initials(session.user.name ?? "")}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-2">
+                <div className="px-2 py-1.5 mb-1">
+                  <p className="text-sm font-medium truncate">{session.user.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>
+                </div>
+                {isAdmin && (
+                  <Link
+                    href="/admin/users"
+                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <ShieldCheck className="size-3.5" />
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                >
+                  <LogOut className="size-3.5" />
+                  Sign out
+                </button>
+              </PopoverContent>
+            </Popover>
+          )}
         </div>
 
         {/* Mobile hamburger */}
@@ -117,6 +156,25 @@ export function TopNav() {
               <Plus className="size-4" />
               New Video
             </Link>
+            {isAdmin && (
+              <Link
+                href="/admin/users"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <ShieldCheck className="size-4" />
+                Admin
+              </Link>
+            )}
+            {session?.user && (
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <LogOut className="size-4" />
+                Sign out ({session.user.name})
+              </button>
+            )}
           </nav>
         </div>
       )}

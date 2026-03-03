@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { EnterpriseDateGroup, StoryWithRelations, VideoWithRelations } from "@/types";
+import type { EnterpriseDateGroup, StoryListItem, VideoWithRelations } from "@/types";
 
 const storyInclude = {
   assignments: { include: { person: true } },
-  visuals: { include: { person: true } },
-  videos: true,
+  visuals: { select: { id: true, type: true } },
 } as const;
 
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
 } as const;
+
+const TBD_CAP = 500;
 
 /**
  * Return the Monday of the week containing `date` as a YYYY-MM-DD string.
@@ -33,17 +34,12 @@ function getMondayOfWeek(date: Date): string {
  * - If both onlinePubDateTBD and printPubDateTBD are true → "TBD"
  * - Otherwise use the Monday of the week containing the earliest non-TBD date
  */
-function getDateBucket(
-  onlinePubDateTBD: boolean,
-  printPubDateTBD: boolean,
-  onlinePubDate: Date | null,
-  printPubDate: Date | null
-): string {
-  if (onlinePubDateTBD && printPubDateTBD) return "TBD";
+function getDateBucket(story: StoryListItem): string {
+  if (story.onlinePubDateTBD && story.printPubDateTBD) return "TBD";
 
   const candidates: Date[] = [];
-  if (!onlinePubDateTBD && onlinePubDate) candidates.push(onlinePubDate);
-  if (!printPubDateTBD && printPubDate) candidates.push(printPubDate);
+  if (!story.onlinePubDateTBD && story.onlinePubDate) candidates.push(new Date(story.onlinePubDate));
+  if (!story.printPubDateTBD && story.printPubDate) candidates.push(new Date(story.printPubDate));
 
   if (candidates.length === 0) return "TBD";
 
@@ -53,24 +49,61 @@ function getDateBucket(
 
 export async function GET() {
   try {
-    const [stories, videos] = await Promise.all([
+    const now = new Date();
+    // Include dated enterprise items from the past 90 days forward — enough
+    // to surface recently-published pieces while bounding the query.
+    const windowStart = new Date(now);
+    windowStart.setDate(now.getDate() - 90);
+
+    const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
+      // Dated: at least one of online/print pub date falls within the window
       prisma.story.findMany({
         where: {
           isEnterprise: true,
           status: { not: "SHELVED" },
+          OR: [
+            { onlinePubDateTBD: false, onlinePubDate: { gte: windowStart } },
+            { printPubDateTBD: false, printPubDate: { gte: windowStart } },
+          ],
         },
         include: storyInclude,
         orderBy: [{ onlinePubDate: "asc" }, { printPubDate: "asc" }, { createdAt: "asc" }],
-      }) as Promise<StoryWithRelations[]>,
+      }) as unknown as StoryListItem[],
+
+      // TBD: both dates unset, capped to prevent unbounded growth
+      prisma.story.findMany({
+        where: {
+          isEnterprise: true,
+          status: { not: "SHELVED" },
+          onlinePubDateTBD: true,
+          printPubDateTBD: true,
+        },
+        include: storyInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as StoryListItem[],
 
       prisma.video.findMany({
         where: {
           isEnterprise: true,
           status: { not: "SHELVED" },
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: windowStart },
         },
         include: videoInclude,
         orderBy: [{ onlinePubDate: "asc" }, { createdAt: "asc" }],
-      }) as Promise<VideoWithRelations[]>,
+      }) as unknown as VideoWithRelations[],
+
+      prisma.video.findMany({
+        where: {
+          isEnterprise: true,
+          status: { not: "SHELVED" },
+          onlinePubDateTBD: true,
+        },
+        include: videoInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as VideoWithRelations[],
     ]);
 
     // Build group map
@@ -83,24 +116,21 @@ export async function GET() {
       return groupMap.get(dateKey)!;
     };
 
-    for (const story of stories) {
-      // Stories have both printPubDate fields; videos only have online fields
-      const printPubDateTBD = (story as unknown as { printPubDateTBD: boolean }).printPubDateTBD ?? true;
-      const printPubDate = (story as unknown as { printPubDate: Date | null }).printPubDate ?? null;
-
-      const bucket = getDateBucket(
-        story.onlinePubDateTBD,
-        printPubDateTBD,
-        story.onlinePubDate,
-        printPubDate
-      );
-      getOrCreateGroup(bucket).stories.push(story);
+    for (const story of datedStories) {
+      getOrCreateGroup(getDateBucket(story)).stories.push(story);
+    }
+    for (const story of tbdStories) {
+      getOrCreateGroup("TBD").stories.push(story);
     }
 
-    for (const video of videos) {
-      // Videos don't have printPubDate — treat printPubDateTBD as true
-      const bucket = getDateBucket(video.onlinePubDateTBD, true, video.onlinePubDate, null);
+    for (const video of datedVideos) {
+      const bucket = !video.onlinePubDateTBD && video.onlinePubDate
+        ? getMondayOfWeek(new Date(video.onlinePubDate))
+        : "TBD";
       getOrCreateGroup(bucket).videos.push(video);
+    }
+    for (const video of tbdVideos) {
+      getOrCreateGroup("TBD").videos.push(video);
     }
 
     // Sort groups: dated buckets ascending, TBD last

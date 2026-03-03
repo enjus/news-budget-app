@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays } from "date-fns";
-import type { StoryWithRelations, VideoWithRelations } from "@/types";
+import type { StoryListItem, VideoWithRelations } from "@/types";
 
 const storyInclude = {
   assignments: { include: { person: true } },
-  visuals: { include: { person: true } },
-  videos: true,
+  visuals: { select: { id: true, type: true } },
 } as const;
 
 const videoInclude = {
@@ -14,9 +13,11 @@ const videoInclude = {
   story: { select: { id: true, slug: true, budgetLine: true } },
 } as const;
 
+const TBD_CAP = 500;
+
 export interface AgendaDay {
   date: string; // YYYY-MM-DD or "TBD"
-  stories: StoryWithRelations[];
+  stories: StoryListItem[];
   videos: VideoWithRelations[];
 }
 
@@ -48,29 +49,39 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(`${start}T00:00:00`);
     const windowEnd = addDays(startDate, 7);
 
-    const [stories, videos] = await Promise.all([
+    const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
       prisma.story.findMany({
         where: {
           status: { not: "SHELVED" },
-          OR: [
-            { onlinePubDateTBD: false, onlinePubDate: { gte: startDate, lt: windowEnd } },
-            { onlinePubDateTBD: true },
-          ],
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: startDate, lt: windowEnd },
         },
         include: storyInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
-      }) as unknown as StoryWithRelations[],
+      }) as unknown as StoryListItem[],
+
+      prisma.story.findMany({
+        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true },
+        include: storyInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as StoryListItem[],
 
       prisma.video.findMany({
         where: {
           status: { not: "SHELVED" },
-          OR: [
-            { onlinePubDateTBD: false, onlinePubDate: { gte: startDate, lt: windowEnd } },
-            { onlinePubDateTBD: true },
-          ],
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: startDate, lt: windowEnd },
         },
         include: videoInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
+      }) as unknown as VideoWithRelations[],
+
+      prisma.video.findMany({
+        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true },
+        include: videoInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
       }) as unknown as VideoWithRelations[],
     ]);
 
@@ -81,24 +92,22 @@ export async function GET(request: NextRequest) {
     }
     const tbd: AgendaDay = { date: "TBD", stories: [], videos: [] };
 
-    for (const story of stories) {
-      if (story.onlinePubDateTBD || !story.onlinePubDate) {
-        tbd.stories.push(story);
-      } else {
-        const dateStr = localDateStr(new Date(story.onlinePubDate));
-        const day = days.find((d) => d.date === dateStr);
-        if (day) day.stories.push(story);
-      }
+    for (const story of datedStories) {
+      const dateStr = localDateStr(new Date(story.onlinePubDate!));
+      const day = days.find((d) => d.date === dateStr);
+      if (day) day.stories.push(story);
+    }
+    for (const story of tbdStories) {
+      tbd.stories.push(story);
     }
 
-    for (const video of videos) {
-      if (video.onlinePubDateTBD || !video.onlinePubDate) {
-        tbd.videos.push(video);
-      } else {
-        const dateStr = localDateStr(new Date(video.onlinePubDate));
-        const day = days.find((d) => d.date === dateStr);
-        if (day) day.videos.push(video);
-      }
+    for (const video of datedVideos) {
+      const dateStr = localDateStr(new Date(video.onlinePubDate!));
+      const day = days.find((d) => d.date === dateStr);
+      if (day) day.videos.push(video);
+    }
+    for (const video of tbdVideos) {
+      tbd.videos.push(video);
     }
 
     // Sort items within each day bucket by onlinePubDate ascending (null at end)

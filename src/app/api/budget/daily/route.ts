@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TIME_BUCKETS, dateToBucket } from "@/lib/utils";
-import type { DailyBudgetSlot, StoryWithRelations, VideoWithRelations } from "@/types";
+import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types";
 
+// Lighter include for budget list views — no visuals.person, no videos relation.
 const storyInclude = {
   assignments: { include: { person: true } },
-  visuals: { include: { person: true } },
-  videos: true,
+  visuals: { select: { id: true, type: true } },
 } as const;
 
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
 } as const;
+
+// Safety cap on TBD items. Editors naturally shelve/delete excess stories;
+// this only kicks in if TBD accumulation would start degrading performance.
+const TBD_CAP = 500;
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,33 +35,46 @@ export async function GET(request: NextRequest) {
     const dayStart = new Date(`${date}T00:00:00`);
     const dayEnd = new Date(`${date}T23:59:59.999`);
 
-    const [stories, videos] = await Promise.all([
+    // Split dated and TBD queries so the TBD cap can be applied independently.
+    // A combined OR query cannot efficiently cap only the TBD branch.
+    const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
       prisma.story.findMany({
         where: {
           status: { not: "SHELVED" },
-          OR: [
-            // Stories with a scheduled online pub date on this day
-            { onlinePubDateTBD: false, onlinePubDate: { gte: dayStart, lte: dayEnd } },
-            // TBD stories persist on every day's budget until shelved or assigned a time
-            { onlinePubDateTBD: true },
-          ],
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: dayStart, lte: dayEnd },
         },
         include: storyInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
-      }) as unknown as StoryWithRelations[],
+      }) as unknown as StoryListItem[],
+
+      prisma.story.findMany({
+        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true },
+        include: storyInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as StoryListItem[],
 
       prisma.video.findMany({
         where: {
           status: { not: "SHELVED" },
-          OR: [
-            { onlinePubDateTBD: false, onlinePubDate: { gte: dayStart, lte: dayEnd } },
-            { onlinePubDateTBD: true },
-          ],
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: dayStart, lte: dayEnd },
         },
         include: videoInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
       }) as unknown as VideoWithRelations[],
+
+      prisma.video.findMany({
+        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true },
+        include: videoInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as VideoWithRelations[],
     ]);
+
+    const stories = [...datedStories, ...tbdStories];
+    const videos = [...datedVideos, ...tbdVideos];
 
     // Initialise all 5 buckets (always return all of them, including empty ones)
     const bucketMap = new Map<string, DailyBudgetSlot>();
@@ -86,15 +103,15 @@ export async function GET(request: NextRequest) {
     // Sort within each bucket by onlinePubDate ascending (TBD items last)
     for (const slot of bucketMap.values()) {
       slot.stories.sort((a, b) => {
-        if (!a.onlinePubDate) return 1
-        if (!b.onlinePubDate) return -1
-        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime()
-      })
+        if (!a.onlinePubDate) return 1;
+        if (!b.onlinePubDate) return -1;
+        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
+      });
       slot.videos.sort((a, b) => {
-        if (!a.onlinePubDate) return 1
-        if (!b.onlinePubDate) return -1
-        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime()
-      })
+        if (!a.onlinePubDate) return 1;
+        if (!b.onlinePubDate) return -1;
+        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
+      });
     }
 
     // Return all buckets in definition order

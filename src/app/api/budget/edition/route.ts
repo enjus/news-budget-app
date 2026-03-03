@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import type { EditionDateGroup, StoryWithRelations } from "@/types";
+import type { EditionDateGroup, StoryListItem } from "@/types";
 
 const storyInclude = {
   assignments: { include: { person: true } },
-  visuals: { include: { person: true } },
-  videos: true,
+  visuals: { select: { id: true, type: true } },
 } as const;
+
+const TBD_CAP = 500;
 
 function localDateStr(date: Date): string {
   const y = date.getFullYear();
@@ -17,11 +18,28 @@ function localDateStr(date: Date): string {
 
 export async function GET() {
   try {
-    const stories = await prisma.story.findMany({
-      where: { status: { not: "SHELVED" } },
-      include: storyInclude,
-      orderBy: [{ printPubDate: "asc" }, { createdAt: "asc" }],
-    }) as unknown as StoryWithRelations[];
+    const now = new Date();
+    const windowStart = new Date(now);
+    windowStart.setDate(now.getDate() - 90);
+
+    const [datedStories, tbdStories] = await Promise.all([
+      prisma.story.findMany({
+        where: {
+          status: { not: "SHELVED" },
+          printPubDateTBD: false,
+          printPubDate: { gte: windowStart },
+        },
+        include: storyInclude,
+        orderBy: [{ printPubDate: "asc" }, { createdAt: "asc" }],
+      }) as unknown as StoryListItem[],
+
+      prisma.story.findMany({
+        where: { status: { not: "SHELVED" }, printPubDateTBD: true },
+        include: storyInclude,
+        orderBy: { createdAt: "desc" },
+        take: TBD_CAP,
+      }) as unknown as StoryListItem[],
+    ]);
 
     const groupMap = new Map<string, EditionDateGroup>();
 
@@ -32,15 +50,11 @@ export async function GET() {
       return groupMap.get(dateKey)!;
     };
 
-    for (const story of stories) {
-      const tbd = (story as unknown as { printPubDateTBD: boolean }).printPubDateTBD ?? true;
-      const date = (story as unknown as { printPubDate: Date | null }).printPubDate ?? null;
-
-      if (tbd || !date) {
-        getOrCreate("TBD").stories.push(story);
-      } else {
-        getOrCreate(localDateStr(date)).stories.push(story);
-      }
+    for (const story of datedStories) {
+      getOrCreate(localDateStr(new Date(story.printPubDate!))).stories.push(story);
+    }
+    for (const story of tbdStories) {
+      getOrCreate("TBD").stories.push(story);
     }
 
     const groups = Array.from(groupMap.values()).sort((a, b) => {

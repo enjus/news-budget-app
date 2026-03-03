@@ -9,6 +9,7 @@ import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -17,7 +18,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { cn } from "@/lib/utils"
-import type { EditionDateGroup, StoryWithRelations } from "@/types/index"
+import type { EditionDateGroup } from "@/types/index"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -100,7 +101,8 @@ export function EditionView() {
 
   const { data, isLoading, mutate } = useSWR<EditionResponse>(
     "/api/budget/edition",
-    fetcher
+    fetcher,
+    { refreshInterval: 30_000 }
   )
 
   const [localGroups, setLocalGroups] = useState<EditionDateGroup[] | null>(null)
@@ -213,6 +215,8 @@ export function EditionView() {
         })
       } catch (err) {
         console.error("Failed to update edition date:", err)
+        setLocalGroups(null)
+        toast.error("Couldn't save — change reverted.")
       } finally {
         await mutate()
         setLocalGroups(null)

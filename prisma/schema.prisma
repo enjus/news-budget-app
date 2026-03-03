@@ -11,6 +11,21 @@ datasource db {
 // Valid values documented in src/lib/validations.ts.
 // This keeps the schema DB-agnostic and migration-friendly (sqlite → postgresql).
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  // AppRole: ADMIN | EDITOR | VIEWER
+  appRole      String   @default("EDITOR")
+  personId     String?  @unique
+  person       Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([appRole])
+}
+
 model Person {
   id          String   @id @default(cuid())
   name        String
@@ -20,6 +35,7 @@ model Person {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user             User?
   assignments      StoryAssignment[]
   visuals          Visual[]
   videoAssignments VideoAssignment[]
@@ -49,6 +65,13 @@ model Story {
   assignments StoryAssignment[]
   visuals     Visual[]
   videos      Video[]
+
+  @@index([status])
+  @@index([isEnterprise])
+  @@index([onlinePubDate])
+  @@index([printPubDate])
+  @@index([status, onlinePubDate])
+  @@index([isEnterprise, status])
 }
 
 model StoryAssignment {
@@ -102,6 +125,12 @@ model Video {
   updatedAt        DateTime @updatedAt
 
   assignments VideoAssignment[]
+
+  @@index([status])
+  @@index([isEnterprise])
+  @@index([onlinePubDate])
+  @@index([status, onlinePubDate])
+  @@index([isEnterprise, status])
 }
 
 model VideoAssignment {

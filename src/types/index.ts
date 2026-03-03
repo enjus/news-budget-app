@@ -4,11 +4,22 @@ export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment };
 
 // ─── Story types ─────────────────────────────────────────────────────────────
 
+// Full relations — used by detail pages (story/[id], edit forms, etc.)
 export type StoryWithRelations = Prisma.StoryGetPayload<{
   include: {
     assignments: { include: { person: true } };
     visuals: { include: { person: true } };
     videos: true;
+  };
+}>;
+
+// Lightweight shape for budget list views (cards).
+// Omits visuals.person (cards only need visual.type for photo count) and
+// omits videos (not displayed on cards), keeping list payloads small.
+export type StoryListItem = Prisma.StoryGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    visuals: { select: { id: true; type: true } };
   };
 }>;
 
@@ -44,22 +55,22 @@ export type VisualWithPerson = Prisma.VisualGetPayload<{
 // ─── Budget view types ────────────────────────────────────────────────────────
 
 export type ContentItem =
-  | { type: "story"; item: StoryWithRelations }
+  | { type: "story"; item: StoryListItem }
   | { type: "video"; item: VideoWithRelations };
 
 export type DailyBudgetSlot = {
   slot: string; // TIME_BUCKETS id
-  stories: StoryWithRelations[];
+  stories: StoryListItem[];
   videos: VideoWithRelations[];
 };
 
 export type EnterpriseDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
-  stories: StoryWithRelations[];
+  stories: StoryListItem[];
   videos: VideoWithRelations[];
 };
 
 export type EditionDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
-  stories: StoryWithRelations[];
+  stories: StoryListItem[];
 };

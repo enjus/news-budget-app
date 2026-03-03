@@ -5,6 +5,7 @@ import { TopNav } from "@/components/layout/TopNav"
 import { Toaster } from "@/components/ui/sonner"
 import { SWRProvider } from "@/components/providers/SWRProvider"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
+import { SessionProvider } from "@/components/providers/SessionProvider"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,15 +30,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider>
-          <SWRProvider>
-            <TopNav />
-            <main className="min-h-[calc(100vh-3.5rem)]">
-              {children}
-            </main>
-            <Toaster />
-          </SWRProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            <SWRProvider>
+              <TopNav />
+              <main className="min-h-[calc(100vh-3.5rem)]">
+                {children}
+              </main>
+              <Toaster />
+            </SWRProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   )
