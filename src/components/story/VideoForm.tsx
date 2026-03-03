@@ -41,7 +41,6 @@ import type { VideoWithRelations } from "@/types/index"
 const STATUS_OPTIONS = [
   "DRAFT",
   "SCHEDULED",
-  "PUBLISHED_ITERATING",
   "PUBLISHED_FINAL",
   "SHELVED",
 ] as const
