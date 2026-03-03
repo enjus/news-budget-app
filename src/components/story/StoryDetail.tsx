@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
 import { toast } from "sonner"
-import { Edit2, ChevronDown, Sparkles, Plus, Video, ExternalLink, Copy, Check } from "lucide-react"
+import { Plus, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -16,49 +15,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
 import { StoryForm } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import Link from "next/link"
 import { differenceInDays } from "date-fns"
-import {
-  STORY_STATUS_LABELS,
-  formatPubDate,
-  formatPrintDate,
-} from "@/lib/utils"
+import { STORY_STATUS_LABELS } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
-
-const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  DRAFT: "outline",
-  SCHEDULED: "secondary",
-  PUBLISHED_ITERATING: "secondary",
-  PUBLISHED_FINAL: "default",
-  SHELVED: "destructive",
-}
-
-function CopyUrlButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <Button
-      size="icon-xs"
-      variant="ghost"
-      onClick={() => {
-        navigator.clipboard.writeText(url)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }}
-      title="Copy URL"
-    >
-      {copied ? <Check className="size-3 text-green-600" /> : <Copy className="size-3" />}
-    </Button>
-  )
-}
 
 interface StoryDetailProps {
   story: StoryWithRelations
@@ -66,9 +30,6 @@ interface StoryDetailProps {
 }
 
 export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [pubMenuOpen, setPubMenuOpen] = useState(false)
-
   async function patchStatus(status: string) {
     try {
       const res = await fetch(`/api/stories/${story.id}`, {
@@ -80,132 +41,47 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
-      toast.success(`Status updated to ${STORY_STATUS_LABELS[status]}`)
+      toast.success("Status updated")
       onUpdate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
     }
   }
 
-  if (isEditing) {
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Edit Story</h2>
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(false)}>
-            Cancel
-          </Button>
-        </div>
-        <StoryForm
-          story={story}
-          onSuccess={() => {
-            setIsEditing(false)
-            onUpdate()
-          }}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
-            <Badge variant={STATUS_BADGE_VARIANT[story.status] ?? "outline"}>
-              {STORY_STATUS_LABELS[story.status] ?? story.status}
-            </Badge>
-            {story.isEnterprise && (
-              <Badge variant="secondary">Enterprise</Badge>
-            )}
-            {story.aiContributed && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">
-                <Sparkles className="size-3" />
-                AI Contributed
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">{story.budgetLine}</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
 
-        {/* Actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-            <Edit2 className="size-4" />
-            Edit
-          </Button>
-
-          {/* Publish menu */}
-          {story.status !== "PUBLISHED_FINAL" && story.status !== "SHELVED" && (
-            <Popover open={pubMenuOpen} onOpenChange={setPubMenuOpen}>
-              <PopoverTrigger asChild>
-                <Button size="sm" variant="outline">
-                  Mark as Published
-                  <ChevronDown className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-1" align="end">
-                <div className="flex flex-col gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    onClick={() => { patchStatus("SCHEDULED"); setPubMenuOpen(false) }}
-                  >
-                    {STORY_STATUS_LABELS["SCHEDULED"]}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    onClick={() => { patchStatus("PUBLISHED_ITERATING"); setPubMenuOpen(false) }}
-                  >
-                    {STORY_STATUS_LABELS["PUBLISHED_ITERATING"]}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    onClick={() => { patchStatus("PUBLISHED_FINAL"); setPubMenuOpen(false) }}
-                  >
-                    {STORY_STATUS_LABELS["PUBLISHED_FINAL"]}
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
-
-          {/* Shelve */}
-          {story.status !== "SHELVED" && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30">
-                  Shelve Story
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Shelve this story?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    The story will be moved to the Shelved section and hidden from active budgets.
-                    You can restore it by editing its status.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => patchStatus("SHELVED")}
-                  >
-                    Shelve
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+        {story.status !== "SHELVED" && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+              >
+                Shelve Story
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent size="sm">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Shelve this story?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The story will be moved to the Shelved section and hidden from active budgets.
+                  You can restore it by changing its status.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => patchStatus("SHELVED")}>
+                  Shelve
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
 
       {/* Shelved countdown banner */}
@@ -218,76 +94,22 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
             <span className="font-semibold">
               {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} until auto-deletion` : "Scheduled for deletion"}
             </span>
-            <span className="text-muted-foreground">— shelved {daysShelved} day{daysShelved === 1 ? "" : "s"} ago. Unarchive to reset the clock.</span>
+            <span className="text-muted-foreground">
+              — shelved {daysShelved} day{daysShelved === 1 ? "" : "s"} ago. Change status to restore.
+            </span>
           </div>
         )
       })()}
 
-      {/* Details grid */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Online Pub Date
-          </p>
-          <p className="text-sm">
-            {formatPubDate(story.onlinePubDate, story.onlinePubDateTBD)}
-          </p>
-        </div>
-
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Daily Edition Pub Date
-          </p>
-          <p className="text-sm">
-            {formatPrintDate(story.printPubDate, story.printPubDateTBD)}
-          </p>
-        </div>
-
-        {(story as any).wordCount != null && (
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Word Count
-            </p>
-            <p className={`text-sm font-medium ${(story as any).wordCount > 1400 ? "text-destructive" : ""}`}>
-              {((story as any).wordCount as number).toLocaleString()}
-            </p>
-          </div>
-        )}
-
-        {story.postUrl && (
-          <div className="space-y-1 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Post URL
-            </p>
-            <div className="flex items-center gap-2">
-              <a
-                href={story.postUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="truncate text-sm text-primary hover:underline inline-flex items-center gap-1"
-              >
-                {story.postUrl}
-                <ExternalLink className="size-3 shrink-0" />
-              </a>
-              <CopyUrlButton url={story.postUrl} />
-            </div>
-          </div>
-        )}
-
-        {story.notes && (
-          <div className="space-y-1 sm:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Notes
-            </p>
-            <p className="text-sm whitespace-pre-wrap">{story.notes}</p>
-          </div>
-        )}
-
-      </div>
+      {/* Form — always editable, remounts when story is saved */}
+      <StoryForm
+        key={String(story.updatedAt)}
+        story={story}
+        onSuccess={() => onUpdate()}
+      />
 
       <Separator />
 
-      {/* Assignments */}
       <AssignmentSection
         storyId={story.id}
         assignments={story.assignments}
@@ -296,7 +118,6 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
 
       <Separator />
 
-      {/* Visuals */}
       <VisualSection
         storyId={story.id}
         visuals={story.visuals}
