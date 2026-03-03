@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect } from "react"
+import { useRef } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -106,17 +106,8 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
 
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const printPubDateTBD = watch("printPubDateTBD")
-  const budgetLine = watch("budgetLine")
 
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
-
-  // Auto-populate slug from budget line for new stories until the user edits it manually
-  const slugManuallyEdited = useRef(false)
-  useEffect(() => {
-    if (!isEdit && !slugManuallyEdited.current && budgetLine) {
-      setValue("slug", budgetLine.toUpperCase().trim(), { shouldValidate: false })
-    }
-  }, [budgetLine, isEdit, setValue])
 
   const notifyRef = useRef(false)
 
@@ -176,10 +167,6 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
           {...slugRegister}
           placeholder="CITY COUNCIL VOTE"
           aria-invalid={!!errors.slug}
-          onChange={(e) => {
-            slugManuallyEdited.current = true
-            slugRegister.onChange(e)
-          }}
           onBlur={(e) => {
             setValue("slug", e.target.value.toUpperCase(), { shouldValidate: true })
             slugOnBlur(e)
