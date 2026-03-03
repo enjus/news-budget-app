@@ -44,7 +44,7 @@ model Person {
 
 model Story {
   id               String   @id @default(cuid())
-  slug             String   @unique
+  slug             String
   budgetLine       String
   isEnterprise     Boolean  @default(false)
   // StoryStatus: DRAFT | PUBLISHED_ITERATING | PUBLISHED_FINAL | SHELVED
@@ -104,7 +104,7 @@ model Visual {
 // Videos can be standalone (storyId = null) or attached to a story.
 model Video {
   id               String   @id @default(cuid())
-  slug             String   @unique
+  slug             String
   budgetLine       String
   isEnterprise     Boolean  @default(false)
   // StoryStatus: DRAFT | PUBLISHED_ITERATING | PUBLISHED_FINAL | SHELVED
