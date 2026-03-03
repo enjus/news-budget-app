@@ -1,14 +1,154 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { addDays, addHours, startOfDay } from "date-fns";
+import { addDays } from "date-fns";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// ─── Date helper ──────────────────────────────────────────────────────────────
+// All pub times stored as newsroom-time-as-UTC: "9:00 AM" → T09:00:00.000Z
+// We read local date parts and construct a UTC timestamp so the daily-view
+// bucket logic (which uses getUTCHours) sees the correct hour.
+
+const now = new Date();
+const todayY = now.getFullYear();
+const todayM = now.getMonth();
+const todayD = now.getDate();
+
+function d(offsetDays: number, hour: number): Date {
+  const base = addDays(new Date(todayY, todayM, todayD), offsetDays);
+  return new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), hour, 0, 0));
+}
+
+// Wrap-around pick from an array
+function pick<T>(arr: T[], i: number): T {
+  return arr[((i % arr.length) + arr.length) % arr.length];
+}
+
+// ─── Content pools (used for past days) ──────────────────────────────────────
+
+const PAST_STORY_POOL: Array<{ slug: string; budgetLine: string; isEnterprise?: boolean }> = [
+  // City government
+  { slug: "CITY BUDGET VOTE",       budgetLine: "City council approves $2.4B annual budget with cuts to parks and transit" },
+  { slug: "COUNCIL REDISTRICTING",  budgetLine: "Redistricting commission approves new city council maps after public outcry" },
+  { slug: "MAYOR INITIATIVE",       budgetLine: "Mayor announces $12M workforce development initiative targeting youth unemployment" },
+  { slug: "ZONING OVERHAUL",        budgetLine: "Planning commission approves first major zoning rewrite in 20 years" },
+  { slug: "CITY HALL SECURITY",     budgetLine: "New security measures installed at city hall after series of threats" },
+  // Public safety
+  { slug: "POLICE OVERTIME AUDIT",  budgetLine: "Audit: police overtime costs exceed budget by $3M for third consecutive year" },
+  { slug: "FIRE RESPONSE TIMES",    budgetLine: "Fire department response times worsen as staffing levels fall to decade low" },
+  { slug: "COURTHOUSE EXPANSION",   budgetLine: "County votes to expand courthouse with $28M addition to ease case backlog" },
+  { slug: "JAIL INSPECTION",        budgetLine: "State inspectors flag overcrowding and medical care deficiencies at county jail" },
+  { slug: "DUI CHECKPOINT DATA",    budgetLine: "Annual DUI enforcement data shows arrests up 18% in metro corridor" },
+  // Education
+  { slug: "SCHOOL BUDGET SHORTFALL", budgetLine: "Schools face $14M shortfall heading into next year; cuts to sports, arts likely" },
+  { slug: "TEST SCORES REPORT",     budgetLine: "State releases standardized test results; local district scores fall below state average" },
+  { slug: "TEACHER SHORTAGE",       budgetLine: "District reports 80 unfilled teaching positions; substitutes covering core classes" },
+  { slug: "SCHOOL LUNCH DEBT",      budgetLine: "District cancels $180K in student meal debt for 3,000 low-income families" },
+  { slug: "UNIVERSITY EXPANSION",   budgetLine: "State university breaks ground on $90M science and engineering complex" },
+  // Business & economy
+  { slug: "FACTORY CLOSING",        budgetLine: "Auto parts plant announces closure, eliminating 340 local manufacturing jobs" },
+  { slug: "HOUSING DATA",           budgetLine: "New report: home prices up 11% year-over-year in metro; rental vacancy at 3%" },
+  { slug: "DOWNTOWN VACANCY",       budgetLine: "Downtown storefront vacancy rate reaches 12-year high at 22%" },
+  { slug: "TECH JOBS REPORT",       budgetLine: "Regional tech employment up 8% despite national layoffs, new data shows" },
+  { slug: "MIXED USE DEVELOPMENT",  budgetLine: "Developer proposes 400-unit mixed-use project near downtown transit hub" },
+  // Environment
+  { slug: "AIR QUALITY ALERT",      budgetLine: "Multi-day air quality advisory issued; vulnerable residents urged to stay indoors" },
+  { slug: "STORMWATER PROJECT",     budgetLine: "City begins $30M stormwater system overhaul to reduce flood risk in low-lying areas" },
+  { slug: "RIVER CLEANUP",          budgetLine: "Volunteers remove 12 tons of debris from 8-mile river corridor in annual cleanup" },
+  { slug: "PARK LAND ACQUISITION",  budgetLine: "County acquires 140 acres near reservoir for new regional park" },
+  { slug: "CLIMATE AUDIT",          budgetLine: "County climate audit: average temperatures up 2.4°F since 1990, report finds" },
+  // Health
+  { slug: "FOOD BANK DEMAND",       budgetLine: "Regional food banks report 35% surge in demand; blame rising rents, grocery costs" },
+  { slug: "MENTAL HEALTH FUNDING",  budgetLine: "County adds $5M to mental health crisis response after record call volume" },
+  { slug: "HOSPITAL STAFFING",      budgetLine: "Nurses union raises staffing concerns at regional medical center" },
+  { slug: "OVERDOSE REPORT",        budgetLine: "Annual overdose deaths hold steady at 94; fentanyl involved in 80% of cases" },
+  { slug: "SENIOR CENTER OPENING",  budgetLine: "New $6M senior center opens in underserved neighborhood after six-year campaign" },
+  // Transportation
+  { slug: "BRIDGE INSPECTION",      budgetLine: "Three local bridges flagged in state inspection; one requires immediate repairs" },
+  { slug: "BUS ROUTE CUTS",         budgetLine: "Transit agency proposes eliminating 8 low-ridership routes to close $18M deficit" },
+  { slug: "ROAD RESURFACING",       budgetLine: "City earmarks $18M for road improvements; 42 miles to be resurfaced this summer" },
+  { slug: "AIRPORT PARKING HIKE",   budgetLine: "Airport authority raises parking rates for first time in seven years" },
+  { slug: "BIKE LANE EXPANSION",    budgetLine: "City council approves 20-mile bike lane expansion over three-year timeline" },
+];
+
+const PAST_VIDEO_POOL: Array<{ slug: string; budgetLine: string }> = [
+  { slug: "BUDGET EXPLAINER",       budgetLine: "Breaking down the city's budget proposal in 90 seconds" },
+  { slug: "COMMUTER REACTION",      budgetLine: "Commuters react to latest transit changes" },
+  { slug: "NEIGHBORHOOD PROFILE",   budgetLine: "Inside a neighborhood as development transforms the area" },
+  { slug: "OFFICIAL INTERVIEW",     budgetLine: "Local official on the issues facing the region" },
+  { slug: "DATA VISUALIZATION",     budgetLine: "Visualizing a decade of local housing and income data" },
+  { slug: "AERIAL FOOTAGE",         budgetLine: "Drone footage documents changes along the waterfront" },
+  { slug: "COMMUNITY MEETING",      budgetLine: "Residents speak out at packed public meeting" },
+  { slug: "SMALL BUSINESS OWNERS",  budgetLine: "Small business owners on navigating the changing economy" },
+  { slug: "FIRST RESPONDERS",       budgetLine: "A day on the job with local first responders" },
+  { slug: "ELECTION PREVIEW",       budgetLine: "Previewing key November races across the county" },
+];
+
+// ─── Enterprise story pool (scheduled out 180 days) ───────────────────────────
+
+const ENTERPRISE_STORIES: Array<{ slug: string; budgetLine: string; notes?: string; offsetDays: number }> = [
+  { slug: "PENSION CRISIS",         budgetLine: "City pension fund faces $340M shortfall — what it means for workers and taxpayers", offsetDays: 12, notes: "Need actuary interview and finance director response." },
+  { slug: "AFFORDABLE HOUSING",     budgetLine: "Why the affordable housing crisis keeps getting worse despite record investment", offsetDays: 25, isEnterprise: true },
+  { slug: "SCHOOL EQUITY REPORT",   budgetLine: "Disparities in school funding, outcomes across the district examined", offsetDays: 38, notes: "FOIA for per-pupil spending data by school submitted." },
+  { slug: "TRANSIT FUTURE",         budgetLine: "The case for — and against — a major regional transit expansion", offsetDays: 50 },
+  { slug: "CLIMATE ADAPTATION",     budgetLine: "How the city is (and isn't) preparing for the next decade of climate impacts", offsetDays: 63, notes: "Coordinate with county sustainability director." },
+  { slug: "POLICE ACCOUNTABILITY",  budgetLine: "A year-long review of use-of-force incidents and departmental oversight", offsetDays: 75, notes: "Awaiting response to FOIA for incident reports." },
+  { slug: "ARTS AND ECONOMY",       budgetLine: "The economic impact of the arts community — and what losing it would cost", offsetDays: 88 },
+  { slug: "WATER INFRASTRUCTURE",   budgetLine: "Aging water system faces $500M upgrade — and a political battle over who pays", offsetDays: 100, notes: "Engineering report obtained. Water dept reviewing draft." },
+  { slug: "ELECTION DEEP DIVE",     budgetLine: "Who's running the city: mapping the money and influence behind local elections", offsetDays: 113 },
+  { slug: "OPIOID RESPONSE",        budgetLine: "Five years into the opioid crisis: what's changed, what hasn't, and why", offsetDays: 125 },
+  { slug: "HOMELESSNESS SYSTEM",    budgetLine: "A year inside the region's homelessness response system", offsetDays: 138, notes: "Ongoing reporting. First installment targets Q3." },
+  { slug: "FOOD SYSTEM",            budgetLine: "Where the region's food comes from — and who profits from how it gets here", offsetDays: 150 },
+  { slug: "DEVELOPER INFLUENCE",    budgetLine: "How real estate money shapes local politics, zoning, and public spending", offsetDays: 163, notes: "Campaign finance data analysis underway." },
+  { slug: "HOSPITAL PRICES",        budgetLine: "Price comparison: what area hospitals charge for the same procedures", offsetDays: 175 },
+  { slug: "YOUTH VIOLENCE",         budgetLine: "Understanding the surge in youth violence and what the research says about solutions", offsetDays: 180 },
+] as Array<{ slug: string; budgetLine: string; notes?: string; offsetDays: number; isEnterprise?: boolean }>;
+
+// ─── Today's specific content ─────────────────────────────────────────────────
+
+const TODAY_STORIES: Array<{
+  slug: string; budgetLine: string; status: string;
+  hour?: number; tbd?: boolean; isEnterprise?: boolean;
+  printHour?: number; wordCount?: number; notes?: string; shelved?: boolean;
+}> = [
+  // Already published this morning
+  { slug: "CITY BUDGET VOTE",      budgetLine: "City council passes $2.3B budget with cuts to parks, transit, and public health", status: "PUBLISHED_FINAL",      hour: 7,  printHour: 0, wordCount: 820 },
+  { slug: "TRANSIT UPDATE",        budgetLine: "Bus service restored on 12 routes after overnight maintenance delays",             status: "PUBLISHED_FINAL",      hour: 8,  wordCount: 380 },
+  { slug: "SCHOOL BOARD RULING",   budgetLine: "School board approves new literacy curriculum over union objections, 5-2",         status: "PUBLISHED_FINAL",      hour: 9,  printHour: 0, wordCount: 610 },
+  // Live and updating
+  { slug: "HOSPITAL MERGER RULING", budgetLine: "State AG clears hospital merger with conditions on pricing caps and staffing",    status: "PUBLISHED_ITERATING",  hour: 10, printHour: 0, wordCount: 940, isEnterprise: true, notes: "Updating with hospital and AG responses." },
+  { slug: "FIRE STATION THREAT",   budgetLine: "Union warns two fire station closures in budget will raise response times citywide", status: "PUBLISHED_ITERATING", hour: 11, wordCount: 700, notes: "Fire chief response expected at 2pm presser." },
+  { slug: "HOUSING AFFORDABILITY", budgetLine: "New metro data: median rent now exceeds 40% of median income in four zip codes",   status: "PUBLISHED_ITERATING",  hour: 12, printHour: 0, wordCount: 580 },
+  // Drafted, scheduled for later today
+  { slug: "POLICE CHIEF INTERVIEW", budgetLine: "New police chief outlines priorities: community policing, body cam compliance",   status: "DRAFT",                hour: 13, printHour: 0 },
+  { slug: "ELECTION CANDIDATES",   budgetLine: "Profiles of the five candidates vying for the open council seat in District 4",   status: "DRAFT",                hour: 14 },
+  { slug: "ARTS CENTER FUTURE",    budgetLine: "Community meeting draws 200 residents to debate arts center redevelopment plan",   status: "DRAFT",                hour: 15 },
+  { slug: "WATER RATE HEARING",    budgetLine: "Hundreds testify at hearing on proposed 18% water rate increase",                 status: "DRAFT",                hour: 16, printHour: 0 },
+  { slug: "TEACHER CONTRACT",      budgetLine: "Union and district resume contract talks after three-week standoff",               status: "DRAFT",                hour: 17 },
+  // In the works — no time set yet
+  { slug: "TECH CAMPUS PROPOSAL",  budgetLine: "Major tech firm eyes downtown campus; city offering $30M in incentives",          status: "DRAFT",                tbd: true, notes: "Source confirms announcement expected this week." },
+  { slug: "CLIMATE ACTION PLAN",   budgetLine: "City releases updated climate action plan with 2035 carbon neutrality goal",      status: "DRAFT",                tbd: true },
+  // Enterprise in progress
+  { slug: "PENSION SHORTFALL",     budgetLine: "City pension fund faces $340M shortfall; actuaries warn of insolvency risk",      status: "DRAFT",                tbd: true, isEnterprise: true, notes: "Finance director interview scheduled Thursday." },
+  // Shelved
+  { slug: "WATER MAIN BREAK",      budgetLine: "Downtown water main break caused morning commute disruption — story overtaken by events", status: "SHELVED", tbd: true, notes: "Shelved. Monitor for infrastructure follow-up angle." },
+];
+
+const TODAY_VIDEOS: Array<{ slug: string; budgetLine: string; status: string; hour?: number; tbd?: boolean; isEnterprise?: boolean }> = [
+  { slug: "COUNCIL MEETING PREVIEW", budgetLine: "What to watch at today's city council budget vote",                            status: "PUBLISHED_FINAL",     hour: 7  },
+  { slug: "BUDGET BREAKDOWN",        budgetLine: "What's in the city's $2.3B budget proposal — and what got cut",               status: "PUBLISHED_ITERATING", hour: 9  },
+  { slug: "FIRE STATION TOUR",       budgetLine: "Inside one of the fire stations slated for closure under the proposed budget", status: "DRAFT",               hour: 12, isEnterprise: true },
+  { slug: "RENTER STORIES",          budgetLine: "Metro renters share how rising housing costs are forcing them to move",        status: "DRAFT",               hour: 14 },
+  { slug: "CLIMATE PLAN EXPLAINER",  budgetLine: "The city's 2035 climate goals — explained in two minutes",                    status: "DRAFT",               tbd: true },
+];
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 async function main() {
   console.log("Seeding database...");
 
-  // Clear existing data
+  // Clear all data in dependency order
   await prisma.user.deleteMany();
   await prisma.videoAssignment.deleteMany();
   await prisma.video.deleteMany();
@@ -19,582 +159,204 @@ async function main() {
 
   // ─── People ───────────────────────────────────────────────────────────────
 
-  const alice = await prisma.person.create({
-    data: { name: "Alice Chen", email: "alice@newsroom.com", defaultRole: "REPORTER" },
-  });
-  const bob = await prisma.person.create({
-    data: { name: "Bob Martinez", email: "bob@newsroom.com", defaultRole: "EDITOR" },
-  });
-  const carol = await prisma.person.create({
-    data: { name: "Carol Williams", email: "carol@newsroom.com", defaultRole: "REPORTER" },
-  });
-  const david = await prisma.person.create({
-    data: { name: "David Kim", email: "david@newsroom.com", defaultRole: "PHOTOGRAPHER" },
-  });
-  const elena = await prisma.person.create({
-    data: { name: "Elena Patel", email: "elena@newsroom.com", defaultRole: "GRAPHIC_DESIGNER" },
-  });
-  const frank = await prisma.person.create({
-    data: { name: "Frank Johnson", email: "frank@newsroom.com", defaultRole: "EDITOR" },
-  });
-  const maya = await prisma.person.create({
-    data: { name: "Maya Singh", email: "maya@newsroom.com", defaultRole: "VIDEOGRAPHER" },
-  });
+  const alice = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",  defaultRole: "REPORTER"            } });
+  const bob   = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",    defaultRole: "EDITOR"              } });
+  const carol = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",  defaultRole: "REPORTER"            } });
+  const david = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",  defaultRole: "PHOTOGRAPHER"        } });
+  const elena = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",  defaultRole: "GRAPHIC_DESIGNER"    } });
+  const frank = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",  defaultRole: "EDITOR"              } });
+  const maya  = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",   defaultRole: "VIDEOGRAPHER"        } });
 
-  const today = startOfDay(new Date());
-  const d = (offset: number, hour: number) => addHours(addDays(today, offset), hour);
+  const reporters = [alice, carol];
+  const editors   = [bob, frank];
 
-  // ─── Stories ──────────────────────────────────────────────────────────────
-  // 15 days: -7 to +7. ~2-3 stories per day, mix of statuses.
-  // Past = mostly PUBLISHED_FINAL/ITERATING; today = DRAFT/ITERATING; future = DRAFT
+  // ─── Past 14 days: ~10 stories + 3 videos per day ─────────────────────────
 
-  const stories = await Promise.all([
+  const pastStories: Array<{ id: string }> = [];
+  const pastVideos:  Array<{ id: string }> = [];
 
-    // ── Day -7 ──
-    prisma.story.create({ data: {
-      slug: "TRANSIT STRIKE DEAL",
-      budgetLine: "Transit union and city reach tentative 3-year contract deal",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-7, 8), onlinePubDateTBD: false,
-      printPubDate: d(-7, 0), printPubDateTBD: false, wordCount: 820, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "HARBOR CLEANUP",
-      budgetLine: "EPA orders emergency harbor cleanup after chemical spill near port",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-7, 14), onlinePubDateTBD: false,
-      printPubDate: d(-7, 0), printPubDateTBD: false, wordCount: 610, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "SCHOOL BOARD VOTE",
-      budgetLine: "School board approves controversial new curriculum standards 5-2",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-7, 17), onlinePubDateTBD: false,
-      printPubDateTBD: true, wordCount: 740, sortOrder: 3,
-    }}),
+  // Hours spread across the day for 10 stories: morning through evening
+  const storyHours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
+  // 3 videos per day
+  const videoHours = [9, 12, 15];
 
-    // ── Day -6 ──
-    prisma.story.create({ data: {
-      slug: "WATER RATE HIKE",
-      budgetLine: "City proposes 18% water rate increase over three years",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-6, 9), onlinePubDateTBD: false,
-      printPubDate: d(-6, 0), printPubDateTBD: false, wordCount: 550, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "PARK RENOVATION DELAY",
-      budgetLine: "Riverside Park renovation pushed to 2027 after contractor dispute",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-6, 13), onlinePubDateTBD: false,
-      printPubDateTBD: true, wordCount: 430, sortOrder: 2,
-    }}),
+  let poolIdx = 0;
 
-    // ── Day -5 ──
-    prisma.story.create({ data: {
-      slug: "POLICE CONTRACT",
-      budgetLine: "City and police union resume contract talks after three-month standoff",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-5, 10), onlinePubDateTBD: false,
-      printPubDate: d(-5, 0), printPubDateTBD: false, wordCount: 680, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "LIBRARY HOURS CUT",
-      budgetLine: "Budget squeeze forces three branches to cut weekend hours",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-5, 15), onlinePubDateTBD: false,
-      printPubDateTBD: true, wordCount: 390, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "STADIUM NAMING DEAL",
-      budgetLine: "County sells stadium naming rights in $40M, 10-year deal",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-5, 11), onlinePubDateTBD: false,
-      printPubDate: d(-5, 0), printPubDateTBD: false, wordCount: 510, sortOrder: 3,
-    }}),
+  for (let day = -14; day <= -1; day++) {
+    for (let si = 0; si < 10; si++) {
+      const tmpl = pick(PAST_STORY_POOL, poolIdx++);
+      const hour = storyHours[si];
+      // Most past stories are PUBLISHED_FINAL; every 5th is PUBLISHED_ITERATING
+      const status = si % 5 === 4 ? "PUBLISHED_ITERATING" : "PUBLISHED_FINAL";
+      const hasPrint = si % 3 !== 2; // ~2/3 have print dates
 
-    // ── Day -4 ──
-    prisma.story.create({ data: {
-      slug: "HOSPITAL MERGER",
-      budgetLine: "Two regional hospitals announce merger, raising antitrust questions",
-      isEnterprise: true,
-      status: "PUBLISHED_ITERATING", onlinePubDate: d(-4, 8), onlinePubDateTBD: false,
-      printPubDate: d(-4, 0), printPubDateTBD: false, wordCount: 1100, sortOrder: 1,
-      notes: "Follow-up with state AG office pending.",
-    }}),
-    prisma.story.create({ data: {
-      slug: "FLOOD DAMAGE REPORT",
-      budgetLine: "County releases damage assessment from February flooding: $12M",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-4, 11), onlinePubDateTBD: false,
-      printPubDateTBD: true, wordCount: 490, sortOrder: 2,
-    }}),
+      const story = await prisma.story.create({
+        data: {
+          slug:             tmpl.slug,
+          budgetLine:       tmpl.budgetLine,
+          isEnterprise:     !!tmpl.isEnterprise,
+          status,
+          onlinePubDate:    d(day, hour),
+          onlinePubDateTBD: false,
+          printPubDate:     hasPrint ? d(day, 0) : null,
+          printPubDateTBD:  !hasPrint,
+          wordCount:        400 + Math.floor((poolIdx * 137) % 800), // deterministic variety
+          sortOrder:        si + 1,
+        },
+      });
+      pastStories.push(story);
 
-    // ── Day -3 ──
-    prisma.story.create({ data: {
-      slug: "TECH LAYOFFS LOCAL",
-      budgetLine: "Regional tech firms announce 400 layoffs ahead of Q2",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-3, 9), onlinePubDateTBD: false,
-      printPubDate: d(-3, 0), printPubDateTBD: false, wordCount: 720, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "FIRE CHIEF RESIGN",
-      budgetLine: "Fire chief resigns amid investigation into department overtime abuse",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-3, 12), onlinePubDateTBD: false,
-      printPubDate: d(-3, 0), printPubDateTBD: false, wordCount: 640, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "SCHOOL MERGER PROBE",
-      budgetLine: "State investigates whether school merger violated equity rules",
-      isEnterprise: true,
-      status: "PUBLISHED_ITERATING", onlinePubDate: d(-3, 15), onlinePubDateTBD: false,
-      printPubDate: d(-3, 0), printPubDateTBD: false, wordCount: 960,
-      notes: "FOIA docs received. Second story in series.", sortOrder: 3,
-    }}),
+      // Assign reporter + editor (rotate)
+      const reporter = pick(reporters, poolIdx);
+      const editor   = pick(editors,   poolIdx);
+      await prisma.storyAssignment.createMany({
+        data: [
+          { storyId: story.id, personId: reporter.id, role: "REPORTER" },
+          { storyId: story.id, personId: editor.id,   role: "EDITOR"   },
+        ],
+      });
 
-    // ── Day -2 ──
-    prisma.story.create({ data: {
-      slug: "HOUSING DATA 2026",
-      budgetLine: "New data: home prices up 12% year-over-year in metro area",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-2, 8), onlinePubDateTBD: false,
-      printPubDate: d(-2, 0), printPubDateTBD: false, wordCount: 580, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "ARTS FUNDING CUT",
-      budgetLine: "Mayor proposes 30% cut to arts council grants",
-      isEnterprise: true,
-      status: "PUBLISHED_ITERATING", onlinePubDate: d(-2, 11), onlinePubDateTBD: false,
-      printPubDate: d(-2, 0), printPubDateTBD: false, wordCount: 810, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "PEDESTRIAN SAFETY PLAN",
-      budgetLine: "City unveils $8M plan to add crosswalks and speed cameras downtown",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-2, 16), onlinePubDateTBD: false,
-      printPubDateTBD: true, wordCount: 470, sortOrder: 3,
-    }}),
+      // Add a visual to every 4th story (photo) or every 7th (graphic)
+      if (poolIdx % 4 === 0) {
+        await prisma.visual.create({ data: { storyId: story.id, type: "PHOTO",   personId: david.id } });
+      } else if (poolIdx % 7 === 0) {
+        await prisma.visual.create({ data: { storyId: story.id, type: "GRAPHIC", personId: elena.id } });
+      }
+    }
 
-    // ── Day -1 ──
-    prisma.story.create({ data: {
-      slug: "ELECTION FILING DEADLINE",
-      budgetLine: "Fifteen candidates file for November city council races",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-1, 9), onlinePubDateTBD: false,
-      printPubDate: d(-1, 0), printPubDateTBD: false, wordCount: 530, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "JAIL OVERCROWDING",
-      budgetLine: "County jail at 140% capacity; officials weigh early release program",
-      isEnterprise: true,
-      status: "PUBLISHED_ITERATING", onlinePubDate: d(-1, 13), onlinePubDateTBD: false,
-      printPubDate: d(-1, 0), printPubDateTBD: false, wordCount: 1020, sortOrder: 2,
-      notes: "Sheriff interview scheduled for tomorrow.",
-    }}),
+    for (let vi = 0; vi < 3; vi++) {
+      const tmpl = pick(PAST_VIDEO_POOL, poolIdx++);
+      const video = await prisma.video.create({
+        data: {
+          slug:             tmpl.slug,
+          budgetLine:       tmpl.budgetLine,
+          status:           "PUBLISHED_FINAL",
+          onlinePubDate:    d(day, videoHours[vi]),
+          onlinePubDateTBD: false,
+          sortOrder:        vi + 1,
+        },
+      });
+      pastVideos.push(video);
 
-    // ── Day 0 (today) ──
-    prisma.story.create({ data: {
-      slug: "CITY BUDGET VOTE",
-      budgetLine: "City council expected to pass $2.3B budget with cuts to parks and transit",
-      status: "DRAFT", onlinePubDate: d(0, 9), onlinePubDateTBD: false,
-      printPubDate: d(0, 0), printPubDateTBD: false, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "HOSPITAL MERGER RULING",
-      budgetLine: "State AG clears hospital merger with conditions on pricing caps",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(0, 11), onlinePubDateTBD: false,
-      printPubDate: d(0, 0), printPubDateTBD: false, sortOrder: 2,
-      notes: "Confirm ruling details with AG press office by 10am.",
-    }}),
-    prisma.story.create({ data: {
-      slug: "TEACHER SHORTAGE",
-      budgetLine: "District reports 80 unfilled teaching positions heading into spring",
-      status: "DRAFT", onlinePubDate: d(0, 15), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 3,
-    }}),
-
-    // ── Day +1 ──
-    prisma.story.create({ data: {
-      slug: "FIRE STATION CLOSURE",
-      budgetLine: "Two fire stations to close under proposed budget, union warns of safety risks",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(1, 10), onlinePubDateTBD: false,
-      printPubDate: d(1, 0), printPubDateTBD: false, sortOrder: 1,
-      notes: "Confirm closure dates with fire chief office.",
-    }}),
-    prisma.story.create({ data: {
-      slug: "AIRPORT EXPANSION",
-      budgetLine: "County board votes on $220M terminal expansion proposal",
-      status: "DRAFT", onlinePubDate: d(1, 14), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 2,
-    }}),
-
-    // ── Day +2 ──
-    prisma.story.create({ data: {
-      slug: "RENT CONTROL VOTE",
-      budgetLine: "Council to vote on rent stabilization ordinance covering 40,000 units",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(2, 9), onlinePubDateTBD: false,
-      printPubDate: d(2, 0), printPubDateTBD: false, sortOrder: 1,
-      notes: "Need landlord and tenant advocate quotes.",
-    }}),
-    prisma.story.create({ data: {
-      slug: "SPORTS COMPLEX BID",
-      budgetLine: "City submits bid to host regional youth sports complex",
-      status: "DRAFT", onlinePubDate: d(2, 13), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "BRIDGE INSPECTION FAIL",
-      budgetLine: "Main Street bridge fails state inspection; partial closure expected",
-      status: "DRAFT", onlinePubDate: d(2, 16), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 3,
-    }}),
-
-    // ── Day +3 ──
-    prisma.story.create({ data: {
-      slug: "ELECTION PREVIEW",
-      budgetLine: "November primary: five key races to watch across the county",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(3, 10), onlinePubDateTBD: false,
-      printPubDate: d(3, 0), printPubDateTBD: false, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "FOOD BANK DEMAND",
-      budgetLine: "Regional food banks report 35% surge in demand, blame housing costs",
-      status: "DRAFT", onlinePubDate: d(3, 14), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 2,
-    }}),
-
-    // ── Day +4 ──
-    prisma.story.create({ data: {
-      slug: "POLICE BODY CAM AUDIT",
-      budgetLine: "Audit finds gaps in body camera footage retention policy",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(4, 9), onlinePubDateTBD: false,
-      printPubDate: d(4, 0), printPubDateTBD: false, sortOrder: 1,
-      notes: "Awaiting audit PDF from city clerk.",
-    }}),
-    prisma.story.create({ data: {
-      slug: "DOWNTOWN REVIVAL PLAN",
-      budgetLine: "New task force pitches incentives to fill vacant storefronts",
-      status: "DRAFT", onlinePubDate: d(4, 13), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 2,
-    }}),
-    prisma.story.create({ data: {
-      slug: "CLIMATE REPORT LOCAL",
-      budgetLine: "New county climate report: average temps up 2.4°F since 1990",
-      status: "DRAFT", onlinePubDateTBD: true, printPubDateTBD: true, sortOrder: 3,
-      notes: "Targeting next week pending final data from county.",
-    }}),
-
-    // ── Day +5 ──
-    prisma.story.create({ data: {
-      slug: "BUDGET TOWN HALL",
-      budgetLine: "Public weighs in on proposed cuts at packed town hall meeting",
-      status: "DRAFT", onlinePubDate: d(5, 10), onlinePubDateTBD: false,
-      printPubDate: d(5, 0), printPubDateTBD: false, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "TRANSIT EXPANSION",
-      budgetLine: "Federal grant would fund two new bus rapid transit lines",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(5, 14), onlinePubDateTBD: false,
-      printPubDate: d(5, 0), printPubDateTBD: false, sortOrder: 2,
-    }}),
-
-    // ── Day +6 ──
-    prisma.story.create({ data: {
-      slug: "SCHOOL LUNCH DEBT",
-      budgetLine: "District cancels $180K in school lunch debt for low-income students",
-      status: "DRAFT", onlinePubDate: d(6, 9), onlinePubDateTBD: false,
-      printPubDateTBD: true, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "WATER MAIN BREAK",
-      budgetLine: "Downtown water main break disrupts morning commute",
-      status: "SHELVED", shelvedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      onlinePubDateTBD: true, printPubDateTBD: true, sortOrder: 99,
-      notes: "Story overtaken by events. Shelved pending further developments.",
-    }}),
-
-    // ── Day +7 ──
-    prisma.story.create({ data: {
-      slug: "COUNTY FAIR RETURN",
-      budgetLine: "County fair returns after two-year hiatus with record vendor applications",
-      status: "DRAFT", onlinePubDate: d(7, 11), onlinePubDateTBD: false,
-      printPubDate: d(7, 0), printPubDateTBD: false, sortOrder: 1,
-    }}),
-    prisma.story.create({ data: {
-      slug: "PENSION SHORTFALL",
-      budgetLine: "City pension fund faces $340M shortfall, audit warns of insolvency risk",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(7, 13), onlinePubDateTBD: false,
-      printPubDate: d(7, 0), printPubDateTBD: false, sortOrder: 2,
-      notes: "Get comment from finance director and pension board chair.",
-    }}),
-  ]);
-
-  // ─── Videos ───────────────────────────────────────────────────────────────
-
-  const videos = await Promise.all([
-    // Past
-    prisma.video.create({ data: {
-      slug: "TRANSIT STRIKE REACTION",
-      budgetLine: "Commuters react to end of transit strike",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-7, 10), onlinePubDateTBD: false,
-      sortOrder: 1, youtubeUrl: "https://youtube.com/watch?v=example1",
-    }}),
-    prisma.video.create({ data: {
-      slug: "HARBOR CLEANUP AERIAL",
-      budgetLine: "Drone footage of harbor cleanup operation",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-5, 12), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "HOSPITAL MERGER EXPLAINER",
-      budgetLine: "What the hospital merger means for patients",
-      isEnterprise: true,
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-4, 9), onlinePubDateTBD: false,
-      sortOrder: 1, youtubeUrl: "https://youtube.com/watch?v=example2",
-    }}),
-    prisma.video.create({ data: {
-      slug: "FIRE CHIEF INTERVIEW",
-      budgetLine: "Outgoing fire chief speaks out on department issues",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-3, 14), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "HOUSING MARKET EXPLAINER",
-      budgetLine: "Breaking down the metro housing market in 90 seconds",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-2, 10), onlinePubDateTBD: false,
-      sortOrder: 1, reelsUrl: "https://instagram.com/reel/example1",
-    }}),
-    prisma.video.create({ data: {
-      slug: "ARTS FUNDING REACTION",
-      budgetLine: "Artists respond to proposed arts funding cuts",
-      status: "PUBLISHED_FINAL", onlinePubDate: d(-1, 11), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-
-    // Today
-    prisma.video.create({ data: {
-      slug: "BUDGET VOTE PREVIEW",
-      budgetLine: "What's in the city's $2.3B budget proposal",
-      status: "DRAFT", onlinePubDate: d(0, 8), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-
-    // Future
-    prisma.video.create({ data: {
-      slug: "FIRE STATION TOUR",
-      budgetLine: "Inside one of the fire stations slated for closure",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(1, 12), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "RENT CONTROL EXPLAINER",
-      budgetLine: "Rent stabilization: what it would mean for renters and landlords",
-      status: "DRAFT", onlinePubDate: d(2, 10), onlinePubDateTBD: false,
-      sortOrder: 1, youtubeUrl: "https://youtube.com/watch?v=example3",
-    }}),
-    prisma.video.create({ data: {
-      slug: "BRIDGE CLOSURE IMPACT",
-      budgetLine: "Commuters react to Main Street bridge closure",
-      status: "DRAFT", onlinePubDate: d(2, 15), onlinePubDateTBD: false,
-      sortOrder: 2,
-    }}),
-    prisma.video.create({ data: {
-      slug: "FOOD BANK VISIT",
-      budgetLine: "A day at the region's busiest food bank",
-      status: "DRAFT", onlinePubDate: d(3, 13), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "TRANSIT EXPANSION TOUR",
-      budgetLine: "Riding the proposed BRT route with city planners",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(5, 11), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "PENSION CRISIS EXPLAINER",
-      budgetLine: "The city's pension shortfall explained in two minutes",
-      isEnterprise: true,
-      status: "DRAFT", onlinePubDate: d(7, 10), onlinePubDateTBD: false,
-      sortOrder: 1,
-    }}),
-    prisma.video.create({ data: {
-      slug: "COUNTY FAIR PREVIEW",
-      budgetLine: "Behind the scenes at the returning county fair",
-      status: "DRAFT", onlinePubDate: d(7, 14), onlinePubDateTBD: false,
-      sortOrder: 2,
-    }}),
-    prisma.video.create({ data: {
-      slug: "CLIMATE DATA VIZ",
-      budgetLine: "Visualizing 35 years of local temperature data",
-      status: "DRAFT", onlinePubDateTBD: true, sortOrder: 3,
-      notes: "Waiting on final climate report data.",
-    }}),
-  ]);
-
-  // ─── Story Assignments ─────────────────────────────────────────────────────
-
-  const [
-    sTransitDeal, sHarbor, sSchoolBoard, sWaterRate, sParkDelay,
-    sPoliceContract, sLibrary, sStadium, sHospitalMerger, sFlood,
-    sTechLayoffs, sFireChief, sSchoolMerger, sHousingData, sArtsFunding,
-    sPedestrian, sElectionFiling, sJailOvercrowding, sCityBudget,
-    sHospitalRuling, sTeacher, sFireStation, sAirport, sRentControl,
-    sSports, sBridge, sElectionPreview, sFoodBank, sPoliceAudit,
-    sDowntown, sClimate, sBudgetTownHall, sTransitExpansion,
-    sSchoolLunch, sWaterMainBreak, sCountyFair, sPension,
-  ] = stories;
-
-  const storyAssignments = [
-    // Day -7
-    { storyId: sTransitDeal.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sTransitDeal.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sHarbor.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sHarbor.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sSchoolBoard.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sSchoolBoard.id, personId: bob.id, role: "EDITOR" as const },
-    // Day -6
-    { storyId: sWaterRate.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sWaterRate.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sParkDelay.id, personId: carol.id, role: "REPORTER" as const },
-    // Day -5
-    { storyId: sPoliceContract.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sPoliceContract.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sLibrary.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sStadium.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sStadium.id, personId: frank.id, role: "EDITOR" as const },
-    // Day -4
-    { storyId: sHospitalMerger.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sHospitalMerger.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sFlood.id, personId: alice.id, role: "REPORTER" as const },
-    // Day -3
-    { storyId: sTechLayoffs.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sTechLayoffs.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sFireChief.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sFireChief.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sSchoolMerger.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sSchoolMerger.id, personId: frank.id, role: "EDITOR" as const },
-    // Day -2
-    { storyId: sHousingData.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sHousingData.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sArtsFunding.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sArtsFunding.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sPedestrian.id, personId: alice.id, role: "REPORTER" as const },
-    // Day -1
-    { storyId: sElectionFiling.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sElectionFiling.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sJailOvercrowding.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sJailOvercrowding.id, personId: frank.id, role: "EDITOR" as const },
-    // Today
-    { storyId: sCityBudget.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sCityBudget.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sHospitalRuling.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sHospitalRuling.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sTeacher.id, personId: carol.id, role: "REPORTER" as const },
-    // Future
-    { storyId: sFireStation.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sFireStation.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sAirport.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sRentControl.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sRentControl.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sBridge.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sElectionPreview.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sElectionPreview.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sFoodBank.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sPoliceAudit.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sPoliceAudit.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sBudgetTownHall.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sBudgetTownHall.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sTransitExpansion.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sTransitExpansion.id, personId: frank.id, role: "EDITOR" as const },
-    { storyId: sSchoolLunch.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sPension.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sPension.id, personId: bob.id, role: "EDITOR" as const },
-    { storyId: sCountyFair.id, personId: carol.id, role: "REPORTER" as const },
-    { storyId: sClimate.id, personId: alice.id, role: "REPORTER" as const },
-    { storyId: sClimate.id, personId: frank.id, role: "EDITOR" as const },
-  ];
-
-  for (const a of storyAssignments) {
-    await prisma.storyAssignment.create({ data: a });
+      await prisma.videoAssignment.create({
+        data: { videoId: video.id, personId: maya.id, role: "VIDEOGRAPHER" },
+      });
+    }
   }
 
-  // ─── Visuals ──────────────────────────────────────────────────────────────
+  // ─── Today: 15 stories + 5 videos with mixed statuses ─────────────────────
 
-  await prisma.visual.createMany({
-    data: [
-      { storyId: sTransitDeal.id, type: "PHOTO", description: "Commuters at main station", personId: david.id },
-      { storyId: sHarbor.id, type: "PHOTO", description: "Harbor aerial shot", personId: david.id },
-      { storyId: sTechLayoffs.id, type: "GRAPHIC", description: "Layoff timeline chart", personId: elena.id },
-      { storyId: sHospitalMerger.id, type: "GRAPHIC", description: "Hospital network map", personId: elena.id },
-      { storyId: sHospitalMerger.id, type: "PHOTO", description: "Hospital entrance", personId: david.id },
-      { storyId: sSchoolMerger.id, type: "GRAPHIC", description: "District map overlay", personId: elena.id },
-      { storyId: sArtsFunding.id, type: "PHOTO", description: "Arts center exterior", personId: david.id },
-      { storyId: sHousingData.id, type: "GRAPHIC", description: "Price trend chart", personId: elena.id },
-      { storyId: sJailOvercrowding.id, type: "GRAPHIC", description: "Capacity over time chart", personId: elena.id },
-      { storyId: sCityBudget.id, type: "PHOTO", description: "Council chamber", personId: david.id },
-      { storyId: sCityBudget.id, type: "GRAPHIC", description: "Budget breakdown graphic", personId: elena.id },
-      { storyId: sRentControl.id, type: "GRAPHIC", description: "Affected units map", personId: elena.id },
-      { storyId: sBridge.id, type: "PHOTO", description: "Bridge inspection photos", personId: david.id },
-      { storyId: sPoliceAudit.id, type: "GRAPHIC", description: "Body cam compliance chart", personId: elena.id },
-      { storyId: sTransitExpansion.id, type: "GRAPHIC", description: "BRT route map", personId: elena.id },
-      { storyId: sPension.id, type: "GRAPHIC", description: "Pension fund projections", personId: elena.id },
-      { storyId: sClimate.id, type: "GRAPHIC", description: "Temperature trend chart", personId: elena.id },
-    ],
-  });
+  const todayStoryRecords: Array<{ id: string }> = [];
+  for (let i = 0; i < TODAY_STORIES.length; i++) {
+    const t = TODAY_STORIES[i];
+    const story = await prisma.story.create({
+      data: {
+        slug:             t.slug,
+        budgetLine:       t.budgetLine,
+        isEnterprise:     !!t.isEnterprise,
+        status:           t.status,
+        onlinePubDate:    t.tbd || t.hour === undefined ? null : d(0, t.hour),
+        onlinePubDateTBD: !!t.tbd || t.hour === undefined,
+        printPubDate:     t.printHour !== undefined ? d(0, t.printHour) : null,
+        printPubDateTBD:  t.printHour === undefined,
+        notes:            t.notes ?? null,
+        shelvedAt:        t.status === "SHELVED" ? new Date() : null,
+        sortOrder:        i + 1,
+      },
+    });
+    todayStoryRecords.push(story);
 
-  // ─── Video Assignments ─────────────────────────────────────────────────────
+    const reporter = pick(reporters, i);
+    const editor   = pick(editors,   i);
+    await prisma.storyAssignment.createMany({
+      data: [
+        { storyId: story.id, personId: reporter.id, role: "REPORTER" },
+        { storyId: story.id, personId: editor.id,   role: "EDITOR"   },
+      ],
+    });
 
-  const [
-    vTransit, vHarborDrone, vHospital, vFireChief, vHousing,
-    vArts, vBudgetPreview, vFireStation, vRentControl, vBridge,
-    vFoodBank, vTransitExp, vPension, vCountyFair, vClimate,
-  ] = videos;
+    // Visuals for select today stories
+    if (i % 3 === 0) await prisma.visual.create({ data: { storyId: story.id, type: "PHOTO",   description: "Photo for today story",   personId: david.id } });
+    if (i % 4 === 0) await prisma.visual.create({ data: { storyId: story.id, type: "GRAPHIC", description: "Graphic for today story", personId: elena.id } });
+  }
 
-  const videoAssignments = [
-    { videoId: vTransit.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vHarborDrone.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vHospital.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vHospital.id, personId: bob.id, role: "EDITOR" as const },
-    { videoId: vFireChief.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vHousing.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vArts.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vBudgetPreview.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vBudgetPreview.id, personId: bob.id, role: "EDITOR" as const },
-    { videoId: vFireStation.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vRentControl.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vBridge.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vFoodBank.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vTransitExp.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vTransitExp.id, personId: frank.id, role: "EDITOR" as const },
-    { videoId: vPension.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vPension.id, personId: bob.id, role: "EDITOR" as const },
-    { videoId: vCountyFair.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-    { videoId: vClimate.id, personId: maya.id, role: "VIDEOGRAPHER" as const },
-  ];
+  const todayVideoRecords: Array<{ id: string }> = [];
+  for (let i = 0; i < TODAY_VIDEOS.length; i++) {
+    const t = TODAY_VIDEOS[i];
+    const video = await prisma.video.create({
+      data: {
+        slug:             t.slug,
+        budgetLine:       t.budgetLine,
+        isEnterprise:     !!t.isEnterprise,
+        status:           t.status,
+        onlinePubDate:    t.tbd || t.hour === undefined ? null : d(0, t.hour),
+        onlinePubDateTBD: !!t.tbd || t.hour === undefined,
+        sortOrder:        i + 1,
+      },
+    });
+    todayVideoRecords.push(video);
+    await prisma.videoAssignment.create({ data: { videoId: video.id, personId: maya.id, role: "VIDEOGRAPHER" } });
+    if (i % 2 === 0) {
+      await prisma.videoAssignment.create({ data: { videoId: video.id, personId: pick(editors, i).id, role: "EDITOR" } });
+    }
+  }
 
-  for (const a of videoAssignments) {
-    await prisma.videoAssignment.create({ data: a });
+  // ─── Enterprise stories: 15 pieces spread over next 180 days ─────────────
+
+  const enterpriseRecords: Array<{ id: string }> = [];
+  for (let i = 0; i < ENTERPRISE_STORIES.length; i++) {
+    const t = ENTERPRISE_STORIES[i];
+    const story = await prisma.story.create({
+      data: {
+        slug:             t.slug,
+        budgetLine:       t.budgetLine,
+        isEnterprise:     true,
+        status:           "DRAFT",
+        onlinePubDate:    d(t.offsetDays, 9),
+        onlinePubDateTBD: false,
+        printPubDate:     i % 2 === 0 ? d(t.offsetDays, 0) : null,
+        printPubDateTBD:  i % 2 !== 0,
+        notes:            t.notes ?? null,
+        sortOrder:        i + 1,
+      },
+    });
+    enterpriseRecords.push(story);
+
+    const reporter = pick(reporters, i + 7);
+    const editor   = pick(editors,   i + 7);
+    await prisma.storyAssignment.createMany({
+      data: [
+        { storyId: story.id, personId: reporter.id, role: "REPORTER" },
+        { storyId: story.id, personId: editor.id,   role: "EDITOR"   },
+      ],
+    });
+
+    // Enterprise pieces get graphics
+    if (i % 2 === 0) {
+      await prisma.visual.create({ data: { storyId: story.id, type: "GRAPHIC", description: "Enterprise graphic", personId: elena.id } });
+    }
   }
 
   // ─── Admin user ───────────────────────────────────────────────────────────
 
   const adminHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
-    data: {
-      email: "admin@newsroom.com",
-      name: "Admin",
-      passwordHash: adminHash,
-      appRole: "ADMIN",
-    },
+    data: { email: "admin@newsroom.com", name: "Admin", passwordHash: adminHash, appRole: "ADMIN" },
   });
 
+  const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length;
+  const totalVideos   = pastVideos.length  + todayVideoRecords.length;
+
   console.log(
-    `Seed complete: 1 admin user, 7 people, ${stories.length} stories, ${videos.length} videos, ` +
-    `${storyAssignments.length} story assignments, ${videoAssignments.length} video assignments, 17 visuals`
+    `Seed complete: 1 admin user, 7 people,\n` +
+    `  ${pastStories.length} past stories (14 days × 10/day)\n` +
+    `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
+    `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
+    `  ${totalStories} stories total\n` +
+    `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos = ${totalVideos} videos total`
   );
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });
