@@ -17,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
-import { cn } from "@/lib/utils"
+import { cn, todayString } from "@/lib/utils"
 import type { EditionDateGroup } from "@/types/index"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -307,7 +307,7 @@ export function EditionView() {
           overlayContent={overlayContent()}
         >
           {(() => {
-            const today = format(new Date(), "yyyy-MM-dd")
+            const today = todayString()
             const pastGroups = groups.filter(
               (g) => g.date !== "TBD" && g.date < today && g.stories.length > 0
             )

@@ -120,9 +120,18 @@ export function formatPrintDate(
   return format(local, "MMM d, yyyy");
 }
 
-/** Today as YYYY-MM-DD in local time */
+/** Today as YYYY-MM-DD in Pacific Time (America/Los_Angeles) */
 export function todayString(): string {
-  return format(new Date(), "yyyy-MM-dd");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
 }
 
 /** Return initials from a full name (up to 2 chars) */

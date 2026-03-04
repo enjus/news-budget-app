@@ -2,11 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { format } from "date-fns"
+import { cn, todayString } from "@/lib/utils"
 
 const tabs = [
-  { label: "Daily", href: `/budget/daily/${format(new Date(), "yyyy-MM-dd")}`, matchPrefix: "/budget/daily" },
+  { label: "Daily", href: `/budget/daily/${todayString()}`, matchPrefix: "/budget/daily" },
   { label: "Daily Edition", href: "/budget/edition", matchPrefix: "/budget/edition" },
   { label: "Enterprise", href: "/budget/enterprise", matchPrefix: "/budget/enterprise" },
   { label: "Shelved", href: "/budget/shelved", matchPrefix: "/budget/shelved" },

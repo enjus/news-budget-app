@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
-import { format } from "date-fns"
+import { todayString } from "@/lib/utils"
 
 export default function HomePage() {
-  redirect(`/budget/daily/${format(new Date(), "yyyy-MM-dd")}`)
+  redirect(`/budget/daily/${todayString()}`)
 }

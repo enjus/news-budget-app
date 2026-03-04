@@ -19,7 +19,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 
@@ -539,7 +539,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
     return null
   }
 
-  const today = format(new Date(), "yyyy-MM-dd")
+  const today = todayString()
 
   if (isLoading && !data) {
     return (
@@ -722,7 +722,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const prevDate = format(subDays(parsedDate, 1), "yyyy-MM-dd")
   const nextDate = format(addDays(parsedDate, 1), "yyyy-MM-dd")
   const displayDate = format(parsedDate, "EEEE, MMMM d, yyyy")
-  const isToday = date === format(new Date(), "yyyy-MM-dd")
+  const isToday = date === todayString()
 
   return (
     <div className="space-y-6">
