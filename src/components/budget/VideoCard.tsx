@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Sparkles, Video as VideoIcon } from "lucide-react"
-import { cn, initials, formatTime } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
 interface VideoCardProps {
@@ -89,15 +89,18 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
 
         {/* Bottom row: people chips + AI tag */}
         <div className="flex flex-wrap items-center gap-1">
-          {video.assignments.map((a) => (
-            <span
-              key={`${a.personId}-${a.role}`}
-              className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-              title={a.person.name}
-            >
-              {initials(a.person.name)}
-            </span>
-          ))}
+          {video.assignments.map((a) => {
+            const abbrev = ROLE_ABBREV[a.role]
+            return (
+              <span
+                key={`${a.personId}-${a.role}`}
+                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+              >
+                {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
+              </span>
+            )
+          })}
           {video.aiContributed && (
             <span
               className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"

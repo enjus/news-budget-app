@@ -4,7 +4,7 @@ import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, initials, formatTime } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
 
 const WORD_COUNT_LIMIT = 1400
@@ -180,15 +180,18 @@ export function StoryCard({
 
         {/* Bottom row: people chips + indicators */}
         <div className="flex flex-wrap items-center gap-1">
-          {story.assignments.map((a) => (
-            <span
-              key={`${a.personId}-${a.role}`}
-              className="inline-flex items-center justify-center rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-              title={a.person.name}
-            >
-              {initials(a.person.name)}
-            </span>
-          ))}
+          {story.assignments.map((a) => {
+            const abbrev = ROLE_ABBREV[a.role]
+            return (
+              <span
+                key={`${a.personId}-${a.role}`}
+                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+              >
+                {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
+              </span>
+            )
+          })}
           {story.aiContributed && (
             <span
               className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"

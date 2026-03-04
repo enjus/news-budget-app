@@ -135,6 +135,21 @@ export function initials(name: string): string {
     .slice(0, 2);
 }
 
+/** Return the last word of a full name as the surname */
+export function surname(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return parts[parts.length - 1];
+}
+
+export const ROLE_ABBREV: Record<string, string> = {
+  REPORTER:             "Rptr",
+  EDITOR:               "Ed",
+  PHOTOGRAPHER:         "Photo",
+  VIDEOGRAPHER:         "Video",
+  GRAPHIC_DESIGNER:     "Grafk",
+  PUBLICATION_DESIGNER: "PubOps",
+};
+
 export const STORY_STATUS_LABELS: Record<string, string> = {
   DRAFT: "In the works",
   SCHEDULED: "Scheduled",
