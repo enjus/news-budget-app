@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
-  ChevronLeft, ChevronRight, ChevronDown, Plus, GripVertical,
+  ChevronLeft, ChevronRight, ChevronDown, Plus,
   Info, FileText, Video, LayoutGrid, List,
 } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
@@ -299,19 +299,13 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
               newVideoHref={buildItemUrl("videos")}
             >
               {stories.map((story) => (
-                <SortableCard key={`story-${story.id}`} id={`story-${story.id}`}>
-                  <div className="flex items-start gap-1">
-                    <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                    <div className="min-w-0 flex-1"><StoryCard story={story} showWordCount showPhotoIndicator /></div>
-                  </div>
+                <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
+                  <StoryCard story={story} showWordCount showPhotoIndicator />
                 </SortableCard>
               ))}
               {videos.map((video) => (
-                <SortableCard key={`video-${video.id}`} id={`video-${video.id}`}>
-                  <div className="flex items-start gap-1">
-                    <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                    <div className="min-w-0 flex-1"><VideoCard video={video} /></div>
-                  </div>
+                <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
+                  <VideoCard video={video} />
                 </SortableCard>
               ))}
             </DroppableColumn>
@@ -599,15 +593,10 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                     hideHeader
                   >
                     {tbdMerged.map((m) => (
-                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
-                        <div className="flex items-start gap-1">
-                          <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                          <div className="min-w-0 flex-1">
-                            {m.kind === "story"
-                              ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
-                              : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
-                          </div>
-                        </div>
+                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                        {m.kind === "story"
+                          ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
+                          : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                       </SortableCard>
                     ))}
                   </AgendaDayRow>
@@ -673,15 +662,10 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                         {BUCKET_NAMES[bg.bucket.id]} · {bg.bucket.label}
                       </p>
                       {bg.items.map((m) => (
-                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
-                          <div className="flex items-start gap-1">
-                            <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                            <div className="min-w-0 flex-1">
-                              {m.kind === "story"
-                                ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
-                                : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
-                            </div>
-                          </div>
+                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                          {m.kind === "story"
+                            ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
+                            : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                         </SortableCard>
                       ))}
                     </div>
@@ -689,15 +673,10 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                 </div>
               ) : (
                 merged.map((m) => (
-                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
-                    <div className="flex items-start gap-1">
-                      <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-                      <div className="min-w-0 flex-1">
-                        {m.kind === "story"
-                          ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
-                          : <VideoCard video={m.item as VideoWithRelations} />}
-                      </div>
-                    </div>
+                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                    {m.kind === "story"
+                      ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
+                      : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                   </SortableCard>
                 ))
               )}
@@ -715,6 +694,11 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const [showStories, setShowStories] = useState(true)
   const [showVideos, setShowVideos] = useState(true)
   const [viewMode, setViewMode] = useState<"columns" | "agenda">("columns")
+
+  // Default to agenda on mobile
+  useEffect(() => {
+    if (window.innerWidth < 768) setViewMode("agenda")
+  }, [])
 
   let parsedDate: Date
   try { parsedDate = parseISO(date) } catch { parsedDate = new Date() }
@@ -770,8 +754,8 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             </Button>
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex divide-x overflow-hidden rounded-md border">
+          {/* View mode toggle — hidden on mobile (always agenda) */}
+          <div className="hidden md:flex divide-x overflow-hidden rounded-md border">
             <Button
               size="sm"
               variant="ghost"

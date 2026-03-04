@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO, addDays } from "date-fns"
-import { Plus, GripVertical, CalendarDays, ChevronDown } from "lucide-react"
+import { Plus, CalendarDays, ChevronDown } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent } from "@dnd-kit/core"
@@ -370,23 +370,13 @@ export function EnterpriseView() {
         newStoryHref={newStoryHref}
       >
         {group.stories.map((story) => (
-          <SortableCard key={`story-${story.id}`} id={`story-${story.id}`}>
-            <div className="flex items-start gap-1">
-              <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-              <div className="min-w-0 flex-1">
-                <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
-              </div>
-            </div>
+          <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
+            <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
           </SortableCard>
         ))}
         {group.videos.map((video) => (
-          <SortableCard key={`video-${video.id}`} id={`video-${video.id}`}>
-            <div className="flex items-start gap-1">
-              <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
-              <div className="min-w-0 flex-1">
-                <VideoCard video={video} />
-              </div>
-            </div>
+          <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
+            <VideoCard video={video} budgetLineClamp={3} />
           </SortableCard>
         ))}
       </DroppableSection>
