@@ -343,12 +343,19 @@ async function main() {
   await prisma.user.create({
     data: { email: "admin@newsroom.com", name: "Admin", passwordHash: adminHash, appRole: "ADMIN" },
   });
+  await prisma.user.create({
+    data: { email: "director@newsroom.com", name: "Director", passwordHash: adminHash, appRole: "ADMIN" },
+  });
+  const editorHash = await bcrypt.hash("newsbudget2026", 12);
+  await prisma.user.create({
+    data: { email: "editor@newsroom.com", name: "Editor", passwordHash: editorHash, appRole: "EDITOR" },
+  });
 
   const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length;
   const totalVideos   = pastVideos.length  + todayVideoRecords.length;
 
   console.log(
-    `Seed complete: 1 admin user, 7 people,\n` +
+    `Seed complete: 3 users (2 admin, 1 editor), 7 people,\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
