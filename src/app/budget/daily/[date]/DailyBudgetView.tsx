@@ -5,7 +5,7 @@ import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
-  ChevronLeft, ChevronRight, Plus, GripVertical,
+  ChevronLeft, ChevronRight, ChevronDown, Plus, GripVertical,
   Info, FileText, Video, LayoutGrid, List,
 } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
@@ -342,25 +342,28 @@ interface AgendaDayRowProps {
   isToday: boolean
   itemIds: string[]
   count: number
+  hideHeader?: boolean
   children: React.ReactNode
 }
 
-function AgendaDayRow({ dateKey, label, isToday, itemIds, count, children }: AgendaDayRowProps) {
+function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, children }: AgendaDayRowProps) {
   const { setNodeRef, isOver } = useDroppable({ id: dateKey })
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <h3 className={cn("text-sm font-semibold", isToday && "text-primary")}>{label}</h3>
-        {isToday && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-            Today
+      {!hideHeader && (
+        <div className="flex items-center gap-2">
+          <h3 className={cn("text-sm font-semibold", isToday && "text-primary")}>{label}</h3>
+          {isToday && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+              Today
+            </span>
+          )}
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {count}
           </span>
-        )}
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-          {count}
-        </span>
-      </div>
+        </div>
+      )}
       <div
         ref={setNodeRef}
         className={cn(
@@ -390,6 +393,7 @@ const BUCKET_NAMES: Record<string, string> = {
 
 function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [tbdExpanded, setTbdExpanded] = useState(false)
 
   const { data, isLoading, mutate } = useSWR<AgendaResponse>(
     ["/api/budget/agenda", date],
@@ -553,6 +557,10 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
   if (!currentData) return null
 
   const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
+  const tbdGroup = currentData.tbd
+  const tbdStories = showStories ? tbdGroup.stories : []
+  const tbdVideos = showVideos ? tbdGroup.videos : []
+  const tbdCount = tbdStories.length + tbdVideos.length
 
   return (
     <DndProvider
@@ -561,12 +569,59 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       overlayContent={overlayContent()}
     >
       <div className="space-y-6">
-        {allGroups.map((group) => {
-          const isTbd = group.date === "TBD"
-          const label = isTbd
-            ? "TBD — No scheduled date"
-            : format(parseISO(group.date), "EEEE, MMMM d")
-          const isToday = !isTbd && group.date === today
+        {/* ── TBD (collapsible, top) ── */}
+        {tbdCount > 0 && (
+          <div className="space-y-3">
+            <button
+              onClick={() => setTbdExpanded((v) => !v)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDown className={cn("size-4 transition-transform", tbdExpanded && "rotate-180")} />
+              <span className="font-medium">TBD — No scheduled date</span>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                {tbdCount}
+              </span>
+            </button>
+            {tbdExpanded && (() => {
+              const tbdMerged = [
+                ...tbdStories.map((item) => ({ kind: "story" as const, item })),
+                ...tbdVideos.map((item) => ({ kind: "video" as const, item })),
+              ]
+              const tbdItemIds = tbdMerged.map((m) => `${m.kind}-${m.item.id}`)
+              return (
+                <div className="border-l-2 border-border/40 pl-6">
+                  <AgendaDayRow
+                    dateKey="TBD"
+                    label=""
+                    isToday={false}
+                    itemIds={tbdItemIds}
+                    count={tbdCount}
+                    hideHeader
+                  >
+                    {tbdMerged.map((m) => (
+                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`}>
+                        <div className="flex items-start gap-1">
+                          <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
+                          <div className="min-w-0 flex-1">
+                            {m.kind === "story"
+                              ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
+                              : <VideoCard video={m.item as VideoWithRelations} />}
+                          </div>
+                        </div>
+                      </SortableCard>
+                    ))}
+                  </AgendaDayRow>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* ── Dated days ── */}
+        {currentData.days.map((group) => {
+          const isTbd = false
+          const label = format(parseISO(group.date), "EEEE, MMMM d")
+          const isToday = group.date === today
 
           const stories = showStories ? group.stories : []
           const videos = showVideos ? group.videos : []
