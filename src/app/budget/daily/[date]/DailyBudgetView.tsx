@@ -8,7 +8,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, Plus,
   Info, FileText, Video, LayoutGrid, List,
 } from "lucide-react"
-import { useDroppable } from "@dnd-kit/core"
+import { useDroppable, closestCenter } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 
@@ -425,7 +425,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
       let sourceDate: string | null = null
       let sourceItem: StoryListItem | VideoWithRelations | null = null
-
       for (const group of allGroups) {
         if (isStory) {
           const story = group.stories.find((s) => s.id === itemId)
@@ -435,66 +434,108 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           if (video) { sourceDate = group.date; sourceItem = video; break }
         }
       }
+      if (!sourceDate || !sourceItem) return
 
-      // Resolve target date (rawTarget may be an item id, not a date key)
-      let targetDate = rawTarget
-      if (!allDateKeys.has(rawTarget)) {
+      // Resolve target date; when dropped on a sortable item in the same day,
+      // also infer the target bucket from that item's pub date.
+      let targetDate: string = sourceDate
+      let targetBucketId: string | null = null
+
+      if (allDateKeys.has(rawTarget)) {
+        targetDate = rawTarget
+      } else {
         for (const group of allGroups) {
           if (
             group.stories.some((s) => `story-${s.id}` === rawTarget) ||
             group.videos.some((v) => `video-${v.id}` === rawTarget)
           ) {
             targetDate = group.date
+            // Same-day drop: derive which bucket from the item landed on
+            if (group.date === sourceDate) {
+              const tgt =
+                group.stories.find((s) => `story-${s.id}` === rawTarget) ??
+                group.videos.find((v) => `video-${v.id}` === rawTarget)
+              if (tgt && !tgt.onlinePubDateTBD && tgt.onlinePubDate) {
+                targetBucketId = dateToBucket(new Date(tgt.onlinePubDate))
+              }
+            }
             break
           }
         }
       }
 
-      if (!sourceDate || targetDate === sourceDate) return
+      // No-op: same day and no bucket change
+      if (targetDate === sourceDate && !targetBucketId) return
+      // No-op: same day AND same bucket
+      if (targetDate === sourceDate && targetBucketId) {
+        const srcBucket =
+          !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate
+            ? dateToBucket(new Date(sourceItem.onlinePubDate))
+            : null
+        if (srcBucket === targetBucketId) return
+      }
 
-      // Optimistic update
+      // Compute new pub date
+      let newPubDate: string | null = null
+      let newTBD = false
+      if (targetDate === "TBD") {
+        newTBD = true
+      } else if (targetBucketId) {
+        // Bucket-targeted drop: use that bucket's default (latest) time
+        const bucket = TIME_BUCKETS.find((b) => b.id === targetBucketId)
+        if (bucket && bucket.defaultHour !== null) {
+          const h = String(bucket.defaultHour).padStart(2, "0")
+          const m = String(bucket.defaultMinute ?? 0).padStart(2, "0")
+          newPubDate = `${targetDate}T${h}:${m}:00.000Z`
+        } else {
+          newTBD = true
+        }
+      } else {
+        // Cross-day drop on a day zone: preserve the existing time-of-day
+        if (!sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
+          const existing = new Date(sourceItem.onlinePubDate)
+          const h = String(existing.getUTCHours()).padStart(2, "0")
+          const m = String(existing.getUTCMinutes()).padStart(2, "0")
+          newPubDate = `${targetDate}T${h}:${m}:00.000Z`
+        } else {
+          newPubDate = `${targetDate}T00:00:00.000Z`
+        }
+      }
+
+      // Optimistic update — move item and update its pub date in local state
+      const updatedItem = {
+        ...sourceItem,
+        onlinePubDate: newPubDate as unknown as Date | null,
+        onlinePubDateTBD: newTBD,
+      }
+      const drop = <T extends { id: string }>(arr: T[]) => arr.filter((x) => x.id !== itemId)
       const updatedDays = currentData.days.map((day) => ({
         ...day,
-        stories: isStory ? day.stories.filter((s) => s.id !== itemId) : day.stories,
-        videos: isVideo ? day.videos.filter((v) => v.id !== itemId) : day.videos,
+        stories: isStory ? drop(day.stories) : day.stories,
+        videos: isVideo ? drop(day.videos) : day.videos,
       }))
       const updatedTbd = {
         ...currentData.tbd,
-        stories: isStory ? currentData.tbd.stories.filter((s) => s.id !== itemId) : currentData.tbd.stories,
-        videos: isVideo ? currentData.tbd.videos.filter((v) => v.id !== itemId) : currentData.tbd.videos,
+        stories: isStory ? drop(currentData.tbd.stories) : currentData.tbd.stories,
+        videos: isVideo ? drop(currentData.tbd.videos) : currentData.tbd.videos,
       }
-
       if (targetDate === "TBD") {
-        if (isStory && sourceItem) updatedTbd.stories.push(sourceItem as StoryListItem)
-        else if (isVideo && sourceItem) updatedTbd.videos.push(sourceItem as VideoWithRelations)
+        if (isStory) updatedTbd.stories.push(updatedItem as StoryListItem)
+        else updatedTbd.videos.push(updatedItem as VideoWithRelations)
       } else {
         const idx = updatedDays.findIndex((d) => d.date === targetDate)
         if (idx >= 0) {
-          if (isStory && sourceItem) updatedDays[idx].stories.push(sourceItem as StoryListItem)
-          else if (isVideo && sourceItem) updatedDays[idx].videos.push(sourceItem as VideoWithRelations)
+          if (isStory) updatedDays[idx].stories.push(updatedItem as StoryListItem)
+          else updatedDays[idx].videos.push(updatedItem as VideoWithRelations)
         }
       }
-
       setLocalData({ ...currentData, days: updatedDays, tbd: updatedTbd })
 
-      // API — preserve time when moving day-to-day; use midnight when coming from TBD
+      // API call
       try {
-        let patchBody: Record<string, unknown>
-        if (targetDate === "TBD") {
-          patchBody = { onlinePubDateTBD: true, onlinePubDate: null }
-        } else {
-          let newIso: string
-          if (sourceItem && !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
-            // Preserve time-of-day using UTC values (newsroom-time-as-UTC convention)
-            const existing = new Date(sourceItem.onlinePubDate)
-            const h = String(existing.getUTCHours()).padStart(2, "0")
-            const m = String(existing.getUTCMinutes()).padStart(2, "0")
-            newIso = `${targetDate}T${h}:${m}:00.000Z`
-          } else {
-            newIso = `${targetDate}T00:00:00.000Z`
-          }
-          patchBody = { onlinePubDateTBD: false, onlinePubDate: newIso }
-        }
+        const patchBody: Record<string, unknown> = newTBD
+          ? { onlinePubDateTBD: true, onlinePubDate: null }
+          : { onlinePubDateTBD: false, onlinePubDate: newPubDate }
         const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
         await fetch(endpoint, {
           method: "PATCH",
@@ -502,7 +543,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           body: JSON.stringify(patchBody),
         })
       } catch (err) {
-        console.error("Failed to update agenda item date:", err)
+        console.error("Failed to update agenda item:", err)
         setLocalData(null)
         toast.error("Couldn't save — change reverted.")
       } finally {
@@ -561,6 +602,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       overlayContent={overlayContent()}
+      collisionDetection={closestCenter}
     >
       <div className="space-y-6">
         {/* ── TBD (collapsible, top) ── */}
