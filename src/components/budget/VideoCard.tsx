@@ -8,6 +8,7 @@ import type { VideoWithRelations } from "@/types/index"
 interface VideoCardProps {
   video: VideoWithRelations
   isDragging?: boolean
+  budgetLineClamp?: 1 | 3
 }
 
 const STATUS_BORDER: Record<string, string> = {
@@ -57,7 +58,7 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
   }
 }
 
-export function VideoCard({ video, isDragging }: VideoCardProps) {
+export function VideoCard({ video, isDragging, budgetLineClamp = 1 }: VideoCardProps) {
   return (
     <Link
       href={`/videos/${video.id}`}
@@ -82,7 +83,7 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
 
         {/* Budget line */}
         {video.budgetLine && (
-          <p className="line-clamp-1 text-xs text-muted-foreground">
+          <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>
             {video.budgetLine}
           </p>
         )}

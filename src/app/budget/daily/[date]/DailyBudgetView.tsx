@@ -604,8 +604,8 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                           <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
                           <div className="min-w-0 flex-1">
                             {m.kind === "story"
-                              ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
-                              : <VideoCard video={m.item as VideoWithRelations} />}
+                              ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
+                              : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                           </div>
                         </div>
                       </SortableCard>
@@ -669,7 +669,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                 <div className="space-y-3">
                   {bucketGroups.map((bg) => (
                     <div key={bg.bucket.id} className="space-y-1.5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/60 px-1">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-1.5 mt-0.5 px-1">
                         {BUCKET_NAMES[bg.bucket.id]} · {bg.bucket.label}
                       </p>
                       {bg.items.map((m) => (
@@ -678,8 +678,8 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                             <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
                             <div className="min-w-0 flex-1">
                               {m.kind === "story"
-                                ? <StoryCard story={m.item} showWordCount showPhotoIndicator />
-                                : <VideoCard video={m.item as VideoWithRelations} />}
+                                ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
+                                : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                             </div>
                           </div>
                         </SortableCard>

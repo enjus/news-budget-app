@@ -32,6 +32,7 @@ interface StoryCardProps {
   showWordCount?: boolean
   hideEnterpriseTag?: boolean
   videoCount?: number
+  budgetLineClamp?: 1 | 3
 }
 
 // Compact status + time chip shown top-right.
@@ -93,6 +94,7 @@ export function StoryCard({
   showWordCount,
   hideEnterpriseTag,
   videoCount,
+  budgetLineClamp = 1,
 }: StoryCardProps) {
   const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
   const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
@@ -137,7 +139,7 @@ export function StoryCard({
 
         {/* Budget line */}
         {story.budgetLine && (
-          <p className="line-clamp-1 text-xs text-muted-foreground">{story.budgetLine}</p>
+          <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>{story.budgetLine}</p>
         )}
 
         {/* Visual indicators row — only when visuals or linked videos are present */}

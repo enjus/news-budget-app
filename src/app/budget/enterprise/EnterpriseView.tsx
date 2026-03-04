@@ -374,7 +374,7 @@ export function EnterpriseView() {
             <div className="flex items-start gap-1">
               <GripVertical className="mt-1 size-3 shrink-0 text-muted-foreground/40" />
               <div className="min-w-0 flex-1">
-                <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} />
+                <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
               </div>
             </div>
           </SortableCard>
