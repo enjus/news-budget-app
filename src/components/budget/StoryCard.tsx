@@ -125,7 +125,7 @@ export function StoryCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <FileText className="size-3 shrink-0 text-muted-foreground/60" />
-            <span className="font-semibold leading-none truncate">{story.slug}</span>
+            <span className="font-semibold leading-none">{story.slug}</span>
             {story.isEnterprise && !hideEnterpriseTag && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 Enterprise

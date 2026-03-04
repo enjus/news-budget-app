@@ -75,7 +75,7 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
-            <span className="font-semibold leading-none truncate">{video.slug}</span>
+            <span className="font-semibold leading-none">{video.slug}</span>
           </div>
           <VideoStatusChip video={video} />
         </div>
