@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Sparkles, Video as VideoIcon } from "lucide-react"
 import { cn, initials, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
@@ -75,8 +74,8 @@ export function VideoCard({ video, isDragging }: VideoCardProps) {
         {/* Top row: slug + Video badge (left) · status/time chip (right) */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
             <span className="font-semibold leading-none truncate">{video.slug}</span>
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Video</Badge>
           </div>
           <VideoStatusChip video={video} />
         </div>

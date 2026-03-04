@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, initials, formatTime } from "@/lib/utils"
@@ -124,6 +124,7 @@ export function StoryCard({
         {/* Top row: slug + enterprise badge (left) · status/time chip (right) */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <FileText className="size-3 shrink-0 text-muted-foreground/60" />
             <span className="font-semibold leading-none truncate">{story.slug}</span>
             {story.isEnterprise && !hideEnterpriseTag && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
