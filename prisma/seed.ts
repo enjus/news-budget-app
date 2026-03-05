@@ -358,25 +358,24 @@ async function main() {
   await prisma.user.create({
     data: { email: "videographer@newsroom.com", name: "Videographer", passwordHash: editorHash, appRole: "EDITOR" },
   });
-  const viewerHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
-    data: { email: "photographer@newsroom.com", name: "Photographer", passwordHash: viewerHash, appRole: "VIEWER" },
+    data: { email: "photographer@newsroom.com", name: "Photographer", passwordHash: editorHash, appRole: "EDITOR" },
   });
   await prisma.user.create({
-    data: { email: "designer@newsroom.com",     name: "Designer",     passwordHash: viewerHash, appRole: "VIEWER" },
+    data: { email: "designer@newsroom.com",     name: "Designer",     passwordHash: editorHash, appRole: "EDITOR" },
   });
   await prisma.user.create({
-    data: { email: "social@newsroom.com",       name: "Social",       passwordHash: viewerHash, appRole: "VIEWER" },
+    data: { email: "social@newsroom.com",       name: "Social",       passwordHash: editorHash, appRole: "EDITOR" },
   });
   await prisma.user.create({
-    data: { email: "audience@newsroom.com",     name: "Audience",     passwordHash: viewerHash, appRole: "VIEWER" },
+    data: { email: "audience@newsroom.com",     name: "Audience",     passwordHash: editorHash, appRole: "EDITOR" },
   });
 
   const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length;
   const totalVideos   = pastVideos.length  + todayVideoRecords.length;
 
   console.log(
-    `Seed complete: 9 users (2 admin, 3 editor, 4 viewer), 7 people,\n` +
+    `Seed complete: 9 users (2 admin, 7 editor), 7 people,\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
