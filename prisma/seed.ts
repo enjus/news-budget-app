@@ -25,6 +25,22 @@ function pick<T>(arr: T[], i: number): T {
   return arr[((i % arr.length) + arr.length) % arr.length];
 }
 
+// Returns the next occurrence of targetDow (0=Sun, 3=Wed) strictly after `date`
+function nextEditionDay(date: Date, targetDow: number): Date {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  const daysUntil = (targetDow - result.getDay() + 7) % 7 || 7;
+  result.setDate(result.getDate() + daysUntil);
+  return result;
+}
+
+// Returns the nearer of the next Wednesday or next Sunday after `date`
+function nextEnterpriseEdition(date: Date): Date {
+  const nextWed = nextEditionDay(date, 3);
+  const nextSun = nextEditionDay(date, 0);
+  return nextWed <= nextSun ? nextWed : nextSun;
+}
+
 // ─── Content pools (used for past days) ──────────────────────────────────────
 
 const PAST_STORY_POOL: Array<{ slug: string; budgetLine: string; isEnterprise?: boolean }> = [
@@ -110,21 +126,21 @@ const ENTERPRISE_STORIES: Array<{ slug: string; budgetLine: string; notes?: stri
 const TODAY_STORIES: Array<{
   slug: string; budgetLine: string; status: string;
   hour?: number; tbd?: boolean; isEnterprise?: boolean;
-  printHour?: number; wordCount?: number; notes?: string; shelved?: boolean;
+  hasPrint?: boolean; wordCount?: number; notes?: string; shelved?: boolean;
 }> = [
   // Already published this morning
-  { slug: "CITY BUDGET VOTE",      budgetLine: "City council passed a $2.3B spending plan on a 6-5 vote after months of negotiations, with final cuts falling heavily on parks maintenance, bus service expansion, and a planned public health clinic. The vote came after more than four hours of public testimony.", status: "PUBLISHED_FINAL", hour: 7, printHour: 0, wordCount: 820 },
+  { slug: "CITY BUDGET VOTE",      budgetLine: "City council passed a $2.3B spending plan on a 6-5 vote after months of negotiations, with final cuts falling heavily on parks maintenance, bus service expansion, and a planned public health clinic. The vote came after more than four hours of public testimony.", status: "PUBLISHED_FINAL", hour: 7, hasPrint: true, wordCount: 820 },
   { slug: "TRANSIT UPDATE",        budgetLine: "Bus service has been restored on 12 routes that were suspended overnight due to a maintenance emergency affecting the agency's east depot. The disruption stranded thousands of morning commuters; the transit authority is offering fare refunds.", status: "PUBLISHED_FINAL", hour: 8, wordCount: 380 },
-  { slug: "SCHOOL BOARD RULING",   budgetLine: "The school board voted 5-2 to adopt a new literacy curriculum despite strong opposition from the teachers union, which argued the materials were not age-appropriate and were selected without adequate classroom input. The new curriculum takes effect in the fall.", status: "PUBLISHED_FINAL", hour: 9, printHour: 0, wordCount: 610 },
+  { slug: "SCHOOL BOARD RULING",   budgetLine: "The school board voted 5-2 to adopt a new literacy curriculum despite strong opposition from the teachers union, which argued the materials were not age-appropriate and were selected without adequate classroom input. The new curriculum takes effect in the fall.", status: "PUBLISHED_FINAL", hour: 9, hasPrint: true, wordCount: 610 },
   // Live and updating
-  { slug: "HOSPITAL MERGER RULING", budgetLine: "The state attorney general has cleared a merger between two major hospital systems, imposing conditions that require the combined entity to cap price increases and maintain current staffing levels for five years. Health advocates say the conditions don't go far enough. UPDATING.", status: "PUBLISHED_ITERATING", hour: 10, printHour: 0, wordCount: 940, isEnterprise: true, notes: "Updating with hospital and AG responses." },
+  { slug: "HOSPITAL MERGER RULING", budgetLine: "The state attorney general has cleared a merger between two major hospital systems, imposing conditions that require the combined entity to cap price increases and maintain current staffing levels for five years. Health advocates say the conditions don't go far enough. UPDATING.", status: "PUBLISHED_ITERATING", hour: 10, hasPrint: true, wordCount: 940, isEnterprise: true, notes: "Updating with hospital and AG responses." },
   { slug: "FIRE STATION THREAT",   budgetLine: "The firefighters union is warning that two fire station closures proposed in the city budget would meaningfully increase response times in the affected districts, contradicting assurances from the fire chief. Union officials plan to present their own data at a council hearing this afternoon. UPDATING.", status: "PUBLISHED_ITERATING", hour: 11, wordCount: 700, notes: "Fire chief response expected at 2pm presser." },
-  { slug: "HOUSING AFFORDABILITY", budgetLine: "New data from a regional housing research group shows that median monthly rents now exceed 40% of median household income in four metro zip codes — a threshold economists use as a marker of severe cost burden. The figures are the worst since the group began tracking the metric in 2012. UPDATING.", status: "PUBLISHED_ITERATING", hour: 12, printHour: 0, wordCount: 580 },
+  { slug: "HOUSING AFFORDABILITY", budgetLine: "New data from a regional housing research group shows that median monthly rents now exceed 40% of median household income in four metro zip codes — a threshold economists use as a marker of severe cost burden. The figures are the worst since the group began tracking the metric in 2012. UPDATING.", status: "PUBLISHED_ITERATING", hour: 12, hasPrint: true, wordCount: 580 },
   // Drafted, scheduled for later today
-  { slug: "POLICE CHIEF INTERVIEW", budgetLine: "The city's newly confirmed police chief sat down with us to discuss his priorities for the department, including a push to expand community policing assignments and a timeline for full body camera compliance. We also pressed him on the department's use-of-force numbers.", status: "DRAFT", hour: 13, printHour: 0 },
+  { slug: "POLICE CHIEF INTERVIEW", budgetLine: "The city's newly confirmed police chief sat down with us to discuss his priorities for the department, including a push to expand community policing assignments and a timeline for full body camera compliance. We also pressed him on the department's use-of-force numbers.", status: "DRAFT", hour: 13, hasPrint: true },
   { slug: "ELECTION CANDIDATES",   budgetLine: "With the filing deadline now passed, we profile the five candidates seeking the open District 4 council seat: a former school board member, two community organizers, a small business owner, and a political newcomer backed by a prominent developer.", status: "DRAFT", hour: 14 },
   { slug: "ARTS CENTER FUTURE",    budgetLine: "More than 200 residents turned out for a community meeting on competing proposals for the arts center site, with opinions running sharply along generational and neighborhood lines. The city must choose between a preservation-focused plan and a full redevelopment proposal by year's end.", status: "DRAFT", hour: 15 },
-  { slug: "WATER RATE HEARING",    budgetLine: "Hundreds of residents testified at a public hearing on the utility's proposal to raise water rates by 18% over three years. Testimony ranged from support for infrastructure investment to concern about affordability for fixed-income households. The utility board votes next month.", status: "DRAFT", hour: 16, printHour: 0 },
+  { slug: "WATER RATE HEARING",    budgetLine: "Hundreds of residents testified at a public hearing on the utility's proposal to raise water rates by 18% over three years. Testimony ranged from support for infrastructure investment to concern about affordability for fixed-income households. The utility board votes next month.", status: "DRAFT", hour: 16, hasPrint: true },
   { slug: "TEACHER CONTRACT",      budgetLine: "The teachers union and school district have returned to the bargaining table after a three-week standoff over salary proposals, according to a joint statement released this morning. Both sides declined to detail the terms under discussion.", status: "DRAFT", hour: 17 },
   // In the works — no time set yet
   { slug: "TECH CAMPUS PROPOSAL",  budgetLine: "A major technology firm is in early discussions with the city about locating a regional campus downtown, with city officials offering a package that includes tax increment financing and expedited permitting worth up to $30M. A source with knowledge of the talks says an announcement could come as soon as this week.", status: "DRAFT", tbd: true, notes: "Source confirms announcement expected this week." },
@@ -200,7 +216,7 @@ async function main() {
           status,
           onlinePubDate:    d(day, hour),
           onlinePubDateTBD: false,
-          printPubDate:     hasPrint ? d(day, 0) : null,
+          printPubDate:     hasPrint ? d(day + 1, 0) : null,
           printPubDateTBD:  !hasPrint,
           wordCount:        400 + Math.floor((poolIdx * 137) % 800), // deterministic variety
           sortOrder:        si + 1,
@@ -259,8 +275,8 @@ async function main() {
         status:           t.status,
         onlinePubDate:    t.tbd || t.hour === undefined ? null : d(0, t.hour),
         onlinePubDateTBD: !!t.tbd || t.hour === undefined,
-        printPubDate:     t.printHour !== undefined ? d(0, t.printHour) : null,
-        printPubDateTBD:  t.printHour === undefined,
+        printPubDate:     t.hasPrint ? d(1, 0) : null,
+        printPubDateTBD:  !t.hasPrint,
         notes:            t.notes ?? null,
         shelvedAt:        t.status === "SHELVED" ? new Date() : null,
         sortOrder:        i + 1,
@@ -316,8 +332,8 @@ async function main() {
         status:           "DRAFT",
         onlinePubDate:    d(t.offsetDays, 9),
         onlinePubDateTBD: false,
-        printPubDate:     i % 2 === 0 ? d(t.offsetDays, 0) : null,
-        printPubDateTBD:  i % 2 !== 0,
+        printPubDate:     nextEnterpriseEdition(d(t.offsetDays, 9)),
+        printPubDateTBD:  false,
         notes:            t.notes ?? null,
         sortOrder:        i + 1,
       },
