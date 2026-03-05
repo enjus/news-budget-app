@@ -1,13 +1,17 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format } from "date-fns"
-import { ArrowLeft, FileText, Video } from "lucide-react"
+import { ArrowLeft, FileText, Video, ChevronLeft, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
+
+const PAGE_SIZE = 25
 
 interface PersonViewProps {
   id: string
@@ -20,12 +24,20 @@ interface PersonData {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-function formatDate(item: PersonContentItem): string {
+function formatItemDate(item: PersonContentItem): string {
   if (item.onlinePubDateTBD || !item.onlinePubDate) return "TBD"
-  return format(new Date(item.onlinePubDate), "MMM d, yyyy h:mm a")
+  const d = new Date(item.onlinePubDate)
+  // Times stored as newsroom-time-as-UTC — read UTC parts for display
+  const fakeLocal = new Date(
+    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
+    d.getUTCHours(), d.getUTCMinutes()
+  )
+  return format(fakeLocal, "MMM d, yyyy · h:mm a")
 }
 
 export function PersonView({ id }: PersonViewProps) {
+  const [page, setPage] = useState(0)
+
   const { data, isLoading } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
@@ -35,9 +47,13 @@ export function PersonView({ id }: PersonViewProps) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-32" />
-        <div className="mt-8 space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton className="h-4 w-64" />
+        <div className="mt-6 flex gap-6">
+          <Skeleton className="h-8 w-20" />
+          <Skeleton className="h-8 w-20" />
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full rounded-lg" />
           ))}
         </div>
@@ -46,13 +62,14 @@ export function PersonView({ id }: PersonViewProps) {
   }
 
   const { person, items } = data
-
-  const stories = items.filter((i) => i.type === "story")
-  const videos = items.filter((i) => i.type === "video")
+  const storyCount = items.filter((i) => i.type === "story").length
+  const videoCount = items.filter((i) => i.type === "video").length
+  const totalPages = Math.ceil(items.length / PAGE_SIZE)
+  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   return (
     <div className="space-y-6">
-      {/* Back link */}
+      {/* Back */}
       <Link
         href="/people"
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -74,72 +91,73 @@ export function PersonView({ id }: PersonViewProps) {
       {/* Stats */}
       <div className="flex gap-6 text-sm">
         <div>
-          <span className="text-2xl font-semibold">{stories.length}</span>
+          <span className="text-2xl font-semibold">{storyCount}</span>
           <span className="ml-1 text-muted-foreground">
-            {stories.length === 1 ? "story" : "stories"}
+            {storyCount === 1 ? "story" : "stories"}
           </span>
         </div>
         <div>
-          <span className="text-2xl font-semibold">{videos.length}</span>
+          <span className="text-2xl font-semibold">{videoCount}</span>
           <span className="ml-1 text-muted-foreground">
-            {videos.length === 1 ? "video" : "videos"}
+            {videoCount === 1 ? "video" : "videos"}
           </span>
         </div>
       </div>
 
+      {/* Content list */}
       {items.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            No active assignments — TBD, upcoming, or within the past 7 days.
-          </p>
+          <p className="text-sm text-muted-foreground">No content assigned to this person.</p>
         </div>
       ) : (
-        <div className="space-y-8">
-          {stories.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                <FileText className="size-4" />
-                Stories
-              </h2>
-              <div className="space-y-1">
-                {stories.map((item) => (
-                  <ContentRow key={`story-${item.id}`} item={item} />
-                ))}
-              </div>
-            </section>
-          )}
+        <>
+          <div className="space-y-1">
+            {pageItems.map((item) => (
+              <ContentRow key={`${item.type}-${item.id}`} item={item} />
+            ))}
+          </div>
 
-          {videos.length > 0 && (
-            <section className="space-y-2">
-              <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                <Video className="size-4" />
-                Videos
-              </h2>
-              <div className="space-y-1">
-                {videos.map((item) => (
-                  <ContentRow key={`video-${item.id}`} item={item} />
-                ))}
-              </div>
-            </section>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p - 1)}
+                disabled={page === 0}
+              >
+                <ChevronLeft className="size-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={page >= totalPages - 1}
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           )}
-        </div>
+        </>
       )}
-
-      <p className="text-xs text-muted-foreground">
-        Showing TBD, upcoming, and content from the past 7 days.
-      </p>
     </div>
   )
 }
 
 function ContentRow({ item }: { item: PersonContentItem }) {
   const href = item.type === "story" ? `/stories/${item.id}` : `/videos/${item.id}`
+  const Icon = item.type === "story" ? FileText : Video
 
   return (
     <Link
       href={href}
       className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-accent/50 transition-colors"
     >
+      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{item.slug}</span>
@@ -152,12 +170,12 @@ function ContentRow({ item }: { item: PersonContentItem }) {
             </Badge>
           )}
         </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
+        {item.budgetLine && (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
+        )}
       </div>
       <span className="shrink-0 text-xs text-muted-foreground">
-        {item.onlinePubDateTBD || !item.onlinePubDate
-          ? "TBD"
-          : format(new Date(item.onlinePubDate), "MMM d, h:mm a")}
+        {formatItemDate(item)}
       </span>
     </Link>
   )

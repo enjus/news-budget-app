@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { subDays } from "date-fns";
 
 export const dynamic = 'force-dynamic'
 
@@ -30,20 +29,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    const pastCutoff = subDays(new Date(), 7);
-
-    const dateFilter = {
-      OR: [
-        { onlinePubDateTBD: true },
-        { onlinePubDateTBD: false, onlinePubDate: { gte: pastCutoff } },
-      ],
-    };
-
     const [storyAssignments, videoAssignments] = await Promise.all([
       prisma.storyAssignment.findMany({
         where: {
           personId: id,
-          story: { status: { not: "SHELVED" }, ...dateFilter },
+          story: { status: { not: "SHELVED" } },
         },
         include: {
           story: {
@@ -62,7 +52,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       prisma.videoAssignment.findMany({
         where: {
           personId: id,
-          video: { status: { not: "SHELVED" }, ...dateFilter },
+          video: { status: { not: "SHELVED" } },
         },
         include: {
           video: {
@@ -102,12 +92,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       })),
     ];
 
-    // Sort: TBD last; otherwise ascending by onlinePubDate
+    // TBD first (alpha by slug), then reverse chronological
     items.sort((a, b) => {
       if (a.onlinePubDateTBD && b.onlinePubDateTBD) return a.slug.localeCompare(b.slug);
-      if (a.onlinePubDateTBD) return 1;
-      if (b.onlinePubDateTBD) return -1;
-      return new Date(a.onlinePubDate!).getTime() - new Date(b.onlinePubDate!).getTime();
+      if (a.onlinePubDateTBD) return -1;
+      if (b.onlinePubDateTBD) return 1;
+      return new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime();
     });
 
     return NextResponse.json({ person, items });
