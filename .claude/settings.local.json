@@ -8,7 +8,8 @@
       "Bash(npx ts-node:*)",
       "Bash(npx tsc:*)",
       "Bash(npx next:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format } from "date-fns"
@@ -8,10 +8,25 @@ import { ArrowLeft, FileText, Video, ChevronLeft, ChevronRight } from "lucide-re
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAGE_SIZE = 25
+
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Unpublished" },
+  { value: "SCHEDULED", label: STORY_STATUS_LABELS["SCHEDULED"] },
+  { value: "PUBLISHED_ITERATING", label: STORY_STATUS_LABELS["PUBLISHED_ITERATING"] },
+  { value: "PUBLISHED_FINAL", label: STORY_STATUS_LABELS["PUBLISHED_FINAL"] },
+]
 
 interface PersonViewProps {
   id: string
@@ -37,11 +52,20 @@ function formatItemDate(item: PersonContentItem): string {
 
 export function PersonView({ id }: PersonViewProps) {
   const [page, setPage] = useState(0)
+  const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
 
   const { data, isLoading } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0)
+  }, [typeFilter, statusFilter, dateFrom, dateTo])
 
   if (isLoading || !data) {
     return (
@@ -64,8 +88,29 @@ export function PersonView({ id }: PersonViewProps) {
   const { person, items } = data
   const storyCount = items.filter((i) => i.type === "story").length
   const videoCount = items.filter((i) => i.type === "video").length
-  const totalPages = Math.ceil(items.length / PAGE_SIZE)
-  const pageItems = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  // Apply filters
+  const filtered = items.filter((item) => {
+    if (typeFilter !== "all" && item.type !== typeFilter) return false
+    if (statusFilter !== "all" && item.status !== statusFilter) return false
+    if (dateFrom || dateTo) {
+      if (item.onlinePubDateTBD || !item.onlinePubDate) {
+        // TBD items only show when no date range filter is active
+        if (dateFrom || dateTo) return false
+      } else {
+        const d = new Date(item.onlinePubDate)
+        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+        if (dateFrom && dateStr < dateFrom) return false
+        if (dateTo && dateStr > dateTo) return false
+      }
+    }
+    return true
+  })
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+
+  const hasActiveFilters = typeFilter !== "all" || statusFilter !== "all" || dateFrom || dateTo
 
   return (
     <div className="space-y-6">
@@ -104,17 +149,107 @@ export function PersonView({ id }: PersonViewProps) {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Type toggle */}
+        <div className="flex rounded-md border text-sm overflow-hidden">
+          {(["all", "story", "video"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(t)}
+              className={`px-3 py-1.5 capitalize transition-colors ${
+                typeFilter === t
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              }`}
+            >
+              {t === "all" ? "All" : t === "story" ? "Stories" : "Videos"}
+            </button>
+          ))}
+        </div>
+
+        {/* Status filter */}
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-8 w-[160px] text-sm">
+            <SelectValue placeholder="Any status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any status</SelectItem>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Date range */}
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-8 w-[140px] text-sm"
+            placeholder="From"
+            aria-label="From date"
+          />
+          <span className="text-muted-foreground text-sm">–</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-8 w-[140px] text-sm"
+            placeholder="To"
+            aria-label="To date"
+          />
+        </div>
+
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs"
+            onClick={() => {
+              setTypeFilter("all")
+              setStatusFilter("all")
+              setDateFrom("")
+              setDateTo("")
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
       {/* Content list */}
-      {items.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">No content assigned to this person.</p>
+          <p className="text-sm text-muted-foreground">
+            {hasActiveFilters ? "No items match the current filters." : "No content assigned to this person."}
+          </p>
         </div>
       ) : (
         <>
           <div className="space-y-1">
-            {pageItems.map((item) => (
-              <ContentRow key={`${item.type}-${item.id}`} item={item} />
-            ))}
+            {pageItems.map((item, idx) => {
+              const prevItem = idx > 0 ? pageItems[idx - 1] : filtered[page * PAGE_SIZE - 1]
+              const showDivider =
+                !item.onlinePubDateTBD &&
+                (prevItem?.onlinePubDateTBD ?? false)
+
+              return (
+                <div key={`${item.type}-${item.id}`}>
+                  {showDivider && (
+                    <div className="my-3 flex items-center gap-3">
+                      <div className="flex-1 border-t" />
+                      <span className="text-xs text-muted-foreground">Scheduled</span>
+                      <div className="flex-1 border-t" />
+                    </div>
+                  )}
+                  <ContentRow item={item} />
+                </div>
+              )
+            })}
           </div>
 
           {totalPages > 1 && (
@@ -164,7 +299,11 @@ function ContentRow({ item }: { item: PersonContentItem }) {
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
             {PERSON_ROLE_LABELS[item.role] ?? item.role}
           </Badge>
-          {item.status !== "DRAFT" && (
+          {item.status === "DRAFT" ? (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+              Unpublished
+            </Badge>
+          ) : (
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {STORY_STATUS_LABELS[item.status] ?? item.status}
             </Badge>
