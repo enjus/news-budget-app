@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
+import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,9 +20,11 @@ import {
   createStorySchema,
   type CreateStoryInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
+import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
+import type { Person } from "@/types/index"
 
 const STATUS_OPTIONS = [
   "DRAFT",
@@ -45,6 +48,10 @@ interface StoryFormProps {
   onSuccess?: (id: string) => void
 }
 
+interface PendingAssignment {
+  person: Person
+  role: AssignmentRoleValue
+}
 
 function toLocalDateValue(date: Date | string | null | undefined): string {
   if (!date) return ""
@@ -56,6 +63,8 @@ function toLocalDateValue(date: Date | string | null | undefined): string {
 export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
   const isEdit = !!story
 
+  const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
+
   const {
     register,
     handleSubmit,
@@ -64,7 +73,6 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateStoryInput>({
-    // zodResolver returns Resolver<Input> but form uses Output type; cast is safe here
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(createStorySchema) as any,
     defaultValues: story
@@ -116,7 +124,6 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
     const notify = notifyRef.current
     notifyRef.current = false
     try {
-      // Convert local datetime string to ISO offset string
       const payload: Record<string, unknown> = {
         ...data,
         notifyTeam: notify,
@@ -147,6 +154,20 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
       }
 
       const saved = await res.json()
+
+      // Post pending assignments after story creation
+      if (!isEdit && pendingAssignments.length > 0) {
+        await Promise.all(
+          pendingAssignments.map((a) =>
+            fetch(`/api/stories/${saved.id}/assignments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ personId: a.person.id, role: a.role }),
+            })
+          )
+        )
+      }
+
       toast.success(isEdit
         ? notify ? "Story updated — team notified" : "Story updated"
         : "Story created"
@@ -157,8 +178,24 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
     }
   }
 
+  const assignedIds = pendingAssignments.map((a) => a.person.id)
+
+  const submitButton = (
+    <Button type="submit" disabled={isSubmitting}>
+      {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Story"}
+    </Button>
+  )
+
   return (
     <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+      {/* Top action row — create mode only */}
+      {!isEdit && (
+        <div className="flex justify-end">
+          {submitButton}
+        </div>
+      )}
+
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-slug">Slug</Label>
@@ -196,9 +233,46 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         )}
       </div>
 
-      {/* Status + Enterprise row */}
+      {/* Assignments — create mode inline */}
+      {!isEdit && (
+        <div className="space-y-2">
+          <Label>People</Label>
+          {pendingAssignments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingAssignments.map((a, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
+                >
+                  {a.person.name}
+                  <span className="text-muted-foreground/70">
+                    · {PERSON_ROLE_LABELS[a.role] ?? a.role}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAssignments((prev) => prev.filter((_, j) => j !== i))}
+                    className="ml-0.5 rounded text-muted-foreground/60 hover:text-foreground"
+                    aria-label="Remove"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <PersonPicker
+            onSelect={(person, role) =>
+              setPendingAssignments((prev) => [...prev, { person, role }])
+            }
+            excludeIds={assignedIds}
+            label="Add person"
+          />
+        </div>
+      )}
+
+      {/* Status + Word Count + Enterprise */}
       <div className="flex flex-wrap items-start gap-4">
-        <div className="flex-1 min-w-[180px] space-y-1.5">
+        <div className="flex-1 min-w-[160px] space-y-1.5">
           <Label htmlFor="sf-status">Status</Label>
           <Controller
             name="status"
@@ -223,6 +297,20 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
           )}
         </div>
 
+        <div className="w-28 space-y-1.5">
+          <Label htmlFor="sf-word-count">Word Count</Label>
+          <Input
+            id="sf-word-count"
+            type="number"
+            min={0}
+            {...register("wordCount", { setValueAs: (v) => (v === "" || v === null ? null : Number(v)) })}
+            placeholder="e.g. 800"
+          />
+          {errors.wordCount && (
+            <p className="text-xs text-destructive">{errors.wordCount.message}</p>
+          )}
+        </div>
+
         <div className="flex items-center gap-2 pt-7">
           <Controller
             name="isEnterprise"
@@ -236,7 +324,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
             )}
           />
           <Label htmlFor="sf-enterprise" className="cursor-pointer font-normal">
-            Add to Enterprise Budget
+            Enterprise
           </Label>
         </div>
       </div>
@@ -314,7 +402,6 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
                     if (!e.target.value) {
                       field.onChange(null)
                     } else {
-                      // Store as ISO string with time component
                       field.onChange(new Date(e.target.value + "T00:00:00").toISOString())
                     }
                   }}
@@ -329,23 +416,24 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         )}
       </div>
 
-      {/* Word Count + Post URL */}
-      <div className="flex flex-wrap items-start gap-4">
-        <div className="space-y-1.5 w-36">
-          <Label htmlFor="sf-word-count">Word Count</Label>
-          <Input
-            id="sf-word-count"
-            type="number"
-            min={0}
-            {...register("wordCount", { setValueAs: (v) => (v === "" || v === null ? null : Number(v)) })}
-            placeholder="e.g. 800"
-          />
-          {errors.wordCount && (
-            <p className="text-xs text-destructive">{errors.wordCount.message}</p>
-          )}
-        </div>
+      {/* Notes */}
+      <div className="space-y-1.5">
+        <Label htmlFor="sf-notes">Notes</Label>
+        <textarea
+          id="sf-notes"
+          {...register("notes")}
+          rows={isEdit ? 4 : 2}
+          placeholder="Additional notes..."
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        />
+        {errors.notes && (
+          <p className="text-xs text-destructive">{errors.notes.message}</p>
+        )}
+      </div>
 
-        <div className="flex-1 min-w-[200px] space-y-1.5">
+      {/* Post URL — edit mode only (not relevant at creation) */}
+      {isEdit && (
+        <div className="space-y-1.5">
           <Label htmlFor="sf-post-url">Post URL</Label>
           <Input
             id="sf-post-url"
@@ -356,22 +444,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
             <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
           )}
         </div>
-      </div>
-
-      {/* Notes */}
-      <div className="space-y-1.5">
-        <Label htmlFor="sf-notes">Notes</Label>
-        <textarea
-          id="sf-notes"
-          {...register("notes")}
-          rows={4}
-          placeholder="Additional notes..."
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-        />
-        {errors.notes && (
-          <p className="text-xs text-destructive">{errors.notes.message}</p>
-        )}
-      </div>
+      )}
 
       {/* AI Contributed */}
       <div className="flex items-center gap-2">
@@ -391,7 +464,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         </Label>
       </div>
 
-      {/* Submit */}
+      {/* Bottom actions */}
       <div className="flex justify-end gap-2 pt-2">
         {isEdit && (
           <Button
@@ -403,9 +476,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
             {isSubmitting ? "Saving..." : "Save & Notify Team"}
           </Button>
         )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Story"}
-        </Button>
+        {submitButton}
       </div>
     </form>
   )
