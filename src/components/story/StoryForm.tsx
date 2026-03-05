@@ -202,7 +202,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         <Input
           id="sf-slug"
           {...slugRegister}
-          placeholder="CITY COUNCIL VOTE"
+          placeholder="SLUG"
           aria-invalid={!!errors.slug}
           onBlur={(e) => {
             setValue("slug", e.target.value.toUpperCase(), { shouldValidate: true })
