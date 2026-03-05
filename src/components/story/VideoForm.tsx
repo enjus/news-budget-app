@@ -210,7 +210,7 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
         <Input
           id="vf-slug"
           {...slugRegister}
-          placeholder="HARBOR CLEANUP VIDEO"
+          placeholder="SLUG"
           aria-invalid={!!errors.slug}
           onBlur={(e) => {
             setValue("slug", e.target.value.toUpperCase(), { shouldValidate: true })
@@ -218,7 +218,7 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          All caps with spaces (e.g. HARBOR CLEANUP VIDEO)
+          All caps with spaces (e.g. FIRE STATION TOUR)
         </p>
         {errors.slug && (
           <p className="text-xs text-destructive">{errors.slug.message}</p>
