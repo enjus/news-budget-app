@@ -150,6 +150,7 @@ function ActiveItemOverlay({ activeId, groups }: ActiveItemOverlayProps) {
 
 export function EnterpriseView() {
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [tbdExpanded, setTbdExpanded] = useState(false)
   const [pastExpanded, setPastExpanded] = useState(false)
 
   // SWR fetch
@@ -196,9 +197,13 @@ export function EnterpriseView() {
     (g) => g.date !== "TBD" && g.date < currentMondayStr && g.date >= fourWeeksAgoStr &&
       (g.stories.length > 0 || g.videos.length > 0)
   )
-  // Upcoming: current week onward (including TBD if present at end)
+  // TBD group (rendered separately at the top, collapsed)
+  const tbdGroup = displayGroups.find((g) => g.date === "TBD") ?? null
+  const tbdCount = tbdGroup ? tbdGroup.stories.length + tbdGroup.videos.length : 0
+
+  // Upcoming: current week onward, TBD excluded (handled above)
   const upcomingGroups = displayGroups.filter(
-    (g) => g.date === "TBD" || g.date >= currentMondayStr
+    (g) => g.date !== "TBD" && g.date >= currentMondayStr
   )
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
@@ -423,6 +428,27 @@ export function EnterpriseView() {
           }
         >
           <div className="space-y-8">
+            {/* ── TBD (collapsible, top) ── */}
+            {tbdCount > 0 && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setTbdExpanded((v) => !v)}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronDown className={cn("size-4 transition-transform", tbdExpanded && "rotate-180")} />
+                  <span className="font-medium">TBD — No scheduled date</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                    {tbdCount}
+                  </span>
+                </button>
+                {tbdExpanded && tbdGroup && (
+                  <div className="border-l-2 border-border/40 pl-6">
+                    {renderGroup(tbdGroup)}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── Past weeks (collapsible) ── */}
             {pastGroups.length > 0 && (
               <div className="space-y-4">
