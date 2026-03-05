@@ -395,7 +395,7 @@ export function EnterpriseView() {
               New Story
             </Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm">
             <Link href="/videos/new">
               <Plus className="size-4" />
               New Video
