@@ -12,7 +12,7 @@ import { cn, initials } from "@/lib/utils"
 
 const navLinks = [
   { label: "Daily", href: "/budget/daily" },
-  { label: "Daily Edition", href: "/budget/edition" },
+  { label: "Daily Editions", href: "/budget/edition" },
   { label: "Enterprise", href: "/budget/enterprise" },
   { label: "Shelved", href: "/budget/shelved" },
   { label: "People", href: "/people" },
