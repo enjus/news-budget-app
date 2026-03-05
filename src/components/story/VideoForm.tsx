@@ -232,7 +232,7 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
           id="vf-budget"
           {...register("budgetLine")}
           rows={3}
-          placeholder="One-line description of the video"
+          placeholder="One- to three-sentence summary of the video"
           className="w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           aria-invalid={!!errors.budgetLine}
         />
