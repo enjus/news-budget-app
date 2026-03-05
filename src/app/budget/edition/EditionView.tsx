@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import Link from "next/link"
 import useSWR from "swr"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, addDays } from "date-fns"
 import { Plus, CalendarDays, ChevronDown } from "lucide-react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
@@ -308,11 +308,12 @@ export function EditionView() {
         >
           {(() => {
             const today = todayString()
+            const tomorrow = format(addDays(parseISO(today), 1), "yyyy-MM-dd")
             const pastGroups = groups.filter(
-              (g) => g.date !== "TBD" && g.date < today && g.stories.length > 0
+              (g) => g.date !== "TBD" && g.date <= today && g.stories.length > 0
             )
             const upcomingGroups = groups.filter(
-              (g) => g.date === "TBD" || g.date >= today
+              (g) => g.date === "TBD" || g.date >= tomorrow
             )
 
             function renderGroup(group: EditionDateGroup) {
