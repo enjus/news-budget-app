@@ -1,8 +1,22 @@
-import { redirect } from "next/navigation"
+"use client"
+
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { usePreferences } from "@/lib/hooks/usePreferences"
 import { todayString } from "@/lib/utils"
 
-export const dynamic = "force-dynamic"
-
 export default function HomePage() {
-  redirect(`/budget/daily/${todayString()}`)
+  const router = useRouter()
+  const { preferences } = usePreferences()
+
+  useEffect(() => {
+    const today = todayString()
+    switch (preferences.defaultView) {
+      case "enterprise": router.replace("/budget/enterprise"); break
+      case "edition":    router.replace("/budget/edition");    break
+      default:           router.replace(`/budget/daily/${today}`)
+    }
+  }, [preferences.defaultView, router])
+
+  return null
 }

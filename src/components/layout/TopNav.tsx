@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck } from "lucide-react"
+import { Plus, Menu, X, LogOut, ShieldCheck, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
@@ -98,6 +98,13 @@ export function TopNav() {
                     Admin
                   </Link>
                 )}
+                <Link
+                  href="/settings"
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Settings className="size-3.5" />
+                  Settings
+                </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -166,6 +173,14 @@ export function TopNav() {
                 Admin
               </Link>
             )}
+            <Link
+              href="/settings"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <Settings className="size-4" />
+              Settings
+            </Link>
             {session?.user && (
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}

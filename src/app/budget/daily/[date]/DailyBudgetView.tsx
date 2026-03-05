@@ -20,6 +20,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
+import { usePreferences } from "@/lib/hooks/usePreferences"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 
@@ -733,11 +734,14 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
 // ─── Main View ────────────────────────────────────────────────────────────────
 
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
-  const [showStories, setShowStories] = useState(true)
-  const [showVideos, setShowVideos] = useState(true)
-  const [viewMode, setViewMode] = useState<"columns" | "agenda">("columns")
+  const { preferences } = usePreferences()
+  const [showStories, setShowStories] = useState(() => preferences.contentDefault !== "videos")
+  const [showVideos, setShowVideos]   = useState(() => preferences.contentDefault !== "stories")
+  const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
+    preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
+  )
 
-  // Default to agenda on mobile
+  // Mobile always uses agenda regardless of preference
   useEffect(() => {
     if (window.innerWidth < 768) setViewMode("agenda")
   }, [])
