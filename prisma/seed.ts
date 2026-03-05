@@ -129,8 +129,10 @@ const TODAY_STORIES: Array<{
   // In the works — no time set yet
   { slug: "TECH CAMPUS PROPOSAL",  budgetLine: "Major tech firm eyes downtown campus; city offering $30M in incentives",          status: "DRAFT",                tbd: true, notes: "Source confirms announcement expected this week." },
   { slug: "CLIMATE ACTION PLAN",   budgetLine: "City releases updated climate action plan with 2035 carbon neutrality goal",      status: "DRAFT",                tbd: true },
-  // Enterprise in progress
+  // Enterprise in progress — TBD pub date
   { slug: "PENSION SHORTFALL",     budgetLine: "City pension fund faces $340M shortfall; actuaries warn of insolvency risk",      status: "DRAFT",                tbd: true, isEnterprise: true, notes: "Finance director interview scheduled Thursday." },
+  { slug: "EVICTION SURGE",        budgetLine: "Eviction filings up 34% since pandemic-era protections expired — a regional accountability look", status: "DRAFT", tbd: true, isEnterprise: true, notes: "Pulling court records. Need comment from housing authority." },
+  { slug: "LEAD PIPE RECKONING",   budgetLine: "Thousands of lead service lines remain in use; city timelines for replacement keep slipping",    status: "DRAFT", tbd: true, isEnterprise: true, notes: "EPA deadline looming. Engineering sources lined up." },
   // Shelved
   { slug: "WATER MAIN BREAK",      budgetLine: "Downtown water main break caused morning commute disruption — story overtaken by events", status: "SHELVED", tbd: true, notes: "Shelved. Monitor for infrastructure follow-up angle." },
 ];
