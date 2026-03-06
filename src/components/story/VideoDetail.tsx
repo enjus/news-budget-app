@@ -62,6 +62,11 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
           )}
         </div>
 
+        <div className="flex items-center gap-2">
+          <Button type="submit" form="video-form" size="sm">
+            Save Changes
+          </Button>
+
         {!["SHELVED", "PUBLISHED_ITERATING", "PUBLISHED_FINAL"].includes(video.status) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -90,6 +95,7 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
             </AlertDialogContent>
           </AlertDialog>
         )}
+        </div>
       </div>
 
       {/* Shelved countdown banner */}

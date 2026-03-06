@@ -207,7 +207,7 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form id="video-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="vf-slug">Slug</Label>
