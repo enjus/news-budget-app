@@ -6,7 +6,7 @@ import useSWR from "swr"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus,
-  Info, FileText, Video, LayoutGrid, List,
+  Info, FileText, Video, LayoutGrid, List, Sunrise,
 } from "lucide-react"
 import { useDroppable, closestCenter } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
@@ -47,6 +47,30 @@ const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 // ─── Droppable Column (column view) ───────────────────────────────────────────
 
+// ─── Next Morning Drop Zone ───────────────────────────────────────────────────
+
+function NextMorningDropZone({ nextDate }: { nextDate: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "NEXT_MORNING" })
+  const label = format(parseISO(nextDate), "EEE, MMM d")
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "mt-2 flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border-2 border-dashed px-2 py-1.5 text-xs transition-colors",
+        isOver
+          ? "border-amber-400/60 bg-amber-50/50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+          : "border-border/40 text-muted-foreground",
+      )}
+    >
+      <Sunrise className="size-3.5 shrink-0" />
+      <span>Tomorrow morning · {label}, 6 AM</span>
+    </div>
+  )
+}
+
+// ─── Droppable Column ─────────────────────────────────────────────────────────
+
 interface DroppableColumnProps {
   slotId: string
   label: string
@@ -55,11 +79,12 @@ interface DroppableColumnProps {
   itemIds: string[]
   newStoryHref: string
   newVideoHref: string
+  nextMorningDate?: string
   children: React.ReactNode
 }
 
 function DroppableColumn({
-  slotId, label, description, count, itemIds, newStoryHref, newVideoHref, children,
+  slotId, label, description, count, itemIds, newStoryHref, newVideoHref, nextMorningDate, children,
 }: DroppableColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: slotId })
 
@@ -108,6 +133,7 @@ function DroppableColumn({
           </Link>
         </Button>
       </div>
+      {nextMorningDate && <NextMorningDropZone nextDate={nextMorningDate} />}
     </div>
   )
 }
@@ -196,17 +222,23 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
       setLocalSlots(newSlots)
 
       try {
-        const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
         let patchBody: Record<string, unknown>
-        if (!targetBucket || targetBucket.defaultHour === null) {
-          patchBody = { onlinePubDateTBD: true, onlinePubDate: null }
+        if (resolvedTargetSlot === "NEXT_MORNING") {
+          const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
+          patchBody = { onlinePubDateTBD: false, onlinePubDate: `${nextDate}T06:00:00.000Z` }
+          toast.success(`Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`)
         } else {
-          const h = String(targetBucket.defaultHour).padStart(2, "0")
-          const m = String(targetBucket.defaultMinute ?? 0).padStart(2, "0")
-          // Store as newsroom-time-as-UTC: 7:30 AM → "...T07:30:00.000Z"
-          patchBody = {
-            onlinePubDateTBD: false,
-            onlinePubDate: `${date}T${h}:${m}:00.000Z`,
+          const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
+          if (!targetBucket || targetBucket.defaultHour === null) {
+            patchBody = { onlinePubDateTBD: true, onlinePubDate: null }
+          } else {
+            const h = String(targetBucket.defaultHour).padStart(2, "0")
+            const m = String(targetBucket.defaultMinute ?? 0).padStart(2, "0")
+            // Store as newsroom-time-as-UTC: 7:30 AM → "...T07:30:00.000Z"
+            patchBody = {
+              onlinePubDateTBD: false,
+              onlinePubDate: `${date}T${h}:${m}:00.000Z`,
+            }
           }
         }
         const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
@@ -242,6 +274,8 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
     }
     return null
   }
+
+  const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
 
   const hasAnyContent = visibleSlots.some((s) => {
     const sc = showStories ? s.stories.length : 0
@@ -298,6 +332,7 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
               itemIds={itemIds}
               newStoryHref={buildItemUrl("stories")}
               newVideoHref={buildItemUrl("videos")}
+              nextMorningDate={slotData.slot === "EVENING" ? nextDate : undefined}
             >
               {stories.map((story) => (
                 <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
