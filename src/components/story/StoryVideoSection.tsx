@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Plus, Video, ChevronsUpDown } from "lucide-react"
+import { Plus, Video, ChevronsUpDown, Unlink } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,6 +70,24 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, pickerOpen])
 
+  async function disassociate(videoId: string) {
+    try {
+      const res = await fetch(`/api/videos/${videoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId: null }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? `Failed to remove video (${res.status})`)
+      }
+      toast.success("Video unlinked")
+      onUpdate()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to unlink video")
+    }
+  }
+
   async function associate(videoId: string) {
     setAssociating(true)
     try {
@@ -103,24 +121,38 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
       {story.videos.length > 0 ? (
         <div className="space-y-2">
           {story.videos.map((video) => (
-            <Link
+            <div
               key={video.id}
-              href={`/videos/${video.id}`}
-              className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
+              className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm"
             >
-              <Video className="size-4 shrink-0 text-muted-foreground" />
-              <span className="font-medium">{video.slug}</span>
-              {video.budgetLine && (
-                <span className="flex-1 truncate text-xs text-muted-foreground">
-                  {video.budgetLine}
-                </span>
-              )}
-              {video.status !== "DRAFT" && (
-                <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                  {STORY_STATUS_LABELS[video.status] ?? video.status}
-                </Badge>
-              )}
-            </Link>
+              <Link
+                href={`/videos/${video.id}`}
+                className="flex flex-1 min-w-0 items-center gap-3 hover:opacity-80 transition-opacity"
+              >
+                <Video className="size-4 shrink-0 text-muted-foreground" />
+                <span className="font-medium">{video.slug}</span>
+                {video.budgetLine && (
+                  <span className="flex-1 truncate text-xs text-muted-foreground">
+                    {video.budgetLine}
+                  </span>
+                )}
+                {video.status !== "DRAFT" && (
+                  <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
+                    {STORY_STATUS_LABELS[video.status] ?? video.status}
+                  </Badge>
+                )}
+              </Link>
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => disassociate(video.id)}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Unlink video"
+              >
+                <Unlink className="size-3" />
+              </Button>
+            </div>
           ))}
         </div>
       ) : (
