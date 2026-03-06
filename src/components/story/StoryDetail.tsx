@@ -59,7 +59,7 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
             Save Changes
           </Button>
 
-        {story.status !== "SHELVED" && (
+        {!["SHELVED", "PUBLISHED_ITERATING", "PUBLISHED_FINAL"].includes(story.status) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button

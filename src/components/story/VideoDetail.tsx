@@ -62,7 +62,7 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
           )}
         </div>
 
-        {video.status !== "SHELVED" && (
+        {!["SHELVED", "PUBLISHED_ITERATING", "PUBLISHED_FINAL"].includes(video.status) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
