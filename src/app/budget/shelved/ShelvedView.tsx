@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArchiveRestore, Trash2 } from "lucide-react"
 import { differenceInDays } from "date-fns"
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useStories } from "@/lib/hooks/useStories"
 import { useVideos } from "@/lib/hooks/useVideos"
-import { STORY_STATUS_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, todayString } from "@/lib/utils"
 import { toast } from "sonner"
 
 function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
@@ -40,17 +41,41 @@ export function ShelvedView() {
   const { videos, isLoading: videosLoading, mutate: mutateVideos } = useVideos({ status: "SHELVED" })
   const [working, setWorking] = useState<string | null>(null)
   const isLoading = storiesLoading || videosLoading
+  const router = useRouter()
 
   async function unarchive(type: "story" | "video", id: string) {
     setWorking(id)
     try {
-      const res = await fetch(`/api/${type === "story" ? "stories" : "videos"}/${id}`, {
+      const endpoint = `/api/${type === "story" ? "stories" : "videos"}/${id}`
+      const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "DRAFT" }),
       })
       if (!res.ok) throw new Error("Failed to unarchive")
-      toast.success(`${type === "story" ? "Story" : "Video"} returned to "In the works"`)
+      const saved = await res.json()
+      const budgetDate = saved.onlinePubDateTBD || !saved.onlinePubDate
+        ? todayString()
+        : new Date(saved.onlinePubDate).toISOString().slice(0, 10)
+      toast.success(`${type === "story" ? "Story" : "Video"} returned to "In the works"`, {
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await fetch(endpoint, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: "SHELVED" }),
+            })
+            mutateStories()
+            mutateVideos()
+          },
+        },
+        cancel: {
+          label: "See on budget",
+          onClick: () => router.push(`/budget/daily/${budgetDate}`),
+        },
+      })
       mutateStories()
       mutateVideos()
     } catch {
