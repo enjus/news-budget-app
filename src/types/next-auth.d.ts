@@ -9,6 +9,7 @@ declare module "next-auth" {
     user: {
       id: string
       appRole: string
+      personId?: string | null
       name?: string | null
       email?: string | null
       image?: string | null
@@ -20,5 +21,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string
     appRole: string
+    personId?: string | null
   }
 }

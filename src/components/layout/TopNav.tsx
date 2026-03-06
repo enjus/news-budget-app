@@ -27,6 +27,7 @@ export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { data: session } = useSession()
   const isAdmin = session?.user?.appRole === "ADMIN"
+  const myPersonId = session?.user?.personId
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -51,6 +52,17 @@ export function TopNav() {
               {link.label}
             </Link>
           ))}
+          {myPersonId && (
+            <Link
+              href={`/people/${myPersonId}`}
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                isActive(pathname, `/people/${myPersonId}`) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+              )}
+            >
+              Me
+            </Link>
+          )}
         </nav>
 
         {/* Spacer on mobile */}
@@ -171,6 +183,15 @@ export function TopNav() {
               >
                 <ShieldCheck className="size-4" />
                 Admin
+              </Link>
+            )}
+            {myPersonId && (
+              <Link
+                href={`/people/${myPersonId}`}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                Me
               </Link>
             )}
             <Link
