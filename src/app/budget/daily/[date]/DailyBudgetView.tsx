@@ -64,7 +64,7 @@ function NextMorningDropZone({ nextDate }: { nextDate: string }) {
       )}
     >
       <Sunrise className="size-3.5 shrink-0" />
-      <span>Tomorrow morning · {label}, 6 AM</span>
+      <span>Next morning · {label}, 6 AM</span>
     </div>
   )
 }
