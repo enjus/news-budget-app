@@ -178,13 +178,16 @@ async function main() {
 
   // ─── People ───────────────────────────────────────────────────────────────
 
-  const alice = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",  defaultRole: "REPORTER"            } });
-  const bob   = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",    defaultRole: "EDITOR"              } });
-  const carol = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",  defaultRole: "REPORTER"            } });
-  const david = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",  defaultRole: "PHOTOGRAPHER"        } });
-  const elena = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",  defaultRole: "GRAPHIC_DESIGNER"    } });
-  const frank = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",  defaultRole: "EDITOR"              } });
-  const maya  = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",   defaultRole: "VIDEOGRAPHER"        } });
+  const alice = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",     defaultRole: "REPORTER"            } });
+  const bob   = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",       defaultRole: "EDITOR"              } });
+  const carol = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",     defaultRole: "REPORTER"            } });
+  const david = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",     defaultRole: "PHOTOGRAPHER"        } });
+  const elena = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",     defaultRole: "GRAPHIC_DESIGNER"    } });
+  const frank = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",     defaultRole: "EDITOR"              } });
+  const maya  = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",      defaultRole: "VIDEOGRAPHER"        } });
+  // Linked to admin/director user accounts
+  const sam   = await prisma.person.create({ data: { name: "Sam Okafor",      email: "admin@newsroom.com",     defaultRole: "EDITOR"              } });
+  const jamie = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",  defaultRole: "EDITOR"              } });
 
   const reporters = [alice, carol];
   const editors   = [bob, frank];
@@ -294,6 +297,15 @@ async function main() {
       ],
     });
 
+    // Sam (managing editor) on key today stories
+    if ([0, 3, 9, 14].includes(i)) {
+      await prisma.storyAssignment.create({ data: { storyId: story.id, personId: sam.id, role: "EDITOR" } });
+    }
+    // Jamie (news director) on today stories they're overseeing
+    if ([4, 5].includes(i)) {
+      await prisma.storyAssignment.create({ data: { storyId: story.id, personId: jamie.id, role: "EDITOR" } });
+    }
+
     // Visuals for select today stories
     if (i % 3 === 0) await prisma.visual.create({ data: { storyId: story.id, type: "PHOTO",   description: "Photo for today story",   personId: david.id } });
     if (i % 4 === 0) await prisma.visual.create({ data: { storyId: story.id, type: "GRAPHIC", description: "Graphic for today story", personId: elena.id } });
@@ -317,6 +329,10 @@ async function main() {
     await prisma.videoAssignment.create({ data: { videoId: video.id, personId: maya.id, role: "VIDEOGRAPHER" } });
     if (i % 2 === 0) {
       await prisma.videoAssignment.create({ data: { videoId: video.id, personId: pick(editors, i).id, role: "EDITOR" } });
+    }
+    // Jamie oversees FIRE STATION TOUR (index 2, enterprise video)
+    if (i === 2) {
+      await prisma.videoAssignment.create({ data: { videoId: video.id, personId: jamie.id, role: "EDITOR" } });
     }
   }
 
@@ -350,6 +366,11 @@ async function main() {
       ],
     });
 
+    // Jamie (news director) overseeing select enterprise pieces
+    if ([0, 5, 10].includes(i)) {
+      await prisma.storyAssignment.create({ data: { storyId: story.id, personId: jamie.id, role: "EDITOR" } });
+    }
+
     // Enterprise pieces get graphics
     if (i % 2 === 0) {
       await prisma.visual.create({ data: { storyId: story.id, type: "GRAPHIC", description: "Enterprise graphic", personId: elena.id } });
@@ -360,10 +381,10 @@ async function main() {
 
   const adminHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
-    data: { email: "admin@newsroom.com", name: "Admin", passwordHash: adminHash, appRole: "ADMIN" },
+    data: { email: "admin@newsroom.com",    name: "Sam Okafor",   passwordHash: adminHash, appRole: "ADMIN", personId: sam.id   },
   });
   await prisma.user.create({
-    data: { email: "director@newsroom.com", name: "Director", passwordHash: adminHash, appRole: "ADMIN" },
+    data: { email: "director@newsroom.com", name: "Jamie Rivera", passwordHash: adminHash, appRole: "ADMIN", personId: jamie.id },
   });
   const editorHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
@@ -392,7 +413,7 @@ async function main() {
   const totalVideos   = pastVideos.length  + todayVideoRecords.length;
 
   console.log(
-    `Seed complete: 9 users (2 admin, 7 editor), 7 people,\n` +
+    `Seed complete: 9 users (2 admin, 7 editor), 9 people (2 linked to admin accounts),\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
