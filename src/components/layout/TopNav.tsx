@@ -184,6 +184,7 @@ export function TopNav() {
               <Plus className="size-4" />
               New Video
             </Link>
+            <div className="my-1 border-t" />
             {isAdmin && (
               <Link
                 href="/admin/users"
