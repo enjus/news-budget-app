@@ -43,7 +43,6 @@ const STATUS_OPTIONS = [
   "DRAFT",
   "SCHEDULED",
   "PUBLISHED_FINAL",
-  "SHELVED",
 ] as const
 
 

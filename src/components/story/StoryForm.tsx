@@ -32,7 +32,6 @@ const STATUS_OPTIONS = [
   "SCHEDULED",
   "PUBLISHED_ITERATING",
   "PUBLISHED_FINAL",
-  "SHELVED",
 ] as const
 
 interface StoryFormInitialValues {
