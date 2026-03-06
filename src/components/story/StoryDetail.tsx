@@ -1,9 +1,7 @@
 "use client"
 
 import { toast } from "sonner"
-import { Plus, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,9 +17,8 @@ import { Separator } from "@/components/ui/separator"
 import { StoryForm } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
-import Link from "next/link"
+import { StoryVideoSection } from "./StoryVideoSection"
 import { differenceInDays } from "date-fns"
-import { STORY_STATUS_LABELS } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
 
 interface StoryDetailProps {
@@ -132,48 +129,7 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
 
       <Separator />
 
-      {/* Associated Videos */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-            Videos
-          </h3>
-          <Link
-            href={`/videos/new?storyId=${story.id}`}
-            className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Plus className="size-3" />
-            Add Video
-          </Link>
-        </div>
-
-        {story.videos.length > 0 ? (
-          <div className="space-y-2">
-            {story.videos.map((video) => (
-              <Link
-                key={video.id}
-                href={`/videos/${video.id}`}
-                className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
-              >
-                <Video className="size-4 shrink-0 text-muted-foreground" />
-                <span className="font-medium">{video.slug}</span>
-                {video.budgetLine && (
-                  <span className="flex-1 truncate text-xs text-muted-foreground">
-                    {video.budgetLine}
-                  </span>
-                )}
-                {video.status !== "DRAFT" && (
-                  <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0">
-                    {STORY_STATUS_LABELS[video.status] ?? video.status}
-                  </Badge>
-                )}
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No videos linked to this story.</p>
-        )}
-      </div>
+      <StoryVideoSection story={story} onUpdate={onUpdate} />
     </div>
   )
 }

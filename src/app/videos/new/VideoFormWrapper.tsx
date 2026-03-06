@@ -10,10 +10,12 @@ export function VideoFormWrapper() {
   const onlinePubDate = params.get("onlinePubDate")
   const onlinePubDateTBD = params.get("onlinePubDateTBD") !== "false"
   const storyId = params.get("storyId")
+  const slug = params.get("slug")
+  const budgetLine = params.get("budgetLine")
 
   return (
     <VideoForm
-      initialValues={{ onlinePubDate, onlinePubDateTBD, storyId }}
+      initialValues={{ onlinePubDate, onlinePubDateTBD, storyId, slug, budgetLine }}
       onSuccess={(id) => router.push(`/videos/${id}`)}
     />
   )

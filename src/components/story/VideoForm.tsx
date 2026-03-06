@@ -50,6 +50,8 @@ interface VideoFormInitialValues {
   onlinePubDate?: string | null
   onlinePubDateTBD?: boolean
   storyId?: string | null
+  slug?: string | null
+  budgetLine?: string | null
 }
 
 interface VideoFormProps {
@@ -126,8 +128,8 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
           otherUrl: video.otherUrl ?? "",
         }
       : {
-          slug: "",
-          budgetLine: "",
+          slug: initialValues?.slug ?? "",
+          budgetLine: initialValues?.budgetLine ?? "",
           isEnterprise: false,
           status: "DRAFT",
           storyId: initialValues?.storyId ?? null,
