@@ -400,7 +400,7 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
               render={({ field }) => (
                 <Input
                   type="date"
-                  className=""
+                  className="w-auto"
                   value={field.value ? toLocalDateValue(field.value) : ""}
                   onChange={(e) => {
                     if (!e.target.value) {
