@@ -223,10 +223,23 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
 
       try {
         let patchBody: Record<string, unknown>
+        let undoPayload: Record<string, unknown> | null = null
+        let nextMorningLabel = ""
+
         if (resolvedTargetSlot === "NEXT_MORNING") {
           const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
           patchBody = { onlinePubDateTBD: false, onlinePubDate: `${nextDate}T06:00:00.000Z` }
-          toast.success(`Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`)
+          nextMorningLabel = `Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`
+          // Capture original values for undo before optimistic state clears
+          const origItem = isStory
+            ? sourceItem?.stories.find((s) => s.id === itemId)
+            : sourceItem?.videos.find((v) => v.id === itemId)
+          undoPayload = {
+            onlinePubDateTBD: origItem?.onlinePubDateTBD ?? true,
+            onlinePubDate: origItem?.onlinePubDate
+              ? new Date(origItem.onlinePubDate).toISOString()
+              : null,
+          }
         } else {
           const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
           if (!targetBucket || targetBucket.defaultHour === null) {
@@ -247,6 +260,23 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         })
+        if (undoPayload) {
+          const frozenUndo = undoPayload
+          toast.success(nextMorningLabel, {
+            duration: 8000,
+            action: {
+              label: "Undo",
+              onClick: async () => {
+                await fetch(endpoint, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(frozenUndo),
+                })
+                await mutate()
+              },
+            },
+          })
+        }
       } catch (err) {
         console.error("Failed to update item slot:", err)
         setLocalSlots(null)

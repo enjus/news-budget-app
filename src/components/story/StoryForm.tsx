@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -20,7 +21,7 @@ import {
   createStorySchema,
   type CreateStoryInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -62,6 +63,7 @@ function toLocalDateValue(date: Date | string | null | undefined): string {
 
 export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
   const isEdit = !!story
+  const router = useRouter()
 
   const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
 
@@ -168,9 +170,12 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         )
       }
 
-      toast.success(isEdit
-        ? notify ? "Story updated — team notified" : "Story updated"
-        : "Story created"
+      const budgetDate = saved.onlinePubDateTBD || !saved.onlinePubDate
+        ? todayString()
+        : new Date(saved.onlinePubDate).toISOString().slice(0, 10)
+      toast.success(
+        isEdit ? (notify ? "Story updated — team notified" : "Story updated") : "Story created",
+        { action: { label: "See on budget", onClick: () => router.push(`/budget/daily/${budgetDate}`) } }
       )
       onSuccess?.(saved.id)
     } catch (err: unknown) {

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -33,7 +34,7 @@ import {
   createVideoSchema,
   type CreateVideoInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS, cn } from "@/lib/utils"
+import { STORY_STATUS_LABELS, cn, todayString } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
@@ -60,6 +61,7 @@ interface VideoFormProps {
 
 export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
   const isEdit = !!video
+  const router = useRouter()
   const [storyPickerOpen, setStoryPickerOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [storyResults, setStoryResults] = useState<StoryPickerItem[]>([])
@@ -192,9 +194,12 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
       }
 
       const saved = await res.json()
-      toast.success(isEdit
-        ? notify ? "Video updated — team notified" : "Video updated"
-        : "Video created"
+      const budgetDate = saved.onlinePubDateTBD || !saved.onlinePubDate
+        ? todayString()
+        : new Date(saved.onlinePubDate).toISOString().slice(0, 10)
+      toast.success(
+        isEdit ? (notify ? "Video updated — team notified" : "Video updated") : "Video created",
+        { action: { label: "See on budget", onClick: () => router.push(`/budget/daily/${budgetDate}`) } }
       )
       onSuccess?.(saved.id)
     } catch (err: unknown) {
