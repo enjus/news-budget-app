@@ -110,7 +110,7 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
     }
   }
 
-  const addVideoHref = `/videos/new?storyId=${story.id}&slug=${encodeURIComponent(story.slug)}&budgetLine=${encodeURIComponent(story.budgetLine)}`
+  const addVideoHref = `/videos/new?storyId=${story.id}&storySlug=${encodeURIComponent(story.slug)}&slug=${encodeURIComponent(story.slug)}&budgetLine=${encodeURIComponent(story.budgetLine)}`
 
   return (
     <div className="space-y-3">

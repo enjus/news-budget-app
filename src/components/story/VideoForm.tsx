@@ -52,6 +52,7 @@ interface VideoFormInitialValues {
   storyId?: string | null
   slug?: string | null
   budgetLine?: string | null
+  storySlug?: string | null
 }
 
 interface VideoFormProps {
@@ -157,7 +158,9 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
     ? `${selectedInResults.slug} — ${selectedInResults.budgetLine.slice(0, 50)}`
     : storyId && video?.story
       ? `${video.story.slug} — ${video.story.budgetLine.slice(0, 50)}`
-      : null
+      : storyId && initialValues?.storySlug
+        ? initialValues.storySlug
+        : null
 
   const notifyRef = useRef(false)
 
