@@ -12,7 +12,7 @@ const WORD_COUNT_LIMIT = 1400
 // Left border accent keyed to status — DRAFT gets no override (default border)
 const STATUS_BORDER: Record<string, string> = {
   SCHEDULED:           "border-l-4 border-l-blue-400",
-  PUBLISHED_ITERATING: "border-l-4 border-l-amber-400",
+  PUBLISHED_ITERATING: "border-l-4 border-l-emerald-500",
   PUBLISHED_FINAL:     "border-l-4 border-l-emerald-500",
   SHELVED:             "border-l-4 border-l-red-400",
 }
@@ -58,7 +58,7 @@ function StatusTimeChip({
     case "PUBLISHED_ITERATING":
       return (
         <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-          ● Live
+          ● Updating
         </span>
       )
     case "SCHEDULED": {

@@ -162,7 +162,7 @@ export const ROLE_ABBREV: Record<string, string> = {
 export const STORY_STATUS_LABELS: Record<string, string> = {
   DRAFT: "In the works",
   SCHEDULED: "Scheduled",
-  PUBLISHED_ITERATING: "Published (Iterating)",
+  PUBLISHED_ITERATING: "Updating",
   PUBLISHED_FINAL: "Published (Final)",
   SHELVED: "Shelved",
 };
