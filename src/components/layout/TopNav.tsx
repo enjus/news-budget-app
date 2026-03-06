@@ -158,6 +158,15 @@ export function TopNav() {
                 {link.label}
               </Link>
             ))}
+            {myPersonId && (
+              <Link
+                href={`/people/${myPersonId}`}
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                Me
+              </Link>
+            )}
             <div className="my-1 border-t" />
             <Link
               href="/stories/new"
@@ -183,15 +192,6 @@ export function TopNav() {
               >
                 <ShieldCheck className="size-4" />
                 Admin
-              </Link>
-            )}
-            {myPersonId && (
-              <Link
-                href={`/people/${myPersonId}`}
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                Me
               </Link>
             )}
             <Link
