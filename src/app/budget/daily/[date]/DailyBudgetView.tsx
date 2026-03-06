@@ -412,6 +412,24 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, chi
   )
 }
 
+// ─── Droppable Bucket Section (agenda view) ───────────────────────────────────
+
+function DroppableBucketSection({ id, label, children }: {
+  id: string
+  label: string
+  children: React.ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <div ref={setNodeRef} className={cn("space-y-1.5 rounded-md transition-colors", isOver && "bg-primary/5")}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-1.5 mt-0.5 px-1">
+        {label}
+      </p>
+      {children}
+    </div>
+  )
+}
+
 // ─── Agenda View ──────────────────────────────────────────────────────────────
 
 const BUCKET_NAMES: Record<string, string> = {
@@ -479,6 +497,11 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
 
       if (allDateKeys.has(rawTarget)) {
         targetDate = rawTarget
+      } else if (rawTarget.includes("::")) {
+        // Bucket section drop: "YYYY-MM-DD::BUCKETID"
+        const [dateStr, bucketId] = rawTarget.split("::", 2)
+        targetDate = dateStr
+        targetBucketId = bucketId
       } else {
         for (const group of allGroups) {
           if (
@@ -735,10 +758,11 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
               {bucketGroups ? (
                 <div className="space-y-3">
                   {bucketGroups.map((bg) => (
-                    <div key={bg.bucket.id} className="space-y-1.5">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-1.5 mt-0.5 px-1">
-                        {BUCKET_NAMES[bg.bucket.id]} · {bg.bucket.label}
-                      </p>
+                    <DroppableBucketSection
+                      key={bg.bucket.id}
+                      id={`${group.date}::${bg.bucket.id}`}
+                      label={`${BUCKET_NAMES[bg.bucket.id]} · ${bg.bucket.label}`}
+                    >
                       {bg.items.map((m) => (
                         <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
                           {m.kind === "story"
@@ -746,7 +770,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                             : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
                         </SortableCard>
                       ))}
-                    </div>
+                    </DroppableBucketSection>
                   ))}
                 </div>
               ) : (
