@@ -50,11 +50,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Build the update data, only including date fields if they were provided
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = { ...rest };
-    if (onlinePubDate !== undefined) {
-      data.onlinePubDate = onlinePubDate ? new Date(onlinePubDate) : null;
+
+    // If TBD is false but no date provided, revert to TBD
+    if (onlinePubDate !== undefined || rest.onlinePubDateTBD !== undefined) {
+      const onlineTBD = rest.onlinePubDateTBD || !onlinePubDate;
+      data.onlinePubDateTBD = onlineTBD;
+      data.onlinePubDate = onlineTBD ? null : new Date(onlinePubDate!);
     }
-    if (printPubDate !== undefined) {
-      data.printPubDate = printPubDate ? new Date(printPubDate) : null;
+    if (printPubDate !== undefined || rest.printPubDateTBD !== undefined) {
+      const printTBD = rest.printPubDateTBD || !printPubDate;
+      data.printPubDateTBD = printTBD;
+      data.printPubDate = printTBD ? null : new Date(printPubDate!);
     }
 
     // Track when a story is shelved for the 90-day auto-deletion clock

@@ -77,11 +77,17 @@ export async function POST(request: NextRequest) {
 
     const { onlinePubDate, printPubDate, ...rest } = result.data;
 
+    // If TBD is false but no date provided, revert to TBD
+    const onlineTBD = rest.onlinePubDateTBD || !onlinePubDate;
+    const printTBD = rest.printPubDateTBD || !printPubDate;
+
     const story = await prisma.story.create({
       data: {
         ...rest,
-        onlinePubDate: onlinePubDate ? new Date(onlinePubDate) : null,
-        printPubDate: printPubDate ? new Date(printPubDate) : null,
+        onlinePubDateTBD: onlineTBD,
+        onlinePubDate: onlineTBD ? null : new Date(onlinePubDate!),
+        printPubDateTBD: printTBD,
+        printPubDate: printTBD ? null : new Date(printPubDate!),
       },
       include: storyInclude,
     });

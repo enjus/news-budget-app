@@ -78,11 +78,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // If TBD is false but no date provided, revert to TBD
+    const onlineTBD = rest.onlinePubDateTBD || !onlinePubDate;
+
     const video = await prisma.video.create({
       data: {
         ...rest,
         storyId: storyId ?? null,
-        onlinePubDate: onlinePubDate ? new Date(onlinePubDate) : null,
+        onlinePubDateTBD: onlineTBD,
+        onlinePubDate: onlineTBD ? null : new Date(onlinePubDate!),
       },
       include: videoInclude,
     });
