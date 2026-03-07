@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import useSWR from "swr"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
@@ -152,6 +153,7 @@ function DroppableColumn({
 const BUCKET_IDS = new Set(TIME_BUCKETS.map((b) => b.id))
 
 function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger }: ContentViewProps) {
+  const router = useRouter()
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<DailyBudgetResponse>(
@@ -273,6 +275,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
         })
         if (undoPayload) {
           const frozenUndo = undoPayload
+          const frozenNextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
           toast.success(nextMorningLabel, {
             duration: 8000,
             action: {
@@ -285,6 +288,10 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                 })
                 await mutate()
               },
+            },
+            cancel: {
+              label: "View",
+              onClick: () => router.push(`/budget/daily/${frozenNextDate}`),
             },
           })
         }
