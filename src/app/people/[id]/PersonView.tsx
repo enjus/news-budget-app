@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format } from "date-fns"
-import { ArrowLeft, FileText, Video, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,7 +19,7 @@ import {
 import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
-const PAGE_SIZE = 25
+const PAST_INITIAL_COUNT = 10
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Unpublished" },
@@ -39,10 +39,15 @@ interface PersonData {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
+function itemDateStr(item: PersonContentItem): string | null {
+  if (item.onlinePubDateTBD || !item.onlinePubDate) return null
+  const d = new Date(item.onlinePubDate)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
+}
+
 function formatItemDate(item: PersonContentItem): string {
   if (item.onlinePubDateTBD || !item.onlinePubDate) return "TBD"
   const d = new Date(item.onlinePubDate)
-  // Times stored as newsroom-time-as-UTC — read UTC parts for display
   const fakeLocal = new Date(
     d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
     d.getUTCHours(), d.getUTCMinutes()
@@ -51,21 +56,19 @@ function formatItemDate(item: PersonContentItem): string {
 }
 
 export function PersonView({ id }: PersonViewProps) {
-  const [page, setPage] = useState(0)
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [openTbd, setOpenTbd] = useState(true)
+  const [openUpcoming, setOpenUpcoming] = useState(true)
+  const [openPast, setOpenPast] = useState(true)
+  const [showAllPast, setShowAllPast] = useState(false)
 
   const { data, isLoading } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(0)
-  }, [typeFilter, statusFilter, dateFrom, dateTo])
 
   if (isLoading || !data) {
     return (
@@ -89,26 +92,33 @@ export function PersonView({ id }: PersonViewProps) {
   const storyCount = items.filter((i) => i.type === "story").length
   const videoCount = items.filter((i) => i.type === "video").length
 
-  // Apply filters
-  const filtered = items.filter((item) => {
+  const today = format(new Date(), "yyyy-MM-dd")
+
+  // Type and status filters apply globally
+  const globalFiltered = items.filter((item) => {
     if (typeFilter !== "all" && item.type !== typeFilter) return false
     if (statusFilter !== "all" && item.status !== statusFilter) return false
-    if (dateFrom || dateTo) {
-      if (item.onlinePubDateTBD || !item.onlinePubDate) {
-        // TBD items only show when no date range filter is active
-        if (dateFrom || dateTo) return false
-      } else {
-        const d = new Date(item.onlinePubDate)
-        const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-        if (dateFrom && dateStr < dateFrom) return false
-        if (dateTo && dateStr > dateTo) return false
-      }
-    }
     return true
   })
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const tbdItems = globalFiltered.filter((item) => item.onlinePubDateTBD || !item.onlinePubDate)
+  const upcomingItems = globalFiltered.filter((item) => {
+    const ds = itemDateStr(item)
+    return ds !== null && ds >= today
+  })
+  // Date range filter applies only to past
+  const pastItems = globalFiltered
+    .filter((item) => {
+      const ds = itemDateStr(item)
+      if (ds === null || ds >= today) return false
+      if (dateFrom && ds < dateFrom) return false
+      if (dateTo && ds > dateTo) return false
+      return true
+    })
+
+  const visiblePastItems = showAllPast
+    ? pastItems
+    : pastItems.slice(0, PAST_INITIAL_COUNT)
 
   const hasActiveFilters = typeFilter !== "all" || statusFilter !== "all" || dateFrom || dateTo
 
@@ -183,15 +193,15 @@ export function PersonView({ id }: PersonViewProps) {
           </SelectContent>
         </Select>
 
-        {/* Date range */}
+        {/* Date range — scoped to Past */}
         <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Past:</span>
           <Input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="h-8 w-[140px] text-sm"
-            placeholder="From"
-            aria-label="From date"
+            aria-label="Past from date"
           />
           <span className="text-muted-foreground text-sm">–</span>
           <Input
@@ -199,8 +209,7 @@ export function PersonView({ id }: PersonViewProps) {
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             className="h-8 w-[140px] text-sm"
-            placeholder="To"
-            aria-label="To date"
+            aria-label="Past to date"
           />
         </div>
 
@@ -221,65 +230,108 @@ export function PersonView({ id }: PersonViewProps) {
         )}
       </div>
 
-      {/* Content list */}
-      {filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            {hasActiveFilters ? "No items match the current filters." : "No content assigned to this person."}
-          </p>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-1">
-            {pageItems.map((item, idx) => {
-              const prevItem = idx > 0 ? pageItems[idx - 1] : filtered[page * PAGE_SIZE - 1]
-              const showDivider =
-                !item.onlinePubDateTBD &&
-                (prevItem?.onlinePubDateTBD ?? false)
-
-              return (
-                <div key={`${item.type}-${item.id}`}>
-                  {showDivider && (
-                    <div className="my-3 flex items-center gap-3">
-                      <div className="flex-1 border-t" />
-                      <span className="text-xs text-muted-foreground">Scheduled</span>
-                      <div className="flex-1 border-t" />
-                    </div>
-                  )}
-                  <ContentRow item={item} />
-                </div>
-              )
-            })}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p - 1)}
-                disabled={page === 0}
-              >
-                <ChevronLeft className="size-4" />
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {page + 1} of {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages - 1}
-              >
-                Next
-                <ChevronRight className="size-4" />
-              </Button>
+      {/* Sections */}
+      <div className="space-y-4">
+        <Section
+          title="TBD"
+          count={tbdItems.length}
+          open={openTbd}
+          onToggle={() => setOpenTbd((v) => !v)}
+        >
+          {tbdItems.length === 0 ? (
+            <EmptySection />
+          ) : (
+            <div className="space-y-1">
+              {tbdItems.map((item) => (
+                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+              ))}
             </div>
           )}
-        </>
-      )}
+        </Section>
+
+        <Section
+          title="Upcoming"
+          count={upcomingItems.length}
+          open={openUpcoming}
+          onToggle={() => setOpenUpcoming((v) => !v)}
+        >
+          {upcomingItems.length === 0 ? (
+            <EmptySection />
+          ) : (
+            <div className="space-y-1">
+              {upcomingItems.map((item) => (
+                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section
+          title="Past"
+          count={pastItems.length}
+          open={openPast}
+          onToggle={() => {
+            setOpenPast((v) => !v)
+            setShowAllPast(false)
+          }}
+        >
+          {pastItems.length === 0 ? (
+            <EmptySection />
+          ) : (
+            <div className="space-y-1">
+              {visiblePastItems.map((item) => (
+                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+              ))}
+              {pastItems.length > PAST_INITIAL_COUNT && (
+                <button
+                  onClick={() => setShowAllPast((v) => !v)}
+                  className="w-full pt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showAllPast
+                    ? "Show less"
+                    : `Show ${pastItems.length - PAST_INITIAL_COUNT} more`}
+                </button>
+              )}
+            </div>
+          )}
+        </Section>
+      </div>
     </div>
+  )
+}
+
+function Section({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string
+  count: number
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-1.5 pb-2 text-sm font-medium hover:text-foreground text-foreground/80 transition-colors"
+      >
+        <Chevron className="size-3.5 shrink-0" />
+        {title}
+        <span className="text-muted-foreground font-normal">({count})</span>
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
+function EmptySection() {
+  return (
+    <p className="py-4 text-center text-sm text-muted-foreground">None</p>
   )
 }
 

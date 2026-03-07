@@ -37,6 +37,11 @@ yarn-error.log*
 # SQLite database (keep schema, not data)
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
+
+# Claude Code local settings
+.claude/
 
 # vercel
 .vercel
