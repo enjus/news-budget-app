@@ -26,6 +26,7 @@ const STATUS_OPTIONS = [
   { value: "SCHEDULED", label: STORY_STATUS_LABELS["SCHEDULED"] },
   { value: "PUBLISHED_ITERATING", label: STORY_STATUS_LABELS["PUBLISHED_ITERATING"] },
   { value: "PUBLISHED_FINAL", label: STORY_STATUS_LABELS["PUBLISHED_FINAL"] },
+  { value: "SHELVED", label: STORY_STATUS_LABELS["SHELVED"] },
 ]
 
 interface PersonViewProps {

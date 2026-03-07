@@ -933,14 +933,15 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
     const snapshot = [...selectedItems.entries()] // capture before clearing
     try {
       await Promise.all(
-        snapshot.map(([compositeId]) => {
+        snapshot.map(async ([compositeId]) => {
           const isStory = compositeId.startsWith("story-")
           const id = compositeId.slice(isStory ? "story-".length : "video-".length)
-          return fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+          const res = await fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: bulkStatus }),
           })
+          if (!res.ok) throw new Error(`Failed to update ${compositeId}`)
         })
       )
       const n = snapshot.length
@@ -952,14 +953,15 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
           label: "Undo",
           onClick: async () => {
             await Promise.all(
-              snapshot.map(([compositeId, originalStatus]) => {
+              snapshot.map(async ([compositeId, originalStatus]) => {
                 const isStory = compositeId.startsWith("story-")
                 const id = compositeId.slice(isStory ? "story-".length : "video-".length)
-                return fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+                const res = await fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ status: originalStatus }),
                 })
+                if (!res.ok) throw new Error(`Failed to undo ${compositeId}`)
               })
             )
             setRefreshTrigger((t) => t + 1)
