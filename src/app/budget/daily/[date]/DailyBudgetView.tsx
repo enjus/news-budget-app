@@ -885,7 +885,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
 // ─── Main View ────────────────────────────────────────────────────────────────
 
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
-  const { preferences } = usePreferences()
+  const { preferences, setPreferences } = usePreferences()
   const [showStories, setShowStories] = useState(() => preferences.contentDefault !== "videos")
   const [showVideos, setShowVideos]   = useState(() => preferences.contentDefault !== "stories")
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
@@ -1027,7 +1027,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               size="sm"
               variant="ghost"
               className={cn("rounded-none gap-1.5 text-xs", viewMode === "columns" && "bg-muted font-medium")}
-              onClick={() => setViewMode("columns")}
+              onClick={() => { setViewMode("columns"); setPreferences({ defaultView: "daily-columns" }) }}
             >
               <LayoutGrid className="size-3.5" />
               Columns
@@ -1036,7 +1036,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               size="sm"
               variant="ghost"
               className={cn("rounded-none gap-1.5 text-xs", viewMode === "agenda" && "bg-muted font-medium")}
-              onClick={() => setViewMode("agenda")}
+              onClick={() => { setViewMode("agenda"); setPreferences({ defaultView: "daily-agenda" }) }}
             >
               <List className="size-3.5" />
               Agenda
