@@ -35,7 +35,7 @@ interface StoryCardProps {
   budgetLineClamp?: 1 | 3
   selectMode?: boolean
   isSelected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (currentStatus: string) => void
 }
 
 // Compact status + time chip shown top-right.
@@ -129,7 +129,7 @@ export function StoryCard({
         if (isDragging) e.preventDefault()
         if (selectMode) {
           e.preventDefault()
-          onToggleSelect?.()
+          onToggleSelect?.(story.status)
         }
       }}
     >

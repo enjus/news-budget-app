@@ -11,7 +11,7 @@ interface VideoCardProps {
   budgetLineClamp?: 1 | 3
   selectMode?: boolean
   isSelected?: boolean
-  onToggleSelect?: () => void
+  onToggleSelect?: (currentStatus: string) => void
 }
 
 const STATUS_BORDER: Record<string, string> = {
@@ -75,7 +75,7 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
         if (isDragging) e.preventDefault()
         if (selectMode) {
           e.preventDefault()
-          onToggleSelect?.()
+          onToggleSelect?.(video.status)
         }
       }}
     >

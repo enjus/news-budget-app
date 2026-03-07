@@ -48,7 +48,7 @@ interface ContentViewProps {
   showVideos: boolean
   selectMode: boolean
   selectedIds: Set<string>
-  onToggleSelect: (compositeId: string) => void
+  onToggleSelect: (compositeId: string, currentStatus: string) => void
   refreshTrigger: number
 }
 
@@ -383,7 +383,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                     showPhotoIndicator
                     selectMode={selectMode}
                     isSelected={selectedIds.has(`story-${story.id}`)}
-                    onToggleSelect={() => onToggleSelect(`story-${story.id}`)}
+                    onToggleSelect={() => onToggleSelect(`story-${story.id}`, story.status)}
                   />
                 </SortableCard>
               ))}
@@ -393,7 +393,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                     video={video}
                     selectMode={selectMode}
                     isSelected={selectedIds.has(`video-${video.id}`)}
-                    onToggleSelect={() => onToggleSelect(`video-${video.id}`)}
+                    onToggleSelect={() => onToggleSelect(`video-${video.id}`, video.status)}
                   />
                 </SortableCard>
               ))}
@@ -749,14 +749,14 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                               budgetLineClamp={3}
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`story-${m.item.id}`)}
-                              onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
                             />
                           : <VideoCard
                               video={m.item as VideoWithRelations}
                               budgetLineClamp={3}
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`video-${m.item.id}`)}
-                              onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
                             />}
                       </SortableCard>
                     ))}
@@ -830,14 +830,14 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                                 budgetLineClamp={3}
                                 selectMode={selectMode}
                                 isSelected={selectedIds.has(`story-${m.item.id}`)}
-                                onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                                onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
                               />
                             : <VideoCard
                                 video={m.item as VideoWithRelations}
                                 budgetLineClamp={3}
                                 selectMode={selectMode}
                                 isSelected={selectedIds.has(`video-${m.item.id}`)}
-                                onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                                onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
                               />}
                         </SortableCard>
                       ))}
@@ -855,14 +855,14 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                           budgetLineClamp={3}
                           selectMode={selectMode}
                           isSelected={selectedIds.has(`story-${m.item.id}`)}
-                          onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                          onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
                         />
                       : <VideoCard
                           video={m.item as VideoWithRelations}
                           budgetLineClamp={3}
                           selectMode={selectMode}
                           isSelected={selectedIds.has(`video-${m.item.id}`)}
-                          onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                          onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
                         />}
                   </SortableCard>
                 ))
@@ -887,7 +887,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
 
   // Bulk select state
   const [selectMode, setSelectMode] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedItems, setSelectedItems] = useState<Map<string, string>>(new Map()) // compositeId → originalStatus
   const [bulkStatus, setBulkStatus] = useState("")
   const [applying, setApplying] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -905,27 +905,28 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const displayDate = format(parsedDate, "EEEE, MMMM d, yyyy")
   const isToday = date === todayString()
 
-  function toggleSelect(compositeId: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
+  function toggleSelect(compositeId: string, currentStatus: string) {
+    setSelectedItems((prev) => {
+      const next = new Map(prev)
       if (next.has(compositeId)) next.delete(compositeId)
-      else next.add(compositeId)
+      else next.set(compositeId, currentStatus)
       return next
     })
   }
 
   function exitSelectMode() {
     setSelectMode(false)
-    setSelectedIds(new Set())
+    setSelectedItems(new Map())
     setBulkStatus("")
   }
 
   async function applyBulkStatus() {
-    if (!bulkStatus || selectedIds.size === 0) return
+    if (!bulkStatus || selectedItems.size === 0) return
     setApplying(true)
+    const snapshot = [...selectedItems.entries()] // capture before clearing
     try {
       await Promise.all(
-        [...selectedIds].map((compositeId) => {
+        snapshot.map(([compositeId]) => {
           const isStory = compositeId.startsWith("story-")
           const id = compositeId.slice(isStory ? "story-".length : "video-".length)
           return fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
@@ -935,10 +936,29 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
           })
         })
       )
-      const n = selectedIds.size
-      toast.success(`Updated ${n} ${n === 1 ? "item" : "items"}`)
+      const n = snapshot.length
       exitSelectMode()
       setRefreshTrigger((t) => t + 1)
+      toast.success(`Updated ${n} ${n === 1 ? "item" : "items"}`, {
+        duration: 8000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all(
+              snapshot.map(([compositeId, originalStatus]) => {
+                const isStory = compositeId.startsWith("story-")
+                const id = compositeId.slice(isStory ? "story-".length : "video-".length)
+                return fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ status: originalStatus }),
+                })
+              })
+            )
+            setRefreshTrigger((t) => t + 1)
+          },
+        },
+      })
     } catch {
       toast.error("Some updates failed — please try again.")
     } finally {
@@ -1047,7 +1067,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             showStories={showStories}
             showVideos={showVideos}
             selectMode={selectMode}
-            selectedIds={selectedIds}
+            selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
           />
@@ -1056,7 +1076,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             showStories={showStories}
             showVideos={showVideos}
             selectMode={selectMode}
-            selectedIds={selectedIds}
+            selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
           />
@@ -1067,8 +1087,8 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
         <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background shadow-lg">
           <div className="mx-auto flex max-w-screen-xl items-center gap-3 px-4 py-3">
             <span className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{selectedIds.size}</span>
-              {" "}{selectedIds.size === 1 ? "item" : "items"} selected
+              <span className="font-medium text-foreground">{selectedItems.size}</span>
+              {" "}{selectedItems.size === 1 ? "item" : "items"} selected
             </span>
             <div className="flex-1" />
             <Select value={bulkStatus} onValueChange={setBulkStatus}>
@@ -1083,7 +1103,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             </Select>
             <Button
               size="sm"
-              disabled={!bulkStatus || selectedIds.size === 0 || applying}
+              disabled={!bulkStatus || selectedItems.size === 0 || applying}
               onClick={applyBulkStatus}
             >
               {applying ? "Applying…" : "Apply"}
