@@ -9,9 +9,11 @@ interface SortableCardProps {
   children: React.ReactNode
   /** When true, only the grip handle activates drag; the rest of the card is a tap target. */
   handle?: boolean
+  /** When true, dragging is disabled and the grip handle is hidden. */
+  disabled?: boolean
 }
 
-export function SortableCard({ id, children, handle }: SortableCardProps) {
+export function SortableCard({ id, children, handle, disabled }: SortableCardProps) {
   const {
     attributes,
     listeners,
@@ -20,7 +22,7 @@ export function SortableCard({ id, children, handle }: SortableCardProps) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id })
+  } = useSortable({ id, disabled })
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -31,15 +33,17 @@ export function SortableCard({ id, children, handle }: SortableCardProps) {
   if (handle) {
     return (
       <div ref={setNodeRef} style={style} {...attributes} className="flex items-start gap-1">
-        <button
-          ref={setActivatorNodeRef}
-          {...listeners}
-          tabIndex={-1}
-          aria-label="Drag to reorder"
-          className="touch-none mt-1 shrink-0 cursor-grab active:cursor-grabbing rounded text-muted-foreground/40 hover:text-muted-foreground/70 p-2 -m-2 md:p-0 md:m-0"
-        >
-          <GripVertical className="size-5 md:size-3" />
-        </button>
+        {!disabled && (
+          <button
+            ref={setActivatorNodeRef}
+            {...listeners}
+            tabIndex={-1}
+            aria-label="Drag to reorder"
+            className="touch-none mt-1 shrink-0 cursor-grab active:cursor-grabbing rounded text-muted-foreground/40 hover:text-muted-foreground/70 p-2 -m-2 md:p-0 md:m-0"
+          >
+            <GripVertical className="size-5 md:size-3" />
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           {children}
         </div>

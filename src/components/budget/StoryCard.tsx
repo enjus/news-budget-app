@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
@@ -33,6 +33,9 @@ interface StoryCardProps {
   hideEnterpriseTag?: boolean
   videoCount?: number
   budgetLineClamp?: 1 | 3
+  selectMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }
 
 // Compact status + time chip shown top-right.
@@ -95,6 +98,9 @@ export function StoryCard({
   hideEnterpriseTag,
   videoCount,
   budgetLineClamp = 1,
+  selectMode,
+  isSelected,
+  onToggleSelect,
 }: StoryCardProps) {
   const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
   const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
@@ -117,123 +123,140 @@ export function StoryCard({
         "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
         STATUS_BORDER[story.status] ?? "",
         isDragging && "shadow-lg ring-2 ring-primary/30",
+        isSelected && "ring-2 ring-primary bg-primary/5",
       )}
       onClick={(e) => {
         if (isDragging) e.preventDefault()
+        if (selectMode) {
+          e.preventDefault()
+          onToggleSelect?.()
+        }
       }}
     >
-      <div className="flex flex-col gap-1.5">
-        {/* Top row: slug + enterprise badge (left) · status/time chip (right) */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <FileText className="size-3 shrink-0 text-muted-foreground/60" />
-            <span className="font-semibold leading-none">{story.slug}</span>
-            {story.isEnterprise && !hideEnterpriseTag && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                Enterprise
-              </Badge>
-            )}
-          </div>
-          <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
-        </div>
-
-        {/* Budget line */}
-        {story.budgetLine && (
-          <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>{story.budgetLine}</p>
-        )}
-
-        {/* Visual indicators row — only when visuals or linked videos are present */}
-        {hasVisuals && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            {photoCount > 0 && (
-              <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
-                <Camera className="size-3.5 shrink-0" />
-                {photoCount}
-              </span>
-            )}
-            {graphicCount > 0 && (
-              <span className="flex items-center gap-1 font-medium text-violet-600 dark:text-violet-400">
-                <BarChart2 className="size-3.5 shrink-0" />
-                {graphicCount}
-              </span>
-            )}
-            {mapCount > 0 && (
-              <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                <Map className="size-3.5 shrink-0" />
-                {mapCount}
-              </span>
-            )}
-            {(videoCount ?? 0) > 0 && (
-              <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
-                <Video className="size-3.5 shrink-0" />
-                {videoCount}
-              </span>
-            )}
+      <div className="flex gap-2.5">
+        {selectMode && (
+          <div className="mt-0.5 flex shrink-0 items-start">
+            <div className={cn(
+              "flex size-4 items-center justify-center rounded border-2 transition-colors",
+              isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+            )}>
+              {isSelected && <Check className="size-2.5 stroke-[3] text-primary-foreground" />}
+            </div>
           </div>
         )}
-
-        {/* Online pub date row — edition / enterprise views */}
-        {showOnlinePubDate && (
-          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="font-medium text-foreground/60">Online:</span>
-            <span>{formatOnlinePub()}</span>
-          </div>
-        )}
-
-        {/* Bottom row: people chips + indicators */}
-        <div className="flex flex-wrap items-center gap-1">
-          {story.assignments.map((a) => {
-            const abbrev = ROLE_ABBREV[a.role]
-            return (
-              <span
-                key={`${a.personId}-${a.role}`}
-                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
-              >
-                {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
-              </span>
-            )
-          })}
-          {story.aiContributed && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
-              title="AI Contributed"
-            >
-              <Sparkles className="size-2.5 pointer-events-none" />
-              AI
-            </span>
-          )}
-          {wordCount != null && (
-            <span
-              className={cn(
-                "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                wordCountOver
-                  ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
-                  : "bg-secondary text-secondary-foreground",
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* Top row: slug + enterprise badge (left) · status/time chip (right) */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <FileText className="size-3 shrink-0 text-muted-foreground/60" />
+              <span className="font-semibold leading-none">{story.slug}</span>
+              {story.isEnterprise && !hideEnterpriseTag && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                  Enterprise
+                </Badge>
               )}
-              title={
-                wordCountOver
-                  ? `Over ${WORD_COUNT_LIMIT.toLocaleString()} word limit`
-                  : "Word count"
-              }
-            >
-              {wordCount.toLocaleString()} wds
-            </span>
+            </div>
+            <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+          </div>
+
+          {/* Budget line */}
+          {story.budgetLine && (
+            <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>{story.budgetLine}</p>
           )}
-          {story.postUrl &&
-            (story.status === "PUBLISHED_FINAL" || story.status === "PUBLISHED_ITERATING") && (
-            <a
-              href={story.postUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
-              title="Open published post"
-            >
-              <ExternalLink className="size-2.5" />
-              Post
-            </a>
+
+          {/* Visual indicators row — only when visuals or linked videos are present */}
+          {hasVisuals && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              {photoCount > 0 && (
+                <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
+                  <Camera className="size-3.5 shrink-0" />
+                  {photoCount}
+                </span>
+              )}
+              {graphicCount > 0 && (
+                <span className="flex items-center gap-1 font-medium text-violet-600 dark:text-violet-400">
+                  <BarChart2 className="size-3.5 shrink-0" />
+                  {graphicCount}
+                </span>
+              )}
+              {mapCount > 0 && (
+                <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                  <Map className="size-3.5 shrink-0" />
+                  {mapCount}
+                </span>
+              )}
+              {(videoCount ?? 0) > 0 && (
+                <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+                  <Video className="size-3.5 shrink-0" />
+                  {videoCount}
+                </span>
+              )}
+            </div>
           )}
+
+          {/* Online pub date row — edition / enterprise views */}
+          {showOnlinePubDate && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="font-medium text-foreground/60">Online:</span>
+              <span>{formatOnlinePub()}</span>
+            </div>
+          )}
+
+          {/* Bottom row: people chips + indicators */}
+          <div className="flex flex-wrap items-center gap-1">
+            {story.assignments.map((a) => {
+              const abbrev = ROLE_ABBREV[a.role]
+              return (
+                <span
+                  key={`${a.personId}-${a.role}`}
+                  className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                  title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+                >
+                  {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
+                </span>
+              )
+            })}
+            {story.aiContributed && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                title="AI Contributed"
+              >
+                <Sparkles className="size-2.5 pointer-events-none" />
+                AI
+              </span>
+            )}
+            {wordCount != null && (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  wordCountOver
+                    ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                    : "bg-secondary text-secondary-foreground",
+                )}
+                title={
+                  wordCountOver
+                    ? `Over ${WORD_COUNT_LIMIT.toLocaleString()} word limit`
+                    : "Word count"
+                }
+              >
+                {wordCount.toLocaleString()} wds
+              </span>
+            )}
+            {story.postUrl &&
+              (story.status === "PUBLISHED_FINAL" || story.status === "PUBLISHED_ITERATING") && (
+              <a
+                href={story.postUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+                title="Open published post"
+              >
+                <ExternalLink className="size-2.5" />
+                Post
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </Link>

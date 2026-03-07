@@ -6,7 +6,7 @@ import useSWR from "swr"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus,
-  Info, FileText, Video, LayoutGrid, List, Sunrise,
+  Info, FileText, Video, LayoutGrid, List, Sunrise, CheckSquare,
 } from "lucide-react"
 import { useDroppable, closestCenter } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
@@ -15,11 +15,18 @@ import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS } from "@/lib/utils"
 import { usePreferences } from "@/lib/hooks/usePreferences"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
@@ -39,13 +46,15 @@ interface ContentViewProps {
   date: string
   showStories: boolean
   showVideos: boolean
+  selectMode: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (compositeId: string) => void
+  refreshTrigger: number
 }
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
-
-// ─── Droppable Column (column view) ───────────────────────────────────────────
 
 // ─── Next Morning Drop Zone ───────────────────────────────────────────────────
 
@@ -142,7 +151,7 @@ function DroppableColumn({
 
 const BUCKET_IDS = new Set(TIME_BUCKETS.map((b) => b.id))
 
-function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
+function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger }: ContentViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const { data, isLoading, mutate } = useSWR<DailyBudgetResponse>(
@@ -153,6 +162,10 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
 
   const [localSlots, setLocalSlots] = useState<DailyBudgetSlot[] | null>(null)
   const apiSlots: DailyBudgetSlot[] = localSlots ?? data?.slots ?? []
+
+  useEffect(() => {
+    if (refreshTrigger > 0) mutate()
+  }, [refreshTrigger, mutate])
 
   const slotMap = new Map<string, DailyBudgetSlot>()
   for (const s of apiSlots) slotMap.set(s.slot, s)
@@ -230,7 +243,6 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
           const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
           patchBody = { onlinePubDateTBD: false, onlinePubDate: `${nextDate}T06:00:00.000Z` }
           nextMorningLabel = `Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`
-          // Capture original values for undo before optimistic state clears
           const origItem = isStory
             ? sourceItem?.stories.find((s) => s.id === itemId)
             : sourceItem?.videos.find((v) => v.id === itemId)
@@ -247,7 +259,6 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
           } else {
             const h = String(targetBucket.defaultHour).padStart(2, "0")
             const m = String(targetBucket.defaultMinute ?? 0).padStart(2, "0")
-            // Store as newsroom-time-as-UTC: 7:30 AM → "...T07:30:00.000Z"
             patchBody = {
               onlinePubDateTBD: false,
               onlinePubDate: `${date}T${h}:${m}:00.000Z`,
@@ -365,13 +376,25 @@ function ColumnsView({ date, showStories, showVideos }: ContentViewProps) {
               nextMorningDate={slotData.slot === "EVENING" ? nextDate : undefined}
             >
               {stories.map((story) => (
-                <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
-                  <StoryCard story={story} showWordCount showPhotoIndicator />
+                <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle disabled={selectMode}>
+                  <StoryCard
+                    story={story}
+                    showWordCount
+                    showPhotoIndicator
+                    selectMode={selectMode}
+                    isSelected={selectedIds.has(`story-${story.id}`)}
+                    onToggleSelect={() => onToggleSelect(`story-${story.id}`)}
+                  />
                 </SortableCard>
               ))}
               {videos.map((video) => (
-                <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
-                  <VideoCard video={video} />
+                <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle disabled={selectMode}>
+                  <VideoCard
+                    video={video}
+                    selectMode={selectMode}
+                    isSelected={selectedIds.has(`video-${video.id}`)}
+                    onToggleSelect={() => onToggleSelect(`video-${video.id}`)}
+                  />
                 </SortableCard>
               ))}
             </DroppableColumn>
@@ -469,7 +492,7 @@ const BUCKET_NAMES: Record<string, string> = {
   EVENING:   "Evening",
 }
 
-function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
+function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger }: ContentViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [tbdExpanded, setTbdExpanded] = useState(false)
 
@@ -481,6 +504,10 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
 
   const [localData, setLocalData] = useState<AgendaResponse | null>(null)
   const currentData = localData ?? data
+
+  useEffect(() => {
+    if (refreshTrigger > 0) mutate()
+  }, [refreshTrigger, mutate])
 
   const allDateKeys = new Set([
     ...(currentData?.days.map((d) => d.date) ?? []),
@@ -520,15 +547,12 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       }
       if (!sourceDate || !sourceItem) return
 
-      // Resolve target date; when dropped on a sortable item in the same day,
-      // also infer the target bucket from that item's pub date.
       let targetDate: string = sourceDate
       let targetBucketId: string | null = null
 
       if (allDateKeys.has(rawTarget)) {
         targetDate = rawTarget
       } else if (rawTarget.includes("::")) {
-        // Bucket section drop: "YYYY-MM-DD::BUCKETID"
         const [dateStr, bucketId] = rawTarget.split("::", 2)
         targetDate = dateStr
         targetBucketId = bucketId
@@ -539,7 +563,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
             group.videos.some((v) => `video-${v.id}` === rawTarget)
           ) {
             targetDate = group.date
-            // Same-day drop: derive which bucket from the item landed on
             if (group.date === sourceDate) {
               const tgt =
                 group.stories.find((s) => `story-${s.id}` === rawTarget) ??
@@ -553,9 +576,7 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
         }
       }
 
-      // No-op: same day and no bucket change
       if (targetDate === sourceDate && !targetBucketId) return
-      // No-op: same day AND same bucket
       if (targetDate === sourceDate && targetBucketId) {
         const srcBucket =
           !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate
@@ -564,13 +585,11 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
         if (srcBucket === targetBucketId) return
       }
 
-      // Compute new pub date
       let newPubDate: string | null = null
       let newTBD = false
       if (targetDate === "TBD") {
         newTBD = true
       } else if (targetBucketId) {
-        // Bucket-targeted drop: use that bucket's default (latest) time
         const bucket = TIME_BUCKETS.find((b) => b.id === targetBucketId)
         if (bucket && bucket.defaultHour !== null) {
           const h = String(bucket.defaultHour).padStart(2, "0")
@@ -580,7 +599,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           newTBD = true
         }
       } else {
-        // Cross-day drop on a day zone: preserve the existing time-of-day
         if (!sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
           const existing = new Date(sourceItem.onlinePubDate)
           const h = String(existing.getUTCHours()).padStart(2, "0")
@@ -591,7 +609,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
         }
       }
 
-      // Optimistic update — move item and update its pub date in local state
       const updatedItem = {
         ...sourceItem,
         onlinePubDate: newPubDate as unknown as Date | null,
@@ -620,7 +637,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
       }
       setLocalData({ ...currentData, days: updatedDays, tbd: updatedTbd })
 
-      // API call
       try {
         const patchBody: Record<string, unknown> = newTBD
           ? { onlinePubDateTBD: true, onlinePubDate: null }
@@ -724,10 +740,24 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                     hideHeader
                   >
                     {tbdMerged.map((m) => (
-                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
                         {m.kind === "story"
-                          ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
-                          : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
+                          ? <StoryCard
+                              story={m.item}
+                              showWordCount
+                              showPhotoIndicator
+                              budgetLineClamp={3}
+                              selectMode={selectMode}
+                              isSelected={selectedIds.has(`story-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                            />
+                          : <VideoCard
+                              video={m.item as VideoWithRelations}
+                              budgetLineClamp={3}
+                              selectMode={selectMode}
+                              isSelected={selectedIds.has(`video-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                            />}
                       </SortableCard>
                     ))}
                   </AgendaDayRow>
@@ -746,7 +776,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           const stories = showStories ? group.stories : []
           const videos = showVideos ? group.videos : []
 
-          // Merge stories and videos sorted by onlinePubDate ascending (null at end)
           const merged: Array<
             | { kind: "story"; item: StoryListItem }
             | { kind: "video"; item: VideoWithRelations }
@@ -762,8 +791,6 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
           const itemIds = merged.map((m) => `${m.kind}-${m.item.id}`)
           const count = merged.length
 
-          // For dated days, group items by time bucket and show sub-headers.
-          // TBD days render flat (sub-headers would be redundant).
           const bucketGroups = isTbd ? null : TIME_BUCKETS
             .filter((b) => b.id !== "TBD")
             .map((b) => ({
@@ -794,10 +821,24 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                       label={`${BUCKET_NAMES[bg.bucket.id]} · ${bg.bucket.label}`}
                     >
                       {bg.items.map((m) => (
-                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
                           {m.kind === "story"
-                            ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
-                            : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
+                            ? <StoryCard
+                                story={m.item}
+                                showWordCount
+                                showPhotoIndicator
+                                budgetLineClamp={3}
+                                selectMode={selectMode}
+                                isSelected={selectedIds.has(`story-${m.item.id}`)}
+                                onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                              />
+                            : <VideoCard
+                                video={m.item as VideoWithRelations}
+                                budgetLineClamp={3}
+                                selectMode={selectMode}
+                                isSelected={selectedIds.has(`video-${m.item.id}`)}
+                                onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                              />}
                         </SortableCard>
                       ))}
                     </DroppableBucketSection>
@@ -805,10 +846,24 @@ function AgendaView({ date, showStories, showVideos }: ContentViewProps) {
                 </div>
               ) : (
                 merged.map((m) => (
-                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle>
+                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
                     {m.kind === "story"
-                      ? <StoryCard story={m.item} showWordCount showPhotoIndicator budgetLineClamp={3} />
-                      : <VideoCard video={m.item as VideoWithRelations} budgetLineClamp={3} />}
+                      ? <StoryCard
+                          story={m.item}
+                          showWordCount
+                          showPhotoIndicator
+                          budgetLineClamp={3}
+                          selectMode={selectMode}
+                          isSelected={selectedIds.has(`story-${m.item.id}`)}
+                          onToggleSelect={() => onToggleSelect(`story-${m.item.id}`)}
+                        />
+                      : <VideoCard
+                          video={m.item as VideoWithRelations}
+                          budgetLineClamp={3}
+                          selectMode={selectMode}
+                          isSelected={selectedIds.has(`video-${m.item.id}`)}
+                          onToggleSelect={() => onToggleSelect(`video-${m.item.id}`)}
+                        />}
                   </SortableCard>
                 ))
               )}
@@ -830,6 +885,13 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
   )
 
+  // Bulk select state
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkStatus, setBulkStatus] = useState("")
+  const [applying, setApplying] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
   // Mobile always uses agenda regardless of preference
   useEffect(() => {
     if (window.innerWidth < 768) setViewMode("agenda")
@@ -842,6 +904,47 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const nextDate = format(addDays(parsedDate, 1), "yyyy-MM-dd")
   const displayDate = format(parsedDate, "EEEE, MMMM d, yyyy")
   const isToday = date === todayString()
+
+  function toggleSelect(compositeId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(compositeId)) next.delete(compositeId)
+      else next.add(compositeId)
+      return next
+    })
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false)
+    setSelectedIds(new Set())
+    setBulkStatus("")
+  }
+
+  async function applyBulkStatus() {
+    if (!bulkStatus || selectedIds.size === 0) return
+    setApplying(true)
+    try {
+      await Promise.all(
+        [...selectedIds].map((compositeId) => {
+          const isStory = compositeId.startsWith("story-")
+          const id = compositeId.slice(isStory ? "story-".length : "video-".length)
+          return fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: bulkStatus }),
+          })
+        })
+      )
+      const n = selectedIds.size
+      toast.success(`Updated ${n} ${n === 1 ? "item" : "items"}`)
+      exitSelectMode()
+      setRefreshTrigger((t) => t + 1)
+    } catch {
+      toast.error("Some updates failed — please try again.")
+    } finally {
+      setApplying(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -911,6 +1014,16 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             </Button>
           </div>
 
+          {/* Bulk select toggle */}
+          <Button
+            size="sm"
+            variant={selectMode ? "secondary" : "outline"}
+            onClick={() => selectMode ? exitSelectMode() : setSelectMode(true)}
+          >
+            <CheckSquare className="size-3.5" />
+            {selectMode ? "Selecting…" : "Select"}
+          </Button>
+
           {/* New item buttons */}
           <Button asChild size="sm">
             <Link href="/stories/new">
@@ -929,9 +1042,58 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
 
       {/* Content */}
       {viewMode === "columns"
-        ? <ColumnsView date={date} showStories={showStories} showVideos={showVideos} />
-        : <AgendaView date={date} showStories={showStories} showVideos={showVideos} />
+        ? <ColumnsView
+            date={date}
+            showStories={showStories}
+            showVideos={showVideos}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            refreshTrigger={refreshTrigger}
+          />
+        : <AgendaView
+            date={date}
+            showStories={showStories}
+            showVideos={showVideos}
+            selectMode={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            refreshTrigger={refreshTrigger}
+          />
       }
+
+      {/* Bulk action bar */}
+      {selectMode && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 border-t bg-background shadow-lg">
+          <div className="mx-auto flex max-w-screen-xl items-center gap-3 px-4 py-3">
+            <span className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{selectedIds.size}</span>
+              {" "}{selectedIds.size === 1 ? "item" : "items"} selected
+            </span>
+            <div className="flex-1" />
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger className="h-8 w-[180px] text-sm">
+                <SelectValue placeholder="Set status…" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(STORY_STATUS_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              disabled={!bulkStatus || selectedIds.size === 0 || applying}
+              onClick={applyBulkStatus}
+            >
+              {applying ? "Applying…" : "Apply"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={exitSelectMode}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

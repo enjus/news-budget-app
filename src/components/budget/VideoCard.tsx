@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Video as VideoIcon } from "lucide-react"
+import { Sparkles, Video as VideoIcon, Check } from "lucide-react"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
@@ -9,6 +9,9 @@ interface VideoCardProps {
   video: VideoWithRelations
   isDragging?: boolean
   budgetLineClamp?: 1 | 3
+  selectMode?: boolean
+  isSelected?: boolean
+  onToggleSelect?: () => void
 }
 
 const STATUS_BORDER: Record<string, string> = {
@@ -58,67 +61,84 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
   }
 }
 
-export function VideoCard({ video, isDragging, budgetLineClamp = 1 }: VideoCardProps) {
+export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
   return (
     <Link
       href={`/videos/${video.id}`}
       className={cn(
         "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
         STATUS_BORDER[video.status] ?? "",
-        isDragging && "shadow-lg ring-2 ring-primary/30"
+        isDragging && "shadow-lg ring-2 ring-primary/30",
+        isSelected && "ring-2 ring-primary bg-primary/5",
       )}
       onClick={(e) => {
         if (isDragging) e.preventDefault()
+        if (selectMode) {
+          e.preventDefault()
+          onToggleSelect?.()
+        }
       }}
     >
-      <div className="flex flex-col gap-1.5">
-        {/* Top row: slug + Video badge (left) · status/time chip (right) */}
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
-            <span className="font-semibold leading-none">{video.slug}</span>
+      <div className="flex gap-2.5">
+        {selectMode && (
+          <div className="mt-0.5 flex shrink-0 items-start">
+            <div className={cn(
+              "flex size-4 items-center justify-center rounded border-2 transition-colors",
+              isSelected ? "border-primary bg-primary" : "border-muted-foreground/40"
+            )}>
+              {isSelected && <Check className="size-2.5 stroke-[3] text-primary-foreground" />}
+            </div>
           </div>
-          <VideoStatusChip video={video} />
-        </div>
-
-        {/* Budget line */}
-        {video.budgetLine && (
-          <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>
-            {video.budgetLine}
-          </p>
         )}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {/* Top row: slug + Video badge (left) · status/time chip (right) */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
+              <span className="font-semibold leading-none">{video.slug}</span>
+            </div>
+            <VideoStatusChip video={video} />
+          </div>
 
-        {/* Bottom row: people chips + AI tag */}
-        <div className="flex flex-wrap items-center gap-1">
-          {video.assignments.map((a) => {
-            const abbrev = ROLE_ABBREV[a.role]
-            return (
+          {/* Budget line */}
+          {video.budgetLine && (
+            <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>
+              {video.budgetLine}
+            </p>
+          )}
+
+          {/* Bottom row: people chips + AI tag */}
+          <div className="flex flex-wrap items-center gap-1">
+            {video.assignments.map((a) => {
+              const abbrev = ROLE_ABBREV[a.role]
+              return (
+                <span
+                  key={`${a.personId}-${a.role}`}
+                  className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
+                  title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+                >
+                  {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
+                </span>
+              )
+            })}
+            {video.aiContributed && (
               <span
-                key={`${a.personId}-${a.role}`}
-                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+                className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                title="AI Contributed"
               >
-                {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
+                <Sparkles className="size-2.5 pointer-events-none" />
+                AI
               </span>
-            )
-          })}
-          {video.aiContributed && (
-            <span
-              className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
-              title="AI Contributed"
-            >
-              <Sparkles className="size-2.5 pointer-events-none" />
-              AI
-            </span>
+            )}
+          </div>
+
+          {/* Parent story link label */}
+          {video.story && (
+            <p className="text-[10px] text-muted-foreground">
+              Story: {video.story.slug}
+            </p>
           )}
         </div>
-
-        {/* Parent story link label */}
-        {video.story && (
-          <p className="text-[10px] text-muted-foreground">
-            Story: {video.story.slug}
-          </p>
-        )}
       </div>
     </Link>
   )
