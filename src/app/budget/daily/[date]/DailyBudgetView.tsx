@@ -313,11 +313,11 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
     for (const slot of visibleSlots) {
       if (activeId.startsWith("story-")) {
         const story = slot.stories.find((s) => s.id === activeId.slice("story-".length))
-        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator showUnassigned />
       }
       if (activeId.startsWith("video-")) {
         const video = slot.videos.find((v) => v.id === activeId.slice("video-".length))
-        if (video) return <VideoCard video={video} isDragging />
+        if (video) return <VideoCard video={video} isDragging showUnassigned />
       }
     }
     return null
@@ -388,6 +388,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                     story={story}
                     showWordCount
                     showPhotoIndicator
+                    showUnassigned
                     selectMode={selectMode}
                     isSelected={selectedIds.has(`story-${story.id}`)}
                     onToggleSelect={() => onToggleSelect(`story-${story.id}`, story.status)}
@@ -398,6 +399,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                 <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle disabled={selectMode}>
                   <VideoCard
                     video={video}
+                    showUnassigned
                     selectMode={selectMode}
                     isSelected={selectedIds.has(`video-${video.id}`)}
                     onToggleSelect={() => onToggleSelect(`video-${video.id}`, video.status)}
@@ -673,14 +675,14 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
       const id = activeId.slice("story-".length)
       for (const g of allGroups) {
         const story = g.stories.find((s) => s.id === id)
-        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator showUnassigned />
       }
     }
     if (activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
       for (const g of allGroups) {
         const video = g.videos.find((v) => v.id === id)
-        if (video) return <VideoCard video={video} isDragging />
+        if (video) return <VideoCard video={video} isDragging showUnassigned />
       }
     }
     return null
@@ -753,6 +755,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                               story={m.item}
                               showWordCount
                               showPhotoIndicator
+                              showUnassigned
                               budgetLineClamp={3}
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`story-${m.item.id}`)}
@@ -760,6 +763,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                             />
                           : <VideoCard
                               video={m.item as VideoWithRelations}
+                              showUnassigned
                               budgetLineClamp={3}
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`video-${m.item.id}`)}
@@ -834,6 +838,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                                 story={m.item}
                                 showWordCount
                                 showPhotoIndicator
+                                showUnassigned
                                 budgetLineClamp={3}
                                 selectMode={selectMode}
                                 isSelected={selectedIds.has(`story-${m.item.id}`)}
@@ -841,6 +846,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                               />
                             : <VideoCard
                                 video={m.item as VideoWithRelations}
+                                showUnassigned
                                 budgetLineClamp={3}
                                 selectMode={selectMode}
                                 isSelected={selectedIds.has(`video-${m.item.id}`)}
@@ -859,6 +865,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                           story={m.item}
                           showWordCount
                           showPhotoIndicator
+                          showUnassigned
                           budgetLineClamp={3}
                           selectMode={selectMode}
                           isSelected={selectedIds.has(`story-${m.item.id}`)}
@@ -866,6 +873,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                         />
                       : <VideoCard
                           video={m.item as VideoWithRelations}
+                          showUnassigned
                           budgetLineClamp={3}
                           selectMode={selectMode}
                           isSelected={selectedIds.has(`video-${m.item.id}`)}
