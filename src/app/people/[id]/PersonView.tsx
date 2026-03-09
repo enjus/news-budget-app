@@ -66,10 +66,18 @@ export function PersonView({ id }: PersonViewProps) {
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
 
-  const { data, isLoading } = useSWR<PersonData>(
+  const { data, isLoading, error } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
+
+  if (error || (data && !data.items)) {
+    return (
+      <div className="py-12 text-center text-sm text-muted-foreground">
+        Failed to load person content.
+      </div>
+    )
+  }
 
   if (isLoading || !data) {
     return (
