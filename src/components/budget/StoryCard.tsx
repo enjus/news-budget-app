@@ -30,6 +30,7 @@ interface StoryCardProps {
   showOnlinePubDate?: boolean
   showPhotoIndicator?: boolean
   showWordCount?: boolean
+  showUnassigned?: boolean
   hideEnterpriseTag?: boolean
   videoCount?: number
   budgetLineClamp?: 1 | 3
@@ -95,6 +96,7 @@ export function StoryCard({
   showOnlinePubDate,
   showPhotoIndicator,
   showWordCount,
+  showUnassigned,
   hideEnterpriseTag,
   videoCount,
   budgetLineClamp = 1,
@@ -102,6 +104,7 @@ export function StoryCard({
   isSelected,
   onToggleSelect,
 }: StoryCardProps) {
+  const isUnassigned = showUnassigned && story.assignments.length === 0
   const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
   const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
   const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
@@ -156,7 +159,14 @@ export function StoryCard({
                 </Badge>
               )}
             </div>
-            <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              {isUnassigned && (
+                <span className="text-[10px] font-medium text-red-500 dark:text-red-400">
+                  Unassigned
+                </span>
+              )}
+              <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+            </div>
           </div>
 
           {/* Budget line */}

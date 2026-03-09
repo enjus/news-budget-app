@@ -8,6 +8,7 @@ import type { VideoWithRelations } from "@/types/index"
 interface VideoCardProps {
   video: VideoWithRelations
   isDragging?: boolean
+  showUnassigned?: boolean
   budgetLineClamp?: 1 | 3
   selectMode?: boolean
   isSelected?: boolean
@@ -61,7 +62,8 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
   }
 }
 
-export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
+export function VideoCard({ video, isDragging, showUnassigned, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
+  const isUnassigned = showUnassigned && video.assignments.length === 0
   return (
     <Link
       href={`/videos/${video.id}`}
@@ -97,7 +99,14 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
               <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
               <span className="font-semibold leading-none">{video.slug}</span>
             </div>
-            <VideoStatusChip video={video} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              {isUnassigned && (
+                <span className="text-[10px] font-medium text-red-500 dark:text-red-400">
+                  Unassigned
+                </span>
+              )}
+              <VideoStatusChip video={video} />
+            </div>
           </div>
 
           {/* Budget line */}
