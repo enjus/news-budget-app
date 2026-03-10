@@ -127,6 +127,7 @@ const TODAY_STORIES: Array<{
   slug: string; budgetLine: string; status: string;
   hour?: number; tbd?: boolean; isEnterprise?: boolean;
   hasPrint?: boolean; wordCount?: number; notes?: string; shelved?: boolean;
+  unassigned?: boolean;
 }> = [
   // Already published this morning
   { slug: "CITY BUDGET VOTE",      budgetLine: "City council passed a $2.3B spending plan on a 6-5 vote after months of negotiations, with final cuts falling heavily on parks maintenance, bus service expansion, and a planned public health clinic. The vote came after more than four hours of public testimony.", status: "PUBLISHED_FINAL", hour: 7, hasPrint: true, wordCount: 820 },
@@ -150,6 +151,8 @@ const TODAY_STORIES: Array<{
   { slug: "PENSION SHORTFALL",     budgetLine: "The city pension fund's latest actuarial report projects a $340M shortfall that will grow to more than $500M within a decade under current contribution rates. We're seeking comment from the finance director and union leadership; a full accountability story is in progress.", status: "DRAFT", tbd: true, isEnterprise: true, notes: "Finance director interview scheduled Thursday." },
   { slug: "EVICTION SURGE",        budgetLine: "Eviction filings in the region have increased 34% since the expiration of pandemic-era tenant protections, according to court records we obtained and analyzed. The increase is concentrated in ZIP codes with older rental housing stock and lower median incomes — a pattern we're documenting through court filings and tenant interviews.", status: "DRAFT", tbd: true, isEnterprise: true, notes: "Pulling court records. Need comment from housing authority." },
   { slug: "LEAD PIPE RECKONING",   budgetLine: "Thousands of homes in the city are still connected to the water main through lead service lines, and city timelines for replacing them have slipped repeatedly. With an EPA compliance deadline approaching, we're examining the gap between the city's stated commitments and the pace of actual replacement.", status: "DRAFT", tbd: true, isEnterprise: true, notes: "EPA deadline looming. Engineering sources lined up." },
+  // Unassigned — no reporter yet
+  { slug: "STADIUM FINANCING",     budgetLine: "City officials are weighing a request from a professional sports franchise for $150M in public financing toward a new stadium, a proposal that has drawn sharp criticism from fiscal watchdogs and neighborhood groups near the proposed site.", status: "DRAFT", tbd: true, unassigned: true },
   // Shelved
   { slug: "WATER MAIN BREAK",      budgetLine: "A downtown water main break caused significant morning commute disruption before crews repaired the line — story overtaken by events.", status: "SHELVED", tbd: true, notes: "Shelved. Monitor for infrastructure follow-up angle." },
 ];
@@ -290,14 +293,16 @@ async function main() {
     });
     todayStoryRecords.push(story);
 
-    const reporter = pick(reporters, i);
-    const editor   = pick(editors,   i);
-    await prisma.storyAssignment.createMany({
-      data: [
-        { storyId: story.id, personId: reporter.id, role: "REPORTER" },
-        { storyId: story.id, personId: editor.id,   role: "EDITOR"   },
-      ],
-    });
+    if (!t.unassigned) {
+      const reporter = pick(reporters, i);
+      const editor   = pick(editors,   i);
+      await prisma.storyAssignment.createMany({
+        data: [
+          { storyId: story.id, personId: reporter.id, role: "REPORTER" },
+          { storyId: story.id, personId: editor.id,   role: "EDITOR"   },
+        ],
+      });
+    }
 
     // Sam (managing editor) on key today stories
     if ([0, 3, 9, 14].includes(i)) {
