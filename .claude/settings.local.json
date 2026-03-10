@@ -9,7 +9,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx next:*)",
       "Bash(wc:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(git:*)"
     ]
   }
 }
