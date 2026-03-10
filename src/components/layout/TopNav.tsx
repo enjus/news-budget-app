@@ -16,6 +16,7 @@ const navLinks = [
   { label: "Editions", href: "/budget/edition" },
   { label: "Shelved", href: "/budget/shelved" },
   { label: "People", href: "/people" },
+  { label: "My Teams", href: "/teams" },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -102,13 +103,22 @@ export function TopNav() {
                   <p className="text-xs text-muted-foreground truncate">{session.user.email}</p>
                 </div>
                 {isAdmin && (
-                  <Link
-                    href="/admin/users"
-                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                  >
-                    <ShieldCheck className="size-3.5" />
-                    Admin
-                  </Link>
+                  <>
+                    <Link
+                      href="/admin/users"
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <ShieldCheck className="size-3.5" />
+                      Users
+                    </Link>
+                    <Link
+                      href="/admin/teams"
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <ShieldCheck className="size-3.5" />
+                      Teams
+                    </Link>
+                  </>
                 )}
                 <Link
                   href="/settings"
@@ -186,14 +196,24 @@ export function TopNav() {
             </Link>
             <div className="my-1 border-t" />
             {isAdmin && (
-              <Link
-                href="/admin/users"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <ShieldCheck className="size-4" />
-                Admin
-              </Link>
+              <>
+                <Link
+                  href="/admin/users"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <ShieldCheck className="size-4" />
+                  Users
+                </Link>
+                <Link
+                  href="/admin/teams"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <ShieldCheck className="size-4" />
+                  Teams
+                </Link>
+              </>
             )}
             <Link
               href="/settings"

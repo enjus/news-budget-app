@@ -169,6 +169,8 @@ async function main() {
 
   // Clear all data in dependency order
   await prisma.user.deleteMany();
+  await prisma.teamMember.deleteMany();
+  await prisma.team.deleteMany();
   await prisma.videoAssignment.deleteMany();
   await prisma.video.deleteMany();
   await prisma.visual.deleteMany();
@@ -377,6 +379,59 @@ async function main() {
     }
   }
 
+  // ─── Teams ──────────────────────────────────────────────────────────────
+
+  const metroTeam = await prisma.team.create({
+    data: {
+      name: "Metro",
+      description: "City government, public safety, and local news",
+    },
+  });
+
+  const enterpriseTeam = await prisma.team.create({
+    data: {
+      name: "Investigations",
+      description: "Long-form enterprise and accountability reporting",
+    },
+  });
+
+  const videoTeam = await prisma.team.create({
+    data: {
+      name: "Video",
+      description: "Video production and multimedia",
+    },
+  });
+
+  // Metro team: Sam (editor), Alice + Carol (reporters), David (photographer)
+  await prisma.teamMember.createMany({
+    data: [
+      { teamId: metroTeam.id, personId: sam.id, role: "EDITOR" },
+      { teamId: metroTeam.id, personId: bob.id, role: "EDITOR" },
+      { teamId: metroTeam.id, personId: alice.id, role: "MEMBER" },
+      { teamId: metroTeam.id, personId: carol.id, role: "MEMBER" },
+      { teamId: metroTeam.id, personId: david.id, role: "MEMBER" },
+    ],
+  });
+
+  // Investigations: Jamie (editor), Alice + Carol (reporters), Elena (graphics)
+  await prisma.teamMember.createMany({
+    data: [
+      { teamId: enterpriseTeam.id, personId: jamie.id, role: "EDITOR" },
+      { teamId: enterpriseTeam.id, personId: frank.id, role: "EDITOR" },
+      { teamId: enterpriseTeam.id, personId: alice.id, role: "MEMBER" },
+      { teamId: enterpriseTeam.id, personId: carol.id, role: "MEMBER" },
+      { teamId: enterpriseTeam.id, personId: elena.id, role: "MEMBER" },
+    ],
+  });
+
+  // Video team: Jamie (editor), Maya (videographer)
+  await prisma.teamMember.createMany({
+    data: [
+      { teamId: videoTeam.id, personId: jamie.id, role: "EDITOR" },
+      { teamId: videoTeam.id, personId: maya.id, role: "MEMBER" },
+    ],
+  });
+
   // ─── Admin user ───────────────────────────────────────────────────────────
 
   const adminHash = await bcrypt.hash("newsbudget2026", 12);
@@ -418,7 +473,8 @@ async function main() {
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
     `  ${totalStories} stories total\n` +
-    `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos = ${totalVideos} videos total`
+    `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos = ${totalVideos} videos total\n` +
+    `  3 teams (Metro, Investigations, Video)`
   );
 }
 

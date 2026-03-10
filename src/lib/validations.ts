@@ -160,6 +160,22 @@ export const createVideoAssignmentSchema = z.object({
   role: AssignmentRoleEnum,
 });
 
+// ─── Team ─────────────────────────────────────────────────────────────────────
+
+export const TeamMemberRoleEnum = z.enum(["EDITOR", "MEMBER"]);
+
+export const createTeamSchema = z.object({
+  name: z.string().min(1, "Name is required").max(100),
+  description: z.string().max(500).nullable().optional(),
+});
+
+export const updateTeamSchema = createTeamSchema.partial();
+
+export const addTeamMemberSchema = z.object({
+  personId: z.string().cuid(),
+  role: TeamMemberRoleEnum.default("MEMBER"),
+});
+
 // ─── Inferred types ───────────────────────────────────────────────────────────
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
@@ -172,3 +188,6 @@ export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSchema>;
+export type CreateTeamInput = z.infer<typeof createTeamSchema>;
+export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
+export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;

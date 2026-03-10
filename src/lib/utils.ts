@@ -176,3 +176,8 @@ export const PERSON_ROLE_LABELS: Record<string, string> = {
   PUBLICATION_DESIGNER: "Publication Designer",
   OTHER: "Other",
 };
+
+export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
+  EDITOR: "Editor",
+  MEMBER: "Member",
+};

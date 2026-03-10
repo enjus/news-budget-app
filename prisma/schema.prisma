@@ -40,6 +40,30 @@ model Person {
   assignments      StoryAssignment[]
   visuals          Visual[]
   videoAssignments VideoAssignment[]
+  teamMemberships  TeamMember[]
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members TeamMember[]
+}
+
+model TeamMember {
+  id       String   @id @default(cuid())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  teamId   String
+  person   Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  // TeamRole: EDITOR | MEMBER
+  role     String   @default("MEMBER")
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, personId])
 }
 
 model Story {

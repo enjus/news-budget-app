@@ -1,6 +1,6 @@
-import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Prisma } from "@prisma/client";
+import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, Prisma } from "@prisma/client";
 
-export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment };
+export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember };
 
 // ─── Story types ─────────────────────────────────────────────────────────────
 
@@ -84,3 +84,17 @@ export type EditionDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
   stories: StoryListItem[];
 };
+
+// ─── Team types ──────────────────────────────────────────────────────────────
+
+export type TeamWithMembers = Prisma.TeamGetPayload<{
+  include: {
+    members: { include: { person: true } };
+  };
+}>;
+
+export type TeamListItem = Prisma.TeamGetPayload<{
+  include: {
+    _count: { select: { members: true } };
+  };
+}>;
