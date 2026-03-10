@@ -128,7 +128,7 @@ export function StoryCard({
       href={`/stories/${story.id}`}
       className={cn(
         "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
-        STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-orange-400" : ""),
+        STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-red-400" : ""),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
       )}
