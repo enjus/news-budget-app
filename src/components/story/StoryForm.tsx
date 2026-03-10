@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, forwardRef, useImperativeHandle } from "react"
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -121,10 +121,38 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const printPubDateTBD = watch("printPubDateTBD")
+  const watchedStatus = watch("status")
+  const watchedIsEnterprise = watch("isEnterprise")
+  const watchedAiContributed = watch("aiContributed")
 
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
 
   const notifyRef = useRef(false)
+
+  // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
+  // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
+  const autoSaveMounted = useRef(false)
+  const prevAutoSaveValues = useRef({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed })
+  useEffect(() => {
+    if (!isEdit) return
+    if (!autoSaveMounted.current) {
+      autoSaveMounted.current = true
+      return
+    }
+    const prev = prevAutoSaveValues.current
+    const message = watchedStatus !== prev.status
+      ? `Status → ${STORY_STATUS_LABELS[watchedStatus] ?? watchedStatus}`
+      : "Saved"
+    prevAutoSaveValues.current = { status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }
+    fetch(`/api/stories/${story!.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }),
+    })
+      .then((res) => res.ok ? toast.success(message, { duration: 2000 }) : res.json().then((j) => { throw new Error(j?.error) }))
+      .catch((err) => toast.error(err instanceof Error ? err.message : "Auto-save failed"))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedStatus, watchedIsEnterprise, watchedAiContributed])
 
   useImperativeHandle(ref, () => ({
     submitNormal: () => { notifyRef.current = false; handleSubmit(onSubmit)() },
