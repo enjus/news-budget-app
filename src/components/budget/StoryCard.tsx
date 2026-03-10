@@ -82,7 +82,14 @@ function StatusTimeChip({
         </span>
       )
     default:
-      // DRAFT — show time only if set, no colour
+      // DRAFT — flag unassigned stories; otherwise show time only if set
+      if (story.assignments.length === 0) {
+        return (
+          <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
+            Unassigned
+          </span>
+        )
+      }
       return time ? (
         <span className="shrink-0 text-[10px] text-muted-foreground">{time}</span>
       ) : null
@@ -121,7 +128,7 @@ export function StoryCard({
       href={`/stories/${story.id}`}
       className={cn(
         "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
-        STATUS_BORDER[story.status] ?? "",
+        STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-orange-400" : ""),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
       )}
