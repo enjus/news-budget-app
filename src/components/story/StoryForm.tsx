@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -42,6 +42,11 @@ interface StoryFormInitialValues {
   isEnterprise?: boolean
 }
 
+export interface StoryFormHandle {
+  submitNormal: () => void
+  submitNotify: () => void
+}
+
 interface StoryFormProps {
   story?: StoryWithRelations
   initialValues?: StoryFormInitialValues
@@ -60,7 +65,8 @@ function toLocalDateValue(date: Date | string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
+export const StoryForm = forwardRef<StoryFormHandle, StoryFormProps>(
+function StoryForm({ story, initialValues, onSuccess }, ref) {
   const isEdit = !!story
   const router = useRouter()
 
@@ -119,6 +125,11 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
 
   const notifyRef = useRef(false)
+
+  useImperativeHandle(ref, () => ({
+    submitNormal: () => { notifyRef.current = false; handleSubmit(onSubmit)() },
+    submitNotify: () => { notifyRef.current = true; handleSubmit(onSubmit)() },
+  }))
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
@@ -435,21 +446,6 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         )}
       </div>
 
-      {/* Post URL — edit mode only (not relevant at creation) */}
-      {isEdit && (
-        <div className="space-y-1.5">
-          <Label htmlFor="sf-post-url">Post URL</Label>
-          <Input
-            id="sf-post-url"
-            {...register("postUrl")}
-            placeholder="https://"
-          />
-          {errors.postUrl && (
-            <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
-          )}
-        </div>
-      )}
-
       {/* AI Contributed */}
       <div className="flex items-center gap-2">
         <Controller
@@ -468,20 +464,28 @@ export function StoryForm({ story, initialValues, onSuccess }: StoryFormProps) {
         </Label>
       </div>
 
-      {/* Bottom actions */}
-      <div className="flex justify-end gap-2 pt-2">
-        {isEdit && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSubmitting}
-            onClick={() => { notifyRef.current = true; handleSubmit(onSubmit)() }}
-          >
-            {isSubmitting ? "Saving..." : "Save & Notify Team"}
-          </Button>
-        )}
-        {submitButton}
-      </div>
+      {/* Post URL — edit mode only, last field (post-publication) */}
+      {isEdit && (
+        <div className="space-y-1.5">
+          <Label htmlFor="sf-post-url">Post URL</Label>
+          <Input
+            id="sf-post-url"
+            {...register("postUrl")}
+            placeholder="https://"
+          />
+          {errors.postUrl && (
+            <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
+          )}
+        </div>
+      )}
+
+      {/* Bottom actions — create mode only; edit mode buttons live in StoryDetail */}
+      {!isEdit && (
+        <div className="flex justify-end gap-2 pt-2">
+          {submitButton}
+        </div>
+      )}
     </form>
   )
-}
+})
+StoryForm.displayName = "StoryForm"

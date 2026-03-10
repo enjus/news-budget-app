@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -14,7 +15,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
-import { StoryForm } from "./StoryForm"
+import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { StoryVideoSection } from "./StoryVideoSection"
@@ -27,6 +28,8 @@ interface StoryDetailProps {
 }
 
 export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
+  const formRef = useRef<StoryFormHandle>(null)
+
   async function patchStatus(status: string) {
     try {
       const res = await fetch(`/api/stories/${story.id}`, {
@@ -52,7 +55,19 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
         <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
 
         <div className="flex items-center gap-2">
-          <Button type="submit" form="story-form" size="sm">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => formRef.current?.submitNotify()}
+          >
+            Save & Notify Team
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => formRef.current?.submitNormal()}
+          >
             Save Changes
           </Button>
 
@@ -106,6 +121,7 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
 
       {/* Form — always editable, remounts when story is saved */}
       <StoryForm
+        ref={formRef}
         key={String(story.updatedAt)}
         story={story}
         onSuccess={() => onUpdate()}
@@ -130,6 +146,25 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
       <Separator />
 
       <StoryVideoSection story={story} onUpdate={onUpdate} />
+
+      <Separator />
+
+      {/* Bottom action row — mirrors header */}
+      <div className="flex justify-end gap-2 pb-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => formRef.current?.submitNotify()}
+        >
+          Save & Notify Team
+        </Button>
+        <Button
+          type="button"
+          onClick={() => formRef.current?.submitNormal()}
+        >
+          Save Changes
+        </Button>
+      </div>
     </div>
   )
 }

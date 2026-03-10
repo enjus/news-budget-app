@@ -1,5 +1,6 @@
 "use client"
 
+import { useRef } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { ExternalLink } from "lucide-react"
@@ -16,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
-import { VideoForm } from "./VideoForm"
+import { VideoForm, type VideoFormHandle } from "./VideoForm"
 import { VideoAssignmentSection } from "./VideoAssignmentSection"
 import { differenceInDays } from "date-fns"
 import type { VideoWithRelations } from "@/types/index"
@@ -27,6 +28,8 @@ interface VideoDetailProps {
 }
 
 export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
+  const formRef = useRef<VideoFormHandle>(null)
+
   async function patchStatus(status: string) {
     try {
       const res = await fetch(`/api/videos/${video.id}`, {
@@ -63,7 +66,19 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button type="submit" form="video-form" size="sm">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => formRef.current?.submitNotify()}
+          >
+            Save & Notify Team
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => formRef.current?.submitNormal()}
+          >
             Save Changes
           </Button>
 
@@ -115,8 +130,17 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
         )
       })()}
 
+      <VideoAssignmentSection
+        videoId={video.id}
+        assignments={video.assignments}
+        onUpdate={onUpdate}
+      />
+
+      <Separator />
+
       {/* Form — always editable, remounts when video is saved */}
       <VideoForm
+        ref={formRef}
         key={String(video.updatedAt)}
         video={video}
         onSuccess={() => onUpdate()}
@@ -124,11 +148,22 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
 
       <Separator />
 
-      <VideoAssignmentSection
-        videoId={video.id}
-        assignments={video.assignments}
-        onUpdate={onUpdate}
-      />
+      {/* Bottom action row — mirrors header */}
+      <div className="flex justify-end gap-2 pb-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => formRef.current?.submitNotify()}
+        >
+          Save & Notify Team
+        </Button>
+        <Button
+          type="button"
+          onClick={() => formRef.current?.submitNormal()}
+        >
+          Save Changes
+        </Button>
+      </div>
     </div>
   )
 }

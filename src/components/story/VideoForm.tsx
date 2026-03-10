@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,10 +34,17 @@ import {
   createVideoSchema,
   type CreateVideoInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS, cn, todayString } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
+import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
+import type { Person } from "@/types/index"
+
+interface PendingAssignment {
+  person: Person
+  role: AssignmentRoleValue
+}
 
 const STATUS_OPTIONS = [
   "DRAFT",
@@ -55,15 +62,22 @@ interface VideoFormInitialValues {
   storySlug?: string | null
 }
 
+export interface VideoFormHandle {
+  submitNormal: () => void
+  submitNotify: () => void
+}
+
 interface VideoFormProps {
   video?: VideoWithRelations
   initialValues?: VideoFormInitialValues
   onSuccess?: (id: string) => void
 }
 
-export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
+export const VideoForm = forwardRef<VideoFormHandle, VideoFormProps>(
+function VideoForm({ video, initialValues, onSuccess }, ref) {
   const isEdit = !!video
   const router = useRouter()
+  const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
   const [storyPickerOpen, setStoryPickerOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [storyResults, setStoryResults] = useState<StoryPickerItem[]>([])
@@ -164,6 +178,11 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
 
   const notifyRef = useRef(false)
 
+  useImperativeHandle(ref, () => ({
+    submitNormal: () => { notifyRef.current = false; handleSubmit(onSubmit)() },
+    submitNotify: () => { notifyRef.current = true; handleSubmit(onSubmit)() },
+  }))
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
     const notify = notifyRef.current
@@ -198,6 +217,20 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
       }
 
       const saved = await res.json()
+
+      // Post pending assignments after video creation
+      if (!isEdit && pendingAssignments.length > 0) {
+        await Promise.all(
+          pendingAssignments.map((a) =>
+            fetch(`/api/videos/${saved.id}/assignments`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ personId: a.person.id, role: a.role }),
+            })
+          )
+        )
+      }
+
       const budgetDate = saved.onlinePubDateTBD || !saved.onlinePubDate
         ? todayString()
         : new Date(saved.onlinePubDate).toISOString().slice(0, 10)
@@ -211,8 +244,24 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
     }
   }
 
+  const assignedIds = pendingAssignments.map((a) => a.person.id)
+
+  const submitButton = (
+    <Button type="submit" disabled={isSubmitting}>
+      {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Video"}
+    </Button>
+  )
+
   return (
     <form id="video-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+      {/* Top action row — create mode only */}
+      {!isEdit && (
+        <div className="flex justify-end">
+          {submitButton}
+        </div>
+      )}
+
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="vf-slug">Slug</Label>
@@ -249,6 +298,65 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
           <p className="text-xs text-destructive">{errors.budgetLine.message}</p>
         )}
       </div>
+
+      {/* Assignments — create mode inline */}
+      {!isEdit && (
+        <div className="space-y-2">
+          <Label>People</Label>
+          {pendingAssignments.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingAssignments.map((a, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
+                >
+                  {a.person.name}
+                  <span className="text-muted-foreground/70">
+                    · {PERSON_ROLE_LABELS[a.role] ?? a.role}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAssignments((prev) => prev.filter((_, j) => j !== i))}
+                    className="ml-0.5 rounded text-muted-foreground/60 hover:text-foreground"
+                    aria-label="Remove"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <PersonPicker
+            onSelect={(person, role) =>
+              setPendingAssignments((prev) => [...prev, { person, role }])
+            }
+            excludeIds={assignedIds}
+            roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
+            defaultRole="VIDEOGRAPHER"
+            label="Add person"
+          />
+        </div>
+      )}
+
+      {/* AI Contributed — directly below assignments in create mode */}
+      {!isEdit && (
+        <div className="flex items-center gap-2">
+          <Controller
+            name="aiContributed"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="vf-ai"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
+            AI Contributed
+          </Label>
+        </div>
+      )}
 
       {/* Status + Enterprise */}
       <div className="flex flex-wrap items-start gap-4">
@@ -409,35 +517,6 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
         )}
       </div>
 
-      {/* Platform URLs */}
-      <div className="space-y-3">
-        <p className="text-sm font-medium">Platform Links</p>
-        {(["youtubeUrl", "reelsUrl", "tiktokUrl", "otherUrl"] as const).map((field) => {
-          const labels: Record<typeof field, string> = {
-            youtubeUrl: "YouTube",
-            reelsUrl: "Reels",
-            tiktokUrl: "TikTok",
-            otherUrl: "Other",
-          }
-          return (
-            <div key={field} className="flex items-center gap-3">
-              <Label htmlFor={`vf-${field}`} className="w-16 shrink-0 text-sm">
-                {labels[field]}
-              </Label>
-              <Input
-                id={`vf-${field}`}
-                {...register(field)}
-                placeholder="https://"
-                className="flex-1"
-              />
-              {errors[field] && (
-                <p className="text-xs text-destructive">{errors[field]?.message}</p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
       {/* Notes */}
       <div className="space-y-1.5">
         <Label htmlFor="vf-notes">Notes</Label>
@@ -453,40 +532,64 @@ export function VideoForm({ video, initialValues, onSuccess }: VideoFormProps) {
         )}
       </div>
 
-      {/* AI Contributed */}
-      <div className="flex items-center gap-2">
-        <Controller
-          name="aiContributed"
-          control={control}
-          render={({ field }) => (
-            <Checkbox
-              id="vf-ai"
-              checked={field.value}
-              onCheckedChange={field.onChange}
-            />
-          )}
-        />
-        <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
-          AI Contributed
-        </Label>
-      </div>
+      {/* AI Contributed — edit mode (above platform links) */}
+      {isEdit && (
+        <div className="flex items-center gap-2">
+          <Controller
+            name="aiContributed"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="vf-ai"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
+            AI Contributed
+          </Label>
+        </div>
+      )}
 
-      {/* Submit */}
-      <div className="flex justify-end gap-2 pt-2">
-        {isEdit && (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSubmitting}
-            onClick={() => { notifyRef.current = true; handleSubmit(onSubmit)() }}
-          >
-            {isSubmitting ? "Saving..." : "Save & Notify Team"}
-          </Button>
-        )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Video"}
-        </Button>
-      </div>
+      {/* Platform Links — edit mode only */}
+      {isEdit && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium">Platform Links</p>
+          {(["youtubeUrl", "reelsUrl", "tiktokUrl", "otherUrl"] as const).map((field) => {
+            const labels: Record<typeof field, string> = {
+              youtubeUrl: "YouTube",
+              reelsUrl: "Reels",
+              tiktokUrl: "TikTok",
+              otherUrl: "Other",
+            }
+            return (
+              <div key={field} className="flex items-center gap-3">
+                <Label htmlFor={`vf-${field}`} className="w-16 shrink-0 text-sm">
+                  {labels[field]}
+                </Label>
+                <Input
+                  id={`vf-${field}`}
+                  {...register(field)}
+                  placeholder="https://"
+                  className="flex-1"
+                />
+                {errors[field] && (
+                  <p className="text-xs text-destructive">{errors[field]?.message}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Bottom actions — create mode only; edit mode buttons live in VideoDetail */}
+      {!isEdit && (
+        <div className="flex justify-end gap-2 pt-2">
+          {submitButton}
+        </div>
+      )}
     </form>
   )
-}
+})
+VideoForm.displayName = "VideoForm"
