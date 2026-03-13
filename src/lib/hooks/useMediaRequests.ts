@@ -7,6 +7,7 @@ interface UseMediaRequestsParams {
   assigneeId?: string
   requestedById?: string
   storyId?: string
+  archived?: boolean
 }
 
 export function useMediaRequests(params?: UseMediaRequestsParams) {
@@ -17,6 +18,7 @@ export function useMediaRequests(params?: UseMediaRequestsParams) {
   if (params?.assigneeId) searchParams.set("assigneeId", params.assigneeId)
   if (params?.requestedById) searchParams.set("requestedById", params.requestedById)
   if (params?.storyId) searchParams.set("storyId", params.storyId)
+  if (params?.archived) searchParams.set("archived", "true")
 
   const query = searchParams.toString()
   const url = `/api/media-requests${query ? `?${query}` : ""}`

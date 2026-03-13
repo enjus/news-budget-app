@@ -192,6 +192,7 @@ export const updateMediaRequestSchema = z.object({
   notes: z.string().max(5000).nullable().optional(),
   deadline: z.string().datetime({ offset: true }).nullable().optional(),
   declineReason: z.string().max(2000).nullable().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const createMediaAssignmentSchema = z.object({

@@ -30,7 +30,7 @@ import {
   cn,
 } from "@/lib/utils"
 import type { MediaRequestWithRelations } from "@/types/index"
-import { ExternalLink, Plus, Trash2, Link as LinkIcon, User, FileText, Clock, MapPin } from "lucide-react"
+import { ExternalLink, Plus, Trash2, Link as LinkIcon, User, FileText, Clock, MapPin, Archive, ArchiveX } from "lucide-react"
 import { format } from "date-fns"
 
 interface MediaRequestDetailProps {
@@ -47,6 +47,8 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
   const [newLinkLabel, setNewLinkLabel] = useState("")
 
   const isAdmin = session?.user?.appRole === "ADMIN"
+  const isEditor = session?.user?.appRole === "EDITOR"
+  const isRequester = session?.user?.personId === mediaRequest.requestedById
 
   async function patchStatus(status: string, extra?: Record<string, string>) {
     try {
@@ -147,6 +149,24 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
 
   function isGeocodable(location: string) {
     return /\d/.test(location)
+  }
+
+  async function handleArchive(archived: boolean) {
+    try {
+      const res = await fetch(`/api/media-requests/${mediaRequest.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? `Request failed (${res.status})`)
+      }
+      toast.success(archived ? "Request archived" : "Request reopened")
+      onUpdate()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update request")
+    }
   }
 
   const assignedIds = mediaRequest.assignments.map((a) => a.person.id)
@@ -348,8 +368,8 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
           </Button>
         ))}
 
-        {/* Decline */}
-        {!["DECLINED", "CANCELED", "DELIVERED"].includes(s) && (
+        {/* Decline — admin/editor only */}
+        {(isAdmin || isEditor) && !["DECLINED", "CANCELED", "DELIVERED"].includes(s) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="sm" variant="outline" className="text-destructive border-destructive/30">
@@ -384,8 +404,8 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
           </AlertDialog>
         )}
 
-        {/* Cancel */}
-        {!["CANCELED", "DELIVERED", "DECLINED"].includes(s) && (
+        {/* Cancel — requester or admin only */}
+        {(isRequester || isAdmin) && !["CANCELED", "DELIVERED", "DECLINED"].includes(s) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="sm" variant="outline" className="text-muted-foreground">
@@ -409,8 +429,33 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
           </AlertDialog>
         )}
 
-        {/* Delete */}
-        {isAdmin && (
+        {/* Archive — admin/editor, for terminal statuses */}
+        {(isAdmin || isEditor) && ["COMPLETED", "DELIVERED", "DECLINED", "CANCELED"].includes(s) && !mediaRequest.archived && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-muted-foreground"
+            onClick={() => handleArchive(true)}
+          >
+            <Archive className="size-3.5" />
+            Archive
+          </Button>
+        )}
+
+        {/* Unarchive — admin/editor, only for declined/canceled (re-opens request) */}
+        {(isAdmin || isEditor) && ["DECLINED", "CANCELED"].includes(s) && mediaRequest.archived && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleArchive(false)}
+          >
+            <ArchiveX className="size-3.5" />
+            Reopen
+          </Button>
+        )}
+
+        {/* Delete — admin only, terminal status only */}
+        {isAdmin && ["DECLINED", "CANCELED"].includes(s) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="sm" variant="outline" className="text-destructive border-destructive/30 ml-auto">

@@ -36,6 +36,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const result = updateMediaRequestSchema.safeParse(body);
@@ -48,13 +53,37 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     const { eventDateTime, deadline, ...rest } = result.data;
+    const isAdmin = session.user.appRole === "ADMIN";
+    const isEditor = session.user.appRole === "EDITOR";
 
-    // If setting DECLINED, require declineReason
-    if (rest.status === "DECLINED" && !rest.declineReason) {
-      return NextResponse.json(
-        { error: "Decline reason is required when declining a request" },
-        { status: 400 }
-      );
+    // Only admins and editors can decline
+    if (rest.status === "DECLINED") {
+      if (!isAdmin && !isEditor) {
+        return NextResponse.json({ error: "Not authorized to decline requests" }, { status: 403 });
+      }
+      if (!rest.declineReason) {
+        return NextResponse.json(
+          { error: "Decline reason is required when declining a request" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Only the requester or admin can cancel
+    if (rest.status === "CANCELED") {
+      const existing = await prisma.mediaRequest.findUnique({
+        where: { id },
+        select: { requestedById: true },
+      });
+      const isRequester = existing?.requestedById === session.user.personId;
+      if (!isAdmin && !isRequester) {
+        return NextResponse.json({ error: "Not authorized to cancel this request" }, { status: 403 });
+      }
+    }
+
+    // Only admins and editors can archive/unarchive
+    if (rest.archived !== undefined && !isAdmin && !isEditor) {
+      return NextResponse.json({ error: "Not authorized to archive requests" }, { status: 403 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,6 +93,24 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
     if (deadline !== undefined) {
       data.deadline = deadline ? new Date(deadline) : null;
+    }
+
+    // Archive: set archivedAt timestamp
+    if (rest.archived === true) {
+      data.archivedAt = new Date();
+    }
+
+    // Unarchive a declined/canceled request: reset to REQUESTED so it re-enters the queue
+    if (rest.archived === false) {
+      data.archivedAt = null;
+      const existing = await prisma.mediaRequest.findUnique({
+        where: { id },
+        select: { status: true },
+      });
+      if (existing && ["DECLINED", "CANCELED"].includes(existing.status)) {
+        data.status = "REQUESTED";
+        data.declineReason = null;
+      }
     }
 
     const mediaRequest = await prisma.mediaRequest.update({
@@ -90,20 +137,26 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     }
 
     const { id } = await params;
+    const isAdmin = session.user.appRole === "ADMIN";
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Only admins can delete requests" }, { status: 403 });
+    }
+
     const mediaRequest = await prisma.mediaRequest.findUnique({
       where: { id },
-      select: { requestedById: true },
+      select: { status: true },
     });
 
     if (!mediaRequest) {
       return NextResponse.json({ error: "Media request not found" }, { status: 404 });
     }
 
-    // Only requester or admin can delete
-    const isAdmin = session.user.appRole === "ADMIN";
-    const isRequester = mediaRequest.requestedById === session.user.personId;
-    if (!isAdmin && !isRequester) {
-      return NextResponse.json({ error: "Not authorized to delete this request" }, { status: 403 });
+    // Delete only allowed on terminal statuses
+    if (!["DECLINED", "CANCELED"].includes(mediaRequest.status)) {
+      return NextResponse.json(
+        { error: "Only declined or canceled requests can be deleted" },
+        { status: 400 }
+      );
     }
 
     await prisma.mediaRequest.delete({ where: { id } });

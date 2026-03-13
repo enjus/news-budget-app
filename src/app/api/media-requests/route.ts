@@ -27,9 +27,10 @@ export async function GET(request: NextRequest) {
     const assigneeId = searchParams.get("assigneeId");
     const requestedById = searchParams.get("requestedById");
     const storyId = searchParams.get("storyId");
+    const archived = searchParams.get("archived") === "true";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {};
+    const where: any = { archived };
 
     // Access control: specialists + admins see all; others see only their own
     const isAdmin = session.user.appRole === "ADMIN";
