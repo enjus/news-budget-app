@@ -223,8 +223,11 @@ function MediaRequestForm({ mediaRequest, requestedById, storyId, onSuccess, com
             <Input
               id="mr-location"
               {...register("location")}
-              placeholder="e.g. City Hall, Room 305"
+              placeholder="e.g. 123 High St, City Hall, Room 305"
             />
+            <p className="text-xs text-muted-foreground">
+              Include a full street address so specialists can navigate there.
+            </p>
           </div>
         </div>
       )}

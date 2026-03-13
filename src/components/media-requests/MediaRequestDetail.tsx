@@ -30,7 +30,8 @@ import {
   cn,
 } from "@/lib/utils"
 import type { MediaRequestWithRelations } from "@/types/index"
-import { ExternalLink, Plus, Trash2, Link as LinkIcon } from "lucide-react"
+import { ExternalLink, Plus, Trash2, Link as LinkIcon, User, FileText, Clock, MapPin } from "lucide-react"
+import { format } from "date-fns"
 
 interface MediaRequestDetailProps {
   mediaRequest: MediaRequestWithRelations
@@ -144,6 +145,10 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
     }
   }
 
+  function isGeocodable(location: string) {
+    return /\d/.test(location)
+  }
+
   const assignedIds = mediaRequest.assignments.map((a) => a.person.id)
 
   // Status transition buttons
@@ -186,21 +191,50 @@ export function MediaRequestDetail({ mediaRequest, onUpdate }: MediaRequestDetai
         </div>
       </div>
 
+      {/* Metadata: requester, story, date */}
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <User className="size-3.5" />
+          Requested by{" "}
+          <a href={`/people/${mediaRequest.requestedBy.id}`} className="font-medium text-foreground hover:underline">
+            {mediaRequest.requestedBy.name}
+          </a>
+        </span>
+        {mediaRequest.story && (
+          <span className="flex items-center gap-1.5">
+            <FileText className="size-3.5" />
+            <a href={`/stories/${mediaRequest.story.id}`} className="font-medium text-foreground hover:underline">
+              {mediaRequest.story.slug}
+            </a>
+          </span>
+        )}
+        <span className="flex items-center gap-1.5">
+          <Clock className="size-3.5" />
+          {format(new Date(mediaRequest.createdAt), "MMM d, yyyy · h:mm a")}
+        </span>
+        {mediaRequest.location && (
+          <span className="flex items-center gap-1.5">
+            <MapPin className="size-3.5" />
+            {mediaRequest.location}
+            {isGeocodable(mediaRequest.location) && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mediaRequest.location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 font-medium text-blue-600 hover:underline dark:text-blue-400"
+              >
+                View map <ExternalLink className="size-3" />
+              </a>
+            )}
+          </span>
+        )}
+      </div>
+
       {/* Decline reason display */}
       {mediaRequest.status === "DECLINED" && mediaRequest.declineReason && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm dark:border-red-900 dark:bg-red-950/30">
           <span className="font-semibold text-red-800 dark:text-red-400">Declined:</span>{" "}
           <span className="text-red-700 dark:text-red-300">{mediaRequest.declineReason}</span>
-        </div>
-      )}
-
-      {/* Linked story */}
-      {mediaRequest.story && (
-        <div className="text-sm text-muted-foreground">
-          Linked to story:{" "}
-          <a href={`/stories/${mediaRequest.story.id}`} className="font-medium text-foreground hover:underline">
-            {mediaRequest.story.slug}
-          </a>
         </div>
       )}
 
