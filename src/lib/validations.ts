@@ -160,6 +160,50 @@ export const createVideoAssignmentSchema = z.object({
   role: AssignmentRoleEnum,
 });
 
+// ─── Media Request ────────────────────────────────────────────────────────────
+
+export const MediaRequestTypeEnum = z.enum(["PHOTO", "VIDEO", "PHOTO_VIDEO", "GRAPHIC", "MAP"]);
+export const MediaRequestStatusEnum = z.enum(["REQUESTED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "DELIVERED", "DECLINED", "CANCELED"]);
+export const MediaRequestPriorityEnum = z.enum(["NORMAL", "URGENT"]);
+export const MediaAssignmentRoleEnum = z.enum(["PHOTOGRAPHER", "VIDEOGRAPHER", "GRAPHIC_DESIGNER", "OTHER"]);
+
+export const createMediaRequestSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  type: MediaRequestTypeEnum,
+  priority: MediaRequestPriorityEnum.default("NORMAL"),
+  storyId: z.string().cuid().nullable().optional(),
+  requestedById: z.string().cuid(),
+  eventDateTime: z.string().datetime({ offset: true }).nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  deadline: z.string().datetime({ offset: true }).nullable().optional(),
+});
+
+export const updateMediaRequestSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200).optional(),
+  type: MediaRequestTypeEnum.optional(),
+  status: MediaRequestStatusEnum.optional(),
+  priority: MediaRequestPriorityEnum.optional(),
+  storyId: z.string().cuid().nullable().optional(),
+  eventDateTime: z.string().datetime({ offset: true }).nullable().optional(),
+  location: z.string().max(500).nullable().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(5000).nullable().optional(),
+  deadline: z.string().datetime({ offset: true }).nullable().optional(),
+  declineReason: z.string().max(2000).nullable().optional(),
+});
+
+export const createMediaAssignmentSchema = z.object({
+  personId: z.string().cuid(),
+  role: MediaAssignmentRoleEnum,
+});
+
+export const createDataLinkSchema = z.object({
+  url: z.string().url("Must be a valid URL"),
+  label: z.string().max(200).nullable().optional(),
+});
+
 // ─── Team ─────────────────────────────────────────────────────────────────────
 
 export const TeamMemberRoleEnum = z.enum(["EDITOR", "MEMBER"]);
@@ -188,6 +232,10 @@ export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSchema>;
+export type CreateMediaRequestInput = z.infer<typeof createMediaRequestSchema>;
+export type UpdateMediaRequestInput = z.infer<typeof updateMediaRequestSchema>;
+export type CreateMediaAssignmentInput = z.infer<typeof createMediaAssignmentSchema>;
+export type CreateDataLinkInput = z.infer<typeof createDataLinkSchema>;
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;

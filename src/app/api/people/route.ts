@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
           select: {
             assignments: true,
             videoAssignments: true,
+            mediaAssignments: true,
           },
         },
       },
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
           select: {
             assignments: true,
             videoAssignments: true,
+            mediaAssignments: true,
           },
         },
       },

@@ -172,6 +172,9 @@ async function main() {
 
   // Clear all data in dependency order
   await prisma.user.deleteMany();
+  await prisma.dataLink.deleteMany();
+  await prisma.mediaAssignment.deleteMany();
+  await prisma.mediaRequest.deleteMany();
   await prisma.teamMember.deleteMany();
   await prisma.team.deleteMany();
   await prisma.videoAssignment.deleteMany();
@@ -437,6 +440,218 @@ async function main() {
     ],
   });
 
+  // ─── Media Requests ──────────────────────────────────────────────────────
+
+  // Mix of statuses and types linked to today's stories
+  const mr1 = await prisma.mediaRequest.create({
+    data: {
+      title: "City council vote reaction photos",
+      type: "PHOTO",
+      status: "DELIVERED",
+      priority: "URGENT",
+      storyId: todayStoryRecords[0].id, // CITY BUDGET VOTE
+      requestedById: alice.id,
+      eventDateTime: d(0, 10),
+      location: "City Hall, Council Chamber",
+      description: "Need shots of the council vote, public gallery reactions, and key council members.",
+      deadline: d(0, 14),
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr1.id, personId: david.id, role: "PHOTOGRAPHER" },
+  });
+
+  const mr2 = await prisma.mediaRequest.create({
+    data: {
+      title: "Hospital merger press conference video",
+      type: "PHOTO_VIDEO",
+      status: "COMPLETED",
+      priority: "URGENT",
+      storyId: todayStoryRecords[3].id, // HOSPITAL MERGER RULING
+      requestedById: alice.id,
+      eventDateTime: d(0, 11),
+      location: "Regional Medical Center, Main Lobby",
+      description: "AG announcement + hospital CEO response. Need both video and stills.",
+      deadline: d(0, 15),
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr2.id, personId: david.id, role: "PHOTOGRAPHER" },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr2.id, personId: maya.id, role: "VIDEOGRAPHER" },
+  });
+
+  const mr3 = await prisma.mediaRequest.create({
+    data: {
+      title: "Fire station closure map",
+      type: "MAP",
+      status: "IN_PROGRESS",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[4].id, // FIRE STATION THREAT
+      requestedById: carol.id,
+      description: "Map showing the two stations proposed for closure and their response coverage areas.",
+      deadline: d(1, 12),
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr3.id, personId: elena.id, role: "GRAPHIC_DESIGNER" },
+  });
+  await prisma.dataLink.create({
+    data: { mediaRequestId: mr3.id, url: "https://example.com/fire-station-data.csv", label: "Station response area data" },
+  });
+
+  const mr4 = await prisma.mediaRequest.create({
+    data: {
+      title: "Housing affordability infographic",
+      type: "GRAPHIC",
+      status: "ASSIGNED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[5].id, // HOUSING AFFORDABILITY
+      requestedById: alice.id,
+      description: "Bar chart showing median rent vs. median income in 4 metro zip codes. Data attached.",
+      deadline: d(1, 9),
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr4.id, personId: elena.id, role: "GRAPHIC_DESIGNER" },
+  });
+  await prisma.dataLink.create({
+    data: { mediaRequestId: mr4.id, url: "https://example.com/housing-data.xlsx", label: "Rent vs income spreadsheet" },
+  });
+  await prisma.dataLink.create({
+    data: { mediaRequestId: mr4.id, url: "https://example.com/housing-methodology.pdf", label: "Research methodology" },
+  });
+
+  const mr5 = await prisma.mediaRequest.create({
+    data: {
+      title: "Police chief interview setup",
+      type: "PHOTO",
+      status: "ASSIGNED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[6].id, // POLICE CHIEF INTERVIEW
+      requestedById: carol.id,
+      eventDateTime: d(0, 13),
+      location: "Police HQ, Conference Room B",
+      description: "Portrait of new chief + interview setup shots.",
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr5.id, personId: david.id, role: "PHOTOGRAPHER" },
+  });
+
+  const mr6 = await prisma.mediaRequest.create({
+    data: {
+      title: "Arts center community meeting video",
+      type: "VIDEO",
+      status: "REQUESTED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[8].id, // ARTS CENTER FUTURE
+      requestedById: alice.id,
+      eventDateTime: d(0, 15),
+      location: "Community Center Auditorium",
+      description: "Capture key moments from the public hearing on the arts center proposals.",
+    },
+  });
+
+  const mr7 = await prisma.mediaRequest.create({
+    data: {
+      title: "Water rate hearing photos",
+      type: "PHOTO",
+      status: "REQUESTED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[9].id, // WATER RATE HEARING
+      requestedById: carol.id,
+      eventDateTime: d(0, 16),
+      location: "Utility Board Meeting Room",
+      description: "Crowd shots, board members, and anyone testifying.",
+    },
+  });
+
+  const mr8 = await prisma.mediaRequest.create({
+    data: {
+      title: "Election candidate headshots",
+      type: "PHOTO",
+      status: "REQUESTED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[7].id, // ELECTION CANDIDATES
+      requestedById: alice.id,
+      eventDateTime: d(1, 10),
+      location: "TBD — candidates' offices",
+      description: "Need headshots of all 5 District 4 candidates for the profile package.",
+      deadline: d(3, 17),
+    },
+  });
+
+  const mr9 = await prisma.mediaRequest.create({
+    data: {
+      title: "Pension crisis data visualization",
+      type: "GRAPHIC",
+      status: "IN_PROGRESS",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[15].id, // PENSION SHORTFALL (enterprise)
+      requestedById: carol.id,
+      description: "Line chart showing pension fund shortfall growth over 10 years. Need by next week.",
+      deadline: d(7, 17),
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr9.id, personId: elena.id, role: "GRAPHIC_DESIGNER" },
+  });
+  await prisma.dataLink.create({
+    data: { mediaRequestId: mr9.id, url: "https://example.com/pension-actuarial-2025.pdf", label: "Actuarial report" },
+  });
+
+  const mr10 = await prisma.mediaRequest.create({
+    data: {
+      title: "Climate action plan event video",
+      type: "VIDEO",
+      status: "DECLINED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[13].id, // CLIMATE ACTION PLAN
+      requestedById: alice.id,
+      eventDateTime: d(-1, 14),
+      location: "City Hall Press Room",
+      description: "Video of the climate plan announcement.",
+      declineReason: "Event already happened yesterday — no video crew was available. Still photos were taken instead.",
+    },
+  });
+
+  const mr11 = await prisma.mediaRequest.create({
+    data: {
+      title: "Lead pipe replacement site photos",
+      type: "PHOTO",
+      status: "REQUESTED",
+      priority: "URGENT",
+      storyId: todayStoryRecords[17].id, // LEAD PIPE RECKONING (enterprise)
+      requestedById: carol.id,
+      eventDateTime: d(2, 9),
+      location: "East Side — active replacement site TBD",
+      description: "Document the pipe replacement crew at work. Need before/after shots of old vs new pipes.",
+      deadline: d(5, 17),
+    },
+  });
+
+  const mr12 = await prisma.mediaRequest.create({
+    data: {
+      title: "Tech campus proposal site photos",
+      type: "PHOTO_VIDEO",
+      status: "ASSIGNED",
+      priority: "NORMAL",
+      storyId: todayStoryRecords[12].id, // TECH CAMPUS PROPOSAL
+      requestedById: carol.id,
+      eventDateTime: d(1, 14),
+      location: "Downtown — proposed campus site",
+      description: "Aerial and ground-level shots of the proposed campus location for the story package.",
+    },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr12.id, personId: david.id, role: "PHOTOGRAPHER" },
+  });
+  await prisma.mediaAssignment.create({
+    data: { mediaRequestId: mr12.id, personId: maya.id, role: "VIDEOGRAPHER" },
+  });
+
   // ─── Admin user ───────────────────────────────────────────────────────────
 
   const adminHash = await bcrypt.hash("newsbudget2026", 12);
@@ -479,7 +694,8 @@ async function main() {
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
     `  ${totalStories} stories total\n` +
     `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos = ${totalVideos} videos total\n` +
-    `  3 teams (Metro, Investigations, Video)`
+    `  3 teams (Metro, Investigations, Video)\n` +
+    `  12 media requests (mixed statuses, types, and priorities)`
   );
 }
 

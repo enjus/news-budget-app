@@ -19,6 +19,7 @@ import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { StoryVideoSection } from "./StoryVideoSection"
+import { MediaRequestSection } from "@/components/media-requests/MediaRequestSection"
 import { differenceInDays } from "date-fns"
 import type { StoryWithRelations } from "@/types/index"
 
@@ -146,6 +147,10 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
       <Separator />
 
       <StoryVideoSection story={story} onUpdate={onUpdate} />
+
+      <Separator />
+
+      <MediaRequestSection storyId={story.id} />
 
       <Separator />
 

@@ -1,6 +1,6 @@
-import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, Prisma } from "@prisma/client";
+import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, MediaRequest, MediaAssignment, DataLink, Prisma } from "@prisma/client";
 
-export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember };
+export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, MediaRequest, MediaAssignment, DataLink };
 
 // ─── Story types ─────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export type VideoWithRelations = Prisma.VideoGetPayload<{
 
 export type PersonWithCounts = Prisma.PersonGetPayload<{
   include: {
-    _count: { select: { assignments: true; videoAssignments: true } };
+    _count: { select: { assignments: true; videoAssignments: true; mediaAssignments: true } };
   };
 }>;
 
@@ -84,6 +84,29 @@ export type EditionDateGroup = {
   date: string; // YYYY-MM-DD or "TBD"
   stories: StoryListItem[];
 };
+
+// ─── Media Request types ─────────────────────────────────────────────────────
+
+export type MediaRequestWithRelations = Prisma.MediaRequestGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    dataLinks: true;
+    story: { select: { id: true; slug: true; budgetLine: true } };
+    requestedBy: true;
+  };
+}>;
+
+export type MediaRequestListItem = Prisma.MediaRequestGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    requestedBy: { select: { id: true; name: true } };
+    story: { select: { id: true; slug: true } };
+  };
+}>;
+
+export type MediaAssignmentWithPerson = Prisma.MediaAssignmentGetPayload<{
+  include: { person: true };
+}>;
 
 // ─── Team types ──────────────────────────────────────────────────────────────
 

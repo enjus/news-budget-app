@@ -181,3 +181,46 @@ export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
   EDITOR: "Editor",
   MEMBER: "Member",
 };
+
+export const MEDIA_REQUEST_TYPE_LABELS: Record<string, string> = {
+  PHOTO: "Photo",
+  VIDEO: "Video",
+  PHOTO_VIDEO: "Photo + Video",
+  GRAPHIC: "Graphic",
+  MAP: "Map",
+};
+
+export const MEDIA_REQUEST_STATUS_LABELS: Record<string, string> = {
+  REQUESTED: "Requested",
+  ASSIGNED: "Assigned",
+  IN_PROGRESS: "In Progress",
+  COMPLETED: "Completed",
+  DELIVERED: "Delivered",
+  DECLINED: "Declined",
+  CANCELED: "Canceled",
+};
+
+export const MEDIA_REQUEST_PRIORITY_LABELS: Record<string, string> = {
+  NORMAL: "Normal",
+  URGENT: "Urgent",
+};
+
+export const MEDIA_ASSIGNMENT_ROLE_LABELS: Record<string, string> = {
+  PHOTOGRAPHER: "Photographer",
+  VIDEOGRAPHER: "Videographer",
+  GRAPHIC_DESIGNER: "Graphic Designer",
+  OTHER: "Other",
+};
+
+export function mediaRequestStatusColor(status: string): string {
+  switch (status) {
+    case "REQUESTED":   return "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400";
+    case "ASSIGNED":    return "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400";
+    case "IN_PROGRESS": return "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-400";
+    case "COMPLETED":   return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400";
+    case "DELIVERED":   return "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400";
+    case "DECLINED":    return "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400";
+    case "CANCELED":    return "bg-gray-100 text-gray-800 dark:bg-gray-950/40 dark:text-gray-400";
+    default:            return "bg-secondary text-secondary-foreground";
+  }
+}

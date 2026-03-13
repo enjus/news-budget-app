@@ -27,7 +27,7 @@ import {
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { Person } from "@/types/index"
 
-export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "VIDEOGRAPHER" | "OTHER"
+export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "VIDEOGRAPHER" | "PHOTOGRAPHER" | "GRAPHIC_DESIGNER" | "OTHER"
 
 const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]
 
@@ -35,6 +35,8 @@ const ROLE_LABELS: Record<AssignmentRoleValue, string> = {
   REPORTER: "Reporter",
   EDITOR: "Editor",
   VIDEOGRAPHER: "Videographer",
+  PHOTOGRAPHER: "Photographer",
+  GRAPHIC_DESIGNER: "Graphic Designer",
   OTHER: "Other",
 }
 

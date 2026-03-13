@@ -17,6 +17,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           select: {
             assignments: true,
             videoAssignments: true,
+            mediaAssignments: true,
           },
         },
       },
@@ -54,6 +55,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           select: {
             assignments: true,
             videoAssignments: true,
+            mediaAssignments: true,
           },
         },
       },
@@ -83,6 +85,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
           select: {
             assignments: true,
             videoAssignments: true,
+            mediaAssignments: true,
           },
         },
       },

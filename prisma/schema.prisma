@@ -36,11 +36,14 @@ model Person {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user             User?
-  assignments      StoryAssignment[]
-  visuals          Visual[]
-  videoAssignments VideoAssignment[]
-  teamMemberships  TeamMember[]
+  user              User?
+  assignments       StoryAssignment[]
+  visuals           Visual[]
+  videoAssignments  VideoAssignment[]
+  teamMemberships   TeamMember[]
+  mediaRequests     MediaRequest[]   @relation("mediaRequestedBy")
+  mediaAssignments  MediaAssignment[]
+  calendarToken     String?          @unique
 }
 
 model Team {
@@ -87,9 +90,10 @@ model Story {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  assignments StoryAssignment[]
-  visuals     Visual[]
-  videos      Video[]
+  assignments   StoryAssignment[]
+  visuals       Visual[]
+  videos        Video[]
+  mediaRequests MediaRequest[]
 
   @@index([status])
   @@index([isEnterprise])
@@ -169,4 +173,59 @@ model VideoAssignment {
   createdAt DateTime @default(now())
 
   @@unique([videoId, personId, role])
+}
+
+model MediaRequest {
+  id             String   @id @default(cuid())
+  title          String
+  // MediaRequestType: PHOTO | VIDEO | PHOTO_VIDEO | GRAPHIC | MAP
+  type           String
+  // MediaRequestStatus: REQUESTED | ASSIGNED | IN_PROGRESS | COMPLETED | DELIVERED | DECLINED | CANCELED
+  status         String   @default("REQUESTED")
+  // MediaRequestPriority: NORMAL | URGENT
+  priority       String   @default("NORMAL")
+  storyId        String?
+  story          Story?   @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  requestedById  String
+  requestedBy    Person   @relation("mediaRequestedBy", fields: [requestedById], references: [id], onDelete: Cascade)
+  eventDateTime  DateTime?
+  location       String?
+  description    String?
+  notes          String?
+  deadline       DateTime?
+  declineReason  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  assignments    MediaAssignment[]
+  dataLinks      DataLink[]
+
+  @@index([status])
+  @@index([type])
+  @@index([storyId])
+  @@index([requestedById])
+  @@index([status, type])
+  @@index([eventDateTime])
+}
+
+model MediaAssignment {
+  id             String   @id @default(cuid())
+  mediaRequest   MediaRequest @relation(fields: [mediaRequestId], references: [id], onDelete: Cascade)
+  mediaRequestId String
+  person         Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId       String
+  // MediaAssignmentRole: PHOTOGRAPHER | VIDEOGRAPHER | GRAPHIC_DESIGNER | OTHER
+  role           String
+  createdAt      DateTime @default(now())
+
+  @@unique([mediaRequestId, personId, role])
+}
+
+model DataLink {
+  id             String   @id @default(cuid())
+  mediaRequest   MediaRequest @relation(fields: [mediaRequestId], references: [id], onDelete: Cascade)
+  mediaRequestId String
+  url            String
+  label          String?
+  createdAt      DateTime @default(now())
 }

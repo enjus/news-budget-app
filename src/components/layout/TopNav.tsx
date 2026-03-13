@@ -15,6 +15,7 @@ const navLinks = [
   { label: "Enterprise", href: "/budget/enterprise" },
   { label: "Editions", href: "/budget/edition" },
   { label: "Shelved", href: "/budget/shelved" },
+  { label: "Requests", href: "/media-requests" },
   { label: "People", href: "/people" },
   { label: "My Teams", href: "/teams" },
 ]
