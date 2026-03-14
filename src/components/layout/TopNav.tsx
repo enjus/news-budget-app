@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
+import { useMyTeams } from "@/lib/hooks/useTeams"
 
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
@@ -16,7 +17,6 @@ const baseNavLinks = [
   { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
   { label: "People", href: "/people" },
-  { label: "My Teams", href: "/teams", teamsOnly: true },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -31,9 +31,11 @@ export function TopNav() {
   const isAdmin = hasAdminAccess(appRole)
   const canCreate = canCreateContent(appRole)
   const myPersonId = session?.user?.personId
+  const showTeams = canViewMyTeams(appRole)
+  const { teams } = useMyTeams()
+  const teamsLabel = teams.length === 1 ? teams[0].name : "Team"
   const navLinks = baseNavLinks.filter((link) => {
     if (link.adminOnly) return hasAdminAccess(appRole)
-    if (link.teamsOnly) return canViewMyTeams(appRole)
     return true
   })
 
@@ -60,6 +62,17 @@ export function TopNav() {
               {link.label}
             </Link>
           ))}
+          {showTeams && (
+            <Link
+              href="/teams"
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                isActive(pathname, "/teams") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+              )}
+            >
+              {teamsLabel}
+            </Link>
+          )}
           {myPersonId && (
             <Link
               href={`/people/${myPersonId}`}
@@ -179,6 +192,18 @@ export function TopNav() {
                 {link.label}
               </Link>
             ))}
+            {showTeams && (
+              <Link
+                href="/teams"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                  isActive(pathname, "/teams") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
+              >
+                {teamsLabel}
+              </Link>
+            )}
             {myPersonId && (
               <Link
                 href={`/people/${myPersonId}`}
