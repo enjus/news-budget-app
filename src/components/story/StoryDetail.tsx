@@ -127,9 +127,6 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
 
         <StoryVideoSection story={story} onUpdate={onUpdate} />
 
-        <Separator />
-
-        <MediaRequestSection storyId={story.id} />
       </div>
     )
   }
