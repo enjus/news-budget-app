@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { select: { id: true, type: true } },
+  videos: { select: { id: true } },
 } as const;
 
 const TBD_CAP = 500;

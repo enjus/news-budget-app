@@ -5,10 +5,10 @@ import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types
 
 export const dynamic = 'force-dynamic'
 
-// Lighter include for budget list views — no visuals.person, no videos relation.
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { select: { id: true, type: true } },
+  videos: { select: { id: true } },
 } as const;
 
 const videoInclude = {

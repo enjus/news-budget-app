@@ -14,24 +14,18 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
 }>;
 
 // Lightweight shape for budget list views (cards).
-// Omits visuals.person (cards only need visual.type for photo count) and
-// omits videos (not displayed on cards), keeping list payloads small.
+// Omits visuals.person (cards only need visual.type for photo/graphic count).
+// Includes a minimal videos relation so cards can display a video count.
 export type StoryListItem = Prisma.StoryGetPayload<{
-  include: {
-    assignments: { include: { person: true } };
-    visuals: { select: { id: true; type: true } };
-  };
-}>;
-
-// Enterprise list item — extends StoryListItem with a minimal videos relation
-// so cards can display a video count indicator.
-export type EnterpriseStoryItem = Prisma.StoryGetPayload<{
   include: {
     assignments: { include: { person: true } };
     visuals: { select: { id: true; type: true } };
     videos: { select: { id: true } };
   };
 }>;
+
+// Alias kept for any consumers that referenced EnterpriseStoryItem directly.
+export type EnterpriseStoryItem = StoryListItem;
 
 // ─── Video types ─────────────────────────────────────────────────────────────
 

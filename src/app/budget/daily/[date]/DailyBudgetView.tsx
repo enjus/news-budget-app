@@ -313,7 +313,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
     for (const slot of visibleSlots) {
       if (activeId.startsWith("story-")) {
         const story = slot.stories.find((s) => s.id === activeId.slice("story-".length))
-        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator videoCount={story.videos.length} />
       }
       if (activeId.startsWith("video-")) {
         const video = slot.videos.find((v) => v.id === activeId.slice("video-".length))
@@ -388,6 +388,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
                     story={story}
                     showWordCount
                     showPhotoIndicator
+                    videoCount={story.videos.length}
                     selectMode={selectMode}
                     isSelected={selectedIds.has(`story-${story.id}`)}
                     onToggleSelect={() => onToggleSelect(`story-${story.id}`, story.status)}
@@ -673,7 +674,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
       const id = activeId.slice("story-".length)
       for (const g of allGroups) {
         const story = g.stories.find((s) => s.id === id)
-        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator videoCount={story.videos.length} />
       }
     }
     if (activeId.startsWith("video-")) {
@@ -753,6 +754,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                               story={m.item}
                               showWordCount
                               showPhotoIndicator
+                              videoCount={m.item.videos.length}
                               budgetLineClamp={3}
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`story-${m.item.id}`)}
@@ -834,6 +836,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                                 story={m.item}
                                 showWordCount
                                 showPhotoIndicator
+                                videoCount={m.item.videos.length}
                                 budgetLineClamp={3}
                                 selectMode={selectMode}
                                 isSelected={selectedIds.has(`story-${m.item.id}`)}
@@ -859,6 +862,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                           story={m.item}
                           showWordCount
                           showPhotoIndicator
+                          videoCount={m.item.videos.length}
                           budgetLineClamp={3}
                           selectMode={selectMode}
                           isSelected={selectedIds.has(`story-${m.item.id}`)}

@@ -257,7 +257,7 @@ export function EditionView() {
     if (!id) return null
     for (const g of groups) {
       const story = g.stories.find((s) => s.id === id)
-      if (story) return <StoryCard story={story} isDragging showOnlinePubDate showPhotoIndicator />
+      if (story) return <StoryCard story={story} isDragging showOnlinePubDate showPhotoIndicator videoCount={story.videos.length} />
     }
     return null
   }
@@ -333,7 +333,7 @@ export function EditionView() {
                 >
                   {group.stories.map((story) => (
                     <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
-                      <StoryCard story={story} showOnlinePubDate showPhotoIndicator />
+                      <StoryCard story={story} showOnlinePubDate showPhotoIndicator videoCount={story.videos.length} />
                     </SortableCard>
                   ))}
                 </DroppableSection>
