@@ -22,6 +22,7 @@ import {
   createStorySchema,
   type CreateStoryInput,
 } from "@/lib/validations"
+import { format } from "date-fns"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
@@ -416,10 +417,10 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )}
       </div>
 
-      {/* Daily Edition Pub Date — editable for admin/leadership only */}
+      {/* Print/Online Newspaper Date — editable for admin/leadership only */}
       {canEditPrintDate ? (
         <div className="space-y-1.5">
-          <Label>Daily Edition Pub Date</Label>
+          <Label>Print/Online Newspaper Date</Label>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <Controller
@@ -466,9 +467,9 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         </div>
       ) : !printPubDateTBD && printPubDate ? (
         <div className="space-y-1.5">
-          <Label className="text-muted-foreground">Daily Edition Pub Date</Label>
+          <Label className="text-muted-foreground">Print/Online Newspaper Date</Label>
           <p className="text-sm text-muted-foreground">
-            {toLocalDateValue(printPubDate)}
+            {format(new Date(toLocalDateValue(printPubDate) + "T00:00:00"), "EEEE, MMM d, yyyy")}
           </p>
         </div>
       ) : null}
