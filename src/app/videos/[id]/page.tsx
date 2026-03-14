@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { canCreateContent } from "@/lib/utils"
 import { VideoDetailWrapper } from "./VideoDetailWrapper"
 
 interface VideoPageProps {
@@ -7,7 +10,7 @@ interface VideoPageProps {
 }
 
 export default async function VideoPage({ params }: VideoPageProps) {
-  const { id } = await params
+  const [{ id }, session] = await Promise.all([params, getServerSession(authOptions)])
 
   const video = await prisma.video.findUnique({
     where: { id },
@@ -21,9 +24,11 @@ export default async function VideoPage({ params }: VideoPageProps) {
     notFound()
   }
 
+  const readOnly = !session?.user || !canCreateContent(session.user.appRole)
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <VideoDetailWrapper initialVideo={video} videoId={id} />
+      <VideoDetailWrapper initialVideo={video} videoId={id} readOnly={readOnly} />
     </div>
   )
 }

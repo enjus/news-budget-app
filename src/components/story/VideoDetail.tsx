@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,14 +21,16 @@ import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
 import { VideoAssignmentSection } from "./VideoAssignmentSection"
 import { differenceInDays } from "date-fns"
+import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
 interface VideoDetailProps {
   video: VideoWithRelations
   onUpdate: () => void
+  readOnly?: boolean
 }
 
-export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
+export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
   const formRef = useRef<VideoFormHandle>(null)
 
   async function patchStatus(status: string) {
@@ -46,6 +49,87 @@ export function VideoDetail({ video, onUpdate }: VideoDetailProps) {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
     }
+  }
+
+  if (readOnly) {
+    const urls = [
+      { label: "YouTube", href: video.youtubeUrl },
+      { label: "Reels", href: video.reelsUrl },
+      { label: "TikTok", href: video.tiktokUrl },
+      { label: "Other", href: video.otherUrl },
+    ].filter((u) => u.href)
+
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">{video.slug}</h1>
+            {video.story && (
+              <Link
+                href={`/stories/${video.storyId}`}
+                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Story: {video.story.slug}
+                <ExternalLink className="size-3" />
+              </Link>
+            )}
+          </div>
+          <Badge variant="outline">{STORY_STATUS_LABELS[video.status] ?? video.status}</Badge>
+        </div>
+
+        <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Budget Line</p>
+            <p className="text-sm">{video.budgetLine}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Online Pub Date</p>
+              <p className="text-sm">{formatPubDate(video.onlinePubDate, video.onlinePubDateTBD)}</p>
+            </div>
+            {video.isEnterprise && (
+              <div className="flex items-end">
+                <Badge variant="secondary">Enterprise</Badge>
+              </div>
+            )}
+          </div>
+          {video.notes && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Notes</p>
+              <p className="text-sm whitespace-pre-wrap">{video.notes}</p>
+            </div>
+          )}
+          {urls.length > 0 && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">Links</p>
+              <div className="flex flex-wrap gap-2">
+                {urls.map(({ label, href }) => (
+                  <Link
+                    key={label}
+                    href={href!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  >
+                    {label}
+                    <ExternalLink className="size-3 shrink-0" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        <VideoAssignmentSection
+          videoId={video.id}
+          assignments={video.assignments}
+          onUpdate={onUpdate}
+          readOnly
+        />
+      </div>
+    )
   }
 
   return (

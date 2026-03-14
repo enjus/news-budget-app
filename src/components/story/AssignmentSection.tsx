@@ -12,9 +12,10 @@ interface AssignmentSectionProps {
   storyId: string
   assignments: AssignmentWithPerson[]
   onUpdate: () => void
+  readOnly?: boolean
 }
 
-export function AssignmentSection({ storyId, assignments, onUpdate }: AssignmentSectionProps) {
+export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: AssignmentSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
@@ -70,7 +71,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate }: Assignment
               key={`${assignment.personId}-${assignment.role}`}
               person={assignment.person}
               role={PERSON_ROLE_LABELS[assignment.role] ?? assignment.role}
-              onRemove={() => handleRemove(assignment.personId, assignment.role)}
+              onRemove={readOnly ? undefined : () => handleRemove(assignment.personId, assignment.role)}
             />
           ))}
         </div>
@@ -78,11 +79,13 @@ export function AssignmentSection({ storyId, assignments, onUpdate }: Assignment
         <p className="text-sm text-muted-foreground">No assignments yet.</p>
       )}
 
-      <PersonPicker
-        onSelect={handleAdd}
-        excludeIds={assignedIds}
-        label={isAdding ? "Adding..." : "Add person"}
-      />
+      {!readOnly && (
+        <PersonPicker
+          onSelect={handleAdd}
+          excludeIds={assignedIds}
+          label={isAdding ? "Adding..." : "Add person"}
+        />
+      )}
     </div>
   )
 }

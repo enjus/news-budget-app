@@ -2,7 +2,10 @@
 
 import { useRef } from "react"
 import { toast } from "sonner"
+import Link from "next/link"
+import { ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,14 +23,16 @@ import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { differenceInDays } from "date-fns"
+import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
 
 interface StoryDetailProps {
   story: StoryWithRelations
   onUpdate: () => void
+  readOnly?: boolean
 }
 
-export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
+export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
   const formRef = useRef<StoryFormHandle>(null)
 
   async function patchStatus(status: string) {
@@ -46,6 +51,87 @@ export function StoryDetail({ story, onUpdate }: StoryDetailProps) {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
     }
+  }
+
+  if (readOnly) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
+            {story.isEnterprise && (
+              <Badge variant="secondary" className="mt-1">Enterprise</Badge>
+            )}
+          </div>
+          <Badge variant="outline">{STORY_STATUS_LABELS[story.status] ?? story.status}</Badge>
+        </div>
+
+        <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Budget Line</p>
+            <p className="text-sm">{story.budgetLine}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Online Pub Date</p>
+              <p className="text-sm">{formatPubDate(story.onlinePubDate, story.onlinePubDateTBD)}</p>
+            </div>
+            {story.wordCount != null && (
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Word Count</p>
+                <p className="text-sm">{story.wordCount}</p>
+              </div>
+            )}
+          </div>
+          {story.notes && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Notes</p>
+              <p className="text-sm whitespace-pre-wrap">{story.notes}</p>
+            </div>
+          )}
+          {story.postUrl && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Published URL</p>
+              <Link
+                href={story.postUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline break-all"
+              >
+                {story.postUrl}
+                <ExternalLink className="size-3 shrink-0" />
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
+        <AssignmentSection
+          storyId={story.id}
+          assignments={story.assignments}
+          onUpdate={onUpdate}
+          readOnly
+        />
+
+        <Separator />
+
+        <VisualSection
+          storyId={story.id}
+          visuals={story.visuals}
+          onUpdate={onUpdate}
+          readOnly
+        />
+
+        <Separator />
+
+        <StoryVideoSection story={story} onUpdate={onUpdate} />
+
+        <Separator />
+
+        <MediaRequestSection storyId={story.id} />
+      </div>
+    )
   }
 
   return (

@@ -8,15 +8,15 @@ import { Plus, Menu, X, LogOut, ShieldCheck, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
-import { cn, initials } from "@/lib/utils"
+import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
 
-const navLinks = [
+const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
   { label: "Enterprise", href: "/budget/enterprise" },
-  { label: "Editions", href: "/budget/edition" },
+  { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
   { label: "People", href: "/people" },
-  { label: "My Teams", href: "/teams" },
+  { label: "My Teams", href: "/teams", teamsOnly: true },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -27,8 +27,15 @@ export function TopNav() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { data: session } = useSession()
-  const isAdmin = session?.user?.appRole === "ADMIN"
+  const appRole = session?.user?.appRole ?? ""
+  const isAdmin = hasAdminAccess(appRole)
+  const canCreate = canCreateContent(appRole)
   const myPersonId = session?.user?.personId
+  const navLinks = baseNavLinks.filter((link) => {
+    if (link.adminOnly) return hasAdminAccess(appRole)
+    if (link.teamsOnly) return canViewMyTeams(appRole)
+    return true
+  })
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -74,18 +81,22 @@ export function TopNav() {
 
         {/* Desktop action buttons + user menu */}
         <div className="hidden md:flex items-center gap-2">
-          <Button asChild size="sm">
-            <Link href="/stories/new">
-              <Plus className="size-4" />
-              New Story
-            </Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/videos/new">
-              <Plus className="size-4" />
-              New Video
-            </Link>
-          </Button>
+          {canCreate && (
+            <>
+              <Button asChild size="sm">
+                <Link href="/stories/new">
+                  <Plus className="size-4" />
+                  New Story
+                </Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/videos/new">
+                  <Plus className="size-4" />
+                  New Video
+                </Link>
+              </Button>
+            </>
+          )}
 
           {session?.user && (
             <Popover>
@@ -177,23 +188,27 @@ export function TopNav() {
                 Me
               </Link>
             )}
-            <div className="my-1 border-t" />
-            <Link
-              href="/stories/new"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <Plus className="size-4" />
-              New Story
-            </Link>
-            <Link
-              href="/videos/new"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-            >
-              <Plus className="size-4" />
-              New Video
-            </Link>
+            {canCreate && (
+              <>
+                <div className="my-1 border-t" />
+                <Link
+                  href="/stories/new"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Plus className="size-4" />
+                  New Story
+                </Link>
+                <Link
+                  href="/videos/new"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Plus className="size-4" />
+                  New Video
+                </Link>
+              </>
+            )}
             <div className="my-1 border-t" />
             {isAdmin && (
               <>

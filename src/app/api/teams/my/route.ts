@@ -1,10 +1,14 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasAdminAccess } from "@/lib/utils"
 
 export const dynamic = 'force-dynamic'
 
-/** Returns teams where the current user's linked Person is a member. */
+/**
+ * Admin/Leadership: returns all teams.
+ * Others: returns teams where the current user's linked Person is a member.
+ */
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) {
@@ -12,14 +16,14 @@ export async function GET() {
   }
 
   const personId = session.user.personId
-  if (!personId) {
+  const isAdmin = hasAdminAccess(session.user.appRole)
+
+  if (!isAdmin && !personId) {
     return Response.json({ teams: [] })
   }
 
   const teams = await prisma.team.findMany({
-    where: {
-      members: { some: { personId } },
-    },
+    where: isAdmin ? undefined : { members: { some: { personId: personId! } } },
     include: {
       members: {
         include: { person: true },
@@ -29,9 +33,10 @@ export async function GET() {
     orderBy: { name: "asc" },
   })
 
-  // Include the user's role on each team
   const teamsWithMyRole = teams.map((team) => {
-    const myMembership = team.members.find((m) => m.personId === personId)
+    const myMembership = personId
+      ? team.members.find((m) => m.personId === personId)
+      : undefined
     return { ...team, myRole: myMembership?.role ?? "MEMBER" }
   })
 

@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
@@ -21,7 +22,7 @@ import {
   createStorySchema,
   type CreateStoryInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -119,8 +120,12 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         },
   })
 
+  const { data: session } = useSession()
+  const canEditPrintDate = canEditPrint(session?.user?.appRole ?? "")
+
   const onlinePubDateTBD = watch("onlinePubDateTBD")
   const printPubDateTBD = watch("printPubDateTBD")
+  const printPubDate = watch("printPubDate")
   const watchedStatus = watch("status")
   const watchedIsEnterprise = watch("isEnterprise")
   const watchedAiContributed = watch("aiContributed")
@@ -411,53 +416,62 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )}
       </div>
 
-      {/* Daily Edition Pub Date */}
-      <div className="space-y-1.5">
-        <Label>Daily Edition Pub Date</Label>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Controller
-              name="printPubDateTBD"
-              control={control}
-              render={({ field }) => (
-                <Checkbox
-                  id="sf-print-tbd"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              )}
-            />
-            <Label htmlFor="sf-print-tbd" className="cursor-pointer font-normal text-sm">
-              TBD
-            </Label>
-          </div>
+      {/* Daily Edition Pub Date — editable for admin/leadership only */}
+      {canEditPrintDate ? (
+        <div className="space-y-1.5">
+          <Label>Daily Edition Pub Date</Label>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Controller
+                name="printPubDateTBD"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="sf-print-tbd"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+              <Label htmlFor="sf-print-tbd" className="cursor-pointer font-normal text-sm">
+                TBD
+              </Label>
+            </div>
 
-          {!printPubDateTBD && (
-            <Controller
-              name="printPubDate"
-              control={control}
-              render={({ field }) => (
-                <Input
-                  type="date"
-                  className="w-auto"
-                  value={field.value ? toLocalDateValue(field.value) : ""}
-                  onChange={(e) => {
-                    if (!e.target.value) {
-                      field.onChange(null)
-                    } else {
-                      field.onChange(new Date(e.target.value + "T00:00:00").toISOString())
-                    }
-                  }}
-                  aria-invalid={!!errors.printPubDate}
-                />
-              )}
-            />
+            {!printPubDateTBD && (
+              <Controller
+                name="printPubDate"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    type="date"
+                    className="w-auto"
+                    value={field.value ? toLocalDateValue(field.value) : ""}
+                    onChange={(e) => {
+                      if (!e.target.value) {
+                        field.onChange(null)
+                      } else {
+                        field.onChange(new Date(e.target.value + "T00:00:00").toISOString())
+                      }
+                    }}
+                    aria-invalid={!!errors.printPubDate}
+                  />
+                )}
+              />
+            )}
+          </div>
+          {errors.printPubDate && (
+            <p className="text-xs text-destructive">{String(errors.printPubDate.message)}</p>
           )}
         </div>
-        {errors.printPubDate && (
-          <p className="text-xs text-destructive">{String(errors.printPubDate.message)}</p>
-        )}
-      </div>
+      ) : !printPubDateTBD && printPubDate ? (
+        <div className="space-y-1.5">
+          <Label className="text-muted-foreground">Daily Edition Pub Date</Label>
+          <p className="text-sm text-muted-foreground">
+            {toLocalDateValue(printPubDate)}
+          </p>
+        </div>
+      ) : null}
 
       {/* Notes */}
       <div className="space-y-1.5">

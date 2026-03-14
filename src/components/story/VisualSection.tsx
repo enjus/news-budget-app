@@ -22,9 +22,10 @@ interface VisualSectionProps {
   storyId: string
   visuals: VisualWithPerson[]
   onUpdate: () => void
+  readOnly?: boolean
 }
 
-export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps) {
+export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
   const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP">("PHOTO")
   const [newDescription, setNewDescription] = useState("")
@@ -107,16 +108,18 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
                 <span className="flex-1 text-xs text-muted-foreground italic">Unassigned</span>
               )}
 
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                onClick={() => handleRemove(visual.id)}
-                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                aria-label="Remove visual"
-              >
-                <Trash2 className="size-3" />
-              </Button>
+              {!readOnly && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  onClick={() => handleRemove(visual.id)}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Remove visual"
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -125,7 +128,7 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
       )}
 
       {/* Add new visual */}
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
+      {!readOnly && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
         <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP")}>
           <SelectTrigger className="h-8 w-[110px]">
             <SelectValue />
@@ -170,7 +173,7 @@ export function VisualSection({ storyId, visuals, onUpdate }: VisualSectionProps
           <Plus className="size-4" />
           {isAdding ? "Adding..." : "Add Visual"}
         </Button>
-      </div>
+      </div>}
     </div>
   )
 }

@@ -1,7 +1,16 @@
 import { Suspense } from "react"
+import { getServerSession } from "next-auth"
+import { redirect } from "next/navigation"
+import { authOptions } from "@/lib/auth"
+import { canCreateContent } from "@/lib/utils"
 import { StoryFormWrapper } from "./StoryFormWrapper"
 
-export default function NewStoryPage() {
+export default async function NewStoryPage() {
+  const session = await getServerSession(authOptions)
+  if (!session || !canCreateContent(session.user.appRole)) {
+    redirect("/budget/daily")
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-bold tracking-tight">New Story</h1>

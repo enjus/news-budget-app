@@ -446,34 +446,34 @@ async function main() {
   await prisma.user.create({
     data: { email: "director@newsroom.com", name: "Jamie Rivera", passwordHash: adminHash, appRole: "ADMIN", personId: jamie.id },
   });
-  const editorHash = await bcrypt.hash("newsbudget2026", 12);
+  const staffHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
-    data: { email: "editor@newsroom.com",       name: "Editor",       passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "mp@newsroom.com",           name: "Managing Producer", passwordHash: staffHash, appRole: "MANAGING_PRODUCER" },
   });
   await prisma.user.create({
-    data: { email: "reporter@newsroom.com",     name: "Reporter",     passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "supervisor@newsroom.com",   name: "Supervisor",        passwordHash: staffHash, appRole: "SUPERVISOR" },
   });
   await prisma.user.create({
-    data: { email: "videographer@newsroom.com", name: "Videographer", passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "reporter@newsroom.com",     name: "Reporter",          passwordHash: staffHash, appRole: "PRODUCER" },
   });
   await prisma.user.create({
-    data: { email: "photographer@newsroom.com", name: "Photographer", passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "videographer@newsroom.com", name: "Videographer",      passwordHash: staffHash, appRole: "PRODUCER" },
   });
   await prisma.user.create({
-    data: { email: "designer@newsroom.com",     name: "Designer",     passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "photographer@newsroom.com", name: "Photographer",      passwordHash: staffHash, appRole: "PRODUCER" },
   });
   await prisma.user.create({
-    data: { email: "social@newsroom.com",       name: "Social",       passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "designer@newsroom.com",     name: "Designer",          passwordHash: staffHash, appRole: "PRODUCER" },
   });
   await prisma.user.create({
-    data: { email: "audience@newsroom.com",     name: "Audience",     passwordHash: editorHash, appRole: "EDITOR" },
+    data: { email: "social@newsroom.com",       name: "Social",            passwordHash: staffHash, appRole: "PRODUCER" },
   });
 
   const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length;
   const totalVideos   = pastVideos.length  + todayVideoRecords.length;
 
   console.log(
-    `Seed complete: 9 users (2 admin, 7 editor), 9 people (2 linked to admin accounts),\n` +
+    `Seed complete: 9 users (2 leadership, 1 managing producer, 1 supervisor, 5 producer), 9 people (2 linked to admin accounts),\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +

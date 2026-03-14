@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
+import { cn, APP_ROLE_LABELS } from "@/lib/utils"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -46,7 +46,7 @@ function UserForm({
     name: initial?.name ?? "",
     email: initial?.email ?? "",
     password: "",
-    appRole: initial?.appRole ?? "EDITOR",
+    appRole: initial?.appRole ?? "PRODUCER",
   })
   const [saving, setSaving] = useState(false)
 
@@ -107,9 +107,12 @@ function UserForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="LEADERSHIP">Leadership</SelectItem>
             <SelectItem value="ADMIN">Admin</SelectItem>
-            <SelectItem value="EDITOR">Edit</SelectItem>
-            <SelectItem value="VIEWER">View</SelectItem>
+            <SelectItem value="MANAGING_PRODUCER">Managing Producer</SelectItem>
+            <SelectItem value="SUPERVISOR">Supervisor</SelectItem>
+            <SelectItem value="PRODUCER">Producer</SelectItem>
+            <SelectItem value="VIEWER">Viewer</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -239,12 +242,12 @@ export function UsersView() {
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-xs font-medium",
-                          user.appRole === "ADMIN"
+                          ["ADMIN", "LEADERSHIP"].includes(user.appRole)
                             ? "bg-primary/10 text-primary"
                             : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {{ ADMIN: "Admin", EDITOR: "Edit", VIEWER: "View" }[user.appRole] ?? user.appRole}
+                        {APP_ROLE_LABELS[user.appRole] ?? user.appRole}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">

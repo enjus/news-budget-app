@@ -8,9 +8,10 @@ import type { VideoWithRelations } from "@/types/index"
 interface VideoDetailWrapperProps {
   initialVideo: VideoWithRelations
   videoId: string
+  readOnly?: boolean
 }
 
-export function VideoDetailWrapper({ initialVideo, videoId }: VideoDetailWrapperProps) {
+export function VideoDetailWrapper({ initialVideo, videoId, readOnly }: VideoDetailWrapperProps) {
   const { data: video, mutate } = useSWR<VideoWithRelations>(`/api/videos/${videoId}`)
 
   const current = video ?? initialVideo
@@ -25,5 +26,5 @@ export function VideoDetailWrapper({ initialVideo, videoId }: VideoDetailWrapper
     )
   }
 
-  return <VideoDetail video={current} onUpdate={() => mutate()} />
+  return <VideoDetail video={current} onUpdate={() => mutate()} readOnly={readOnly} />
 }

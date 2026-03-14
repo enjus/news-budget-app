@@ -181,3 +181,41 @@ export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
   EDITOR: "Editor",
   MEMBER: "Member",
 };
+
+// ─── App Role Permissions ─────────────────────────────────────────────────────
+
+export const APP_ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  LEADERSHIP: "Leadership",
+  MANAGING_PRODUCER: "Managing Producer",
+  SUPERVISOR: "Supervisor",
+  PRODUCER: "Producer",
+  VIEWER: "Viewer",
+}
+
+/** Roles with admin panel access (manage users + teams). */
+const ADMIN_ROLES = ["ADMIN", "LEADERSHIP"] as const
+
+export function hasAdminAccess(role: string): boolean {
+  return (ADMIN_ROLES as readonly string[]).includes(role)
+}
+
+/** Whether the role can view/edit Editions and print publication dates. */
+export function canEditPrint(role: string): boolean {
+  return hasAdminAccess(role)
+}
+
+/** Whether the role has elevated privileges (e.g. media request actions). */
+export function hasElevatedAccess(role: string): boolean {
+  return role !== "PRODUCER"
+}
+
+/** Whether the My Teams nav item is visible for this role. */
+export function canViewMyTeams(role: string): boolean {
+  return role !== "PRODUCER" && role !== "VIEWER"
+}
+
+/** Whether the role can create or edit content (stories, videos). */
+export function canCreateContent(role: string): boolean {
+  return role !== "VIEWER"
+}

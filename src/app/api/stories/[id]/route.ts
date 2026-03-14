@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
+import { canCreateContent } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +37,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !canCreateContent(session.user.appRole)) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await request.json();
     const result = updateStorySchema.safeParse(body);
@@ -95,6 +103,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !canCreateContent(session.user.appRole)) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
     const { id } = await params;
 
     await prisma.story.delete({ where: { id } });

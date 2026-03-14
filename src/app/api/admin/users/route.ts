@@ -2,12 +2,13 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
+import { hasAdminAccess } from "@/lib/utils"
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.appRole !== "ADMIN") {
+  if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -29,7 +30,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
-  if (!session || session.user.appRole !== "ADMIN") {
+  if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
       email,
       name,
       passwordHash,
-      appRole: appRole ?? "EDITOR",
+      appRole: appRole ?? "PRODUCER",
     },
     select: { id: true, email: true, name: true, appRole: true },
   })

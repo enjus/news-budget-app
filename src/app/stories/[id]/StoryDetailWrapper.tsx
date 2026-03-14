@@ -8,9 +8,10 @@ import type { StoryWithRelations } from "@/types/index"
 interface StoryDetailWrapperProps {
   initialStory: StoryWithRelations
   storyId: string
+  readOnly?: boolean
 }
 
-export function StoryDetailWrapper({ initialStory, storyId }: StoryDetailWrapperProps) {
+export function StoryDetailWrapper({ initialStory, storyId, readOnly }: StoryDetailWrapperProps) {
   const { story, mutate } = useStory(storyId)
 
   const current = story ?? initialStory
@@ -25,5 +26,5 @@ export function StoryDetailWrapper({ initialStory, storyId }: StoryDetailWrapper
     )
   }
 
-  return <StoryDetail story={current} onUpdate={() => mutate()} />
+  return <StoryDetail story={current} onUpdate={() => mutate()} readOnly={readOnly} />
 }
