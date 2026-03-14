@@ -183,16 +183,19 @@ async function main() {
 
   // ─── People ───────────────────────────────────────────────────────────────
 
-  const alice = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",     defaultRole: "REPORTER"            } });
-  const bob   = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",       defaultRole: "EDITOR"              } });
-  const carol = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",     defaultRole: "REPORTER"            } });
-  const david = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",     defaultRole: "PHOTOGRAPHER"        } });
-  const elena = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",     defaultRole: "GRAPHIC_DESIGNER"    } });
-  const frank = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",     defaultRole: "EDITOR"              } });
-  const maya  = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",      defaultRole: "VIDEOGRAPHER"        } });
+  const alice  = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",      defaultRole: "REPORTER"            } });
+  const bob    = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",        defaultRole: "EDITOR"              } });
+  const carol  = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",      defaultRole: "REPORTER"            } });
+  const david  = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",      defaultRole: "PHOTOGRAPHER"        } });
+  const elena  = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",      defaultRole: "GRAPHIC_DESIGNER"    } });
+  const frank  = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",      defaultRole: "EDITOR"              } });
+  const maya   = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",       defaultRole: "VIDEOGRAPHER"        } });
   // Linked to admin/director user accounts
-  const sam   = await prisma.person.create({ data: { name: "Sam Okafor",      email: "admin@newsroom.com",     defaultRole: "EDITOR"              } });
-  const jamie = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",  defaultRole: "EDITOR"              } });
+  const sam    = await prisma.person.create({ data: { name: "Sam Okafor",      email: "admin@newsroom.com",      defaultRole: "EDITOR"              } });
+  const jamie  = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",   defaultRole: "EDITOR"              } });
+  // Linked to demo MP / Producer accounts
+  const morgan = await prisma.person.create({ data: { name: "Morgan Lee",      email: "editor@newsroom.com",     defaultRole: "EDITOR"              } });
+  const riley  = await prisma.person.create({ data: { name: "Riley Park",      email: "reporter@newsroom.com",   defaultRole: "REPORTER"            } });
 
   const reporters = [alice, carol];
   const editors   = [bob, frank];
@@ -407,14 +410,16 @@ async function main() {
     },
   });
 
-  // Metro team: Sam (editor), Alice + Carol (reporters), David (photographer)
+  // Metro team: Sam (editor), Alice + Carol (reporters), David (photographer), Morgan + Riley (demo accounts)
   await prisma.teamMember.createMany({
     data: [
-      { teamId: metroTeam.id, personId: sam.id, role: "EDITOR" },
-      { teamId: metroTeam.id, personId: bob.id, role: "EDITOR" },
-      { teamId: metroTeam.id, personId: alice.id, role: "MEMBER" },
-      { teamId: metroTeam.id, personId: carol.id, role: "MEMBER" },
-      { teamId: metroTeam.id, personId: david.id, role: "MEMBER" },
+      { teamId: metroTeam.id, personId: sam.id,    role: "EDITOR" },
+      { teamId: metroTeam.id, personId: bob.id,    role: "EDITOR" },
+      { teamId: metroTeam.id, personId: alice.id,  role: "MEMBER" },
+      { teamId: metroTeam.id, personId: carol.id,  role: "MEMBER" },
+      { teamId: metroTeam.id, personId: david.id,  role: "MEMBER" },
+      { teamId: metroTeam.id, personId: morgan.id, role: "EDITOR" },
+      { teamId: metroTeam.id, personId: riley.id,  role: "MEMBER" },
     ],
   });
 
@@ -448,13 +453,16 @@ async function main() {
   });
   const staffHash = await bcrypt.hash("newsbudget2026", 12);
   await prisma.user.create({
+    data: { email: "editor@newsroom.com",       name: "Morgan Lee",        passwordHash: staffHash, appRole: "MANAGING_PRODUCER", personId: morgan.id },
+  });
+  await prisma.user.create({
     data: { email: "mp@newsroom.com",           name: "Managing Producer", passwordHash: staffHash, appRole: "MANAGING_PRODUCER" },
   });
   await prisma.user.create({
     data: { email: "supervisor@newsroom.com",   name: "Supervisor",        passwordHash: staffHash, appRole: "SUPERVISOR" },
   });
   await prisma.user.create({
-    data: { email: "reporter@newsroom.com",     name: "Reporter",          passwordHash: staffHash, appRole: "PRODUCER" },
+    data: { email: "reporter@newsroom.com",     name: "Riley Park",        passwordHash: staffHash, appRole: "PRODUCER", personId: riley.id },
   });
   await prisma.user.create({
     data: { email: "videographer@newsroom.com", name: "Videographer",      passwordHash: staffHash, appRole: "PRODUCER" },
@@ -473,7 +481,7 @@ async function main() {
   const totalVideos   = pastVideos.length  + todayVideoRecords.length;
 
   console.log(
-    `Seed complete: 9 users (2 leadership, 1 managing producer, 1 supervisor, 5 producer), 9 people (2 linked to admin accounts),\n` +
+    `Seed complete: 10 users (2 admin, 2 managing producer, 1 supervisor, 5 producer), 11 people (4 linked to user accounts),\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
