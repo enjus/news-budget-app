@@ -161,7 +161,8 @@ export function formatBudgetLineCopy(story: StoryListItem): string {
   const parts: string[] = [];
 
   const slug = story.slug.replace(/-/g, " ");
-  parts.push(`${slug}: ${story.budgetLine ?? ""}`.trimEnd());
+  const budgetLine = (story.budgetLine ?? "").replace(/\.+$/, "");
+  parts.push(`${slug}: ${budgetLine}`.trimEnd());
 
   if (story.wordCount) {
     parts.push(`${story.wordCount.toLocaleString()} words`);
@@ -171,7 +172,7 @@ export function formatBudgetLineCopy(story: StoryListItem): string {
     ...new Set(
       story.visuals
         .filter((v) => v.type === "PHOTO" && v.person?.name)
-        .map((v) => surname(v.person!.name))
+        .map((v) => surname(v.person!.name).toUpperCase())
     ),
   ];
   if (photographers.length > 0) {
@@ -180,7 +181,7 @@ export function formatBudgetLineCopy(story: StoryListItem): string {
 
   const reporters = story.assignments
     .filter((a) => a.role === "REPORTER")
-    .map((a) => surname(a.person.name));
+    .map((a) => surname(a.person.name).toUpperCase());
   const editors = story.assignments
     .filter((a) => a.role === "EDITOR")
     .map((a) => surname(a.person.name));
