@@ -168,15 +168,22 @@ export function formatBudgetLineCopy(story: StoryListItem): string {
     parts.push(`${story.wordCount.toLocaleString()} words`);
   }
 
-  const photographers = [
-    ...new Set(
-      story.visuals
-        .filter((v) => v.type === "PHOTO" && v.person?.name)
-        .map((v) => surname(v.person!.name).toUpperCase())
-    ),
+  const visualCredits: [string, string][] = [
+    ["PHOTO",   "Photos by"],
+    ["GRAPHIC", "Graphic by"],
+    ["MAP",     "Map by"],
   ];
-  if (photographers.length > 0) {
-    parts.push(`Photos by ${photographers.join(" & ")}`);
+  for (const [type, label] of visualCredits) {
+    const names = [
+      ...new Set(
+        story.visuals
+          .filter((v) => v.type === type && v.person?.name)
+          .map((v) => surname(v.person!.name).toUpperCase())
+      ),
+    ];
+    if (names.length > 0) {
+      parts.push(`${label} ${names.join(" & ")}`);
+    }
   }
 
   const reporters = story.assignments
