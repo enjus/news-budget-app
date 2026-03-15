@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format } from "date-fns";
+import type { StoryListItem } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -148,6 +149,53 @@ export function initials(name: string): string {
 export function surname(name: string): string {
   const parts = name.trim().split(/\s+/);
   return parts[parts.length - 1];
+}
+
+/** Build a copy-paste budget line string for a story card.
+ *  Format: "Slug: Budget line. 1,200 words. Photos by Smith. Jones & Williams/Martinez"
+ *  - Reporters listed first, joined by " & "
+ *  - Editor surname follows "/" with no extra label
+ *  - "Photos by" uses surnames of photographers assigned to PHOTO visuals
+ *  - Word count and photo credit omitted when absent */
+export function formatBudgetLineCopy(story: StoryListItem): string {
+  const parts: string[] = [];
+
+  const slug = story.slug.replace(/-/g, " ");
+  parts.push(`${slug}: ${story.budgetLine ?? ""}`.trimEnd());
+
+  if (story.wordCount) {
+    parts.push(`${story.wordCount.toLocaleString()} words`);
+  }
+
+  const photographers = [
+    ...new Set(
+      story.visuals
+        .filter((v) => v.type === "PHOTO" && v.person?.name)
+        .map((v) => surname(v.person!.name))
+    ),
+  ];
+  if (photographers.length > 0) {
+    parts.push(`Photos by ${photographers.join(" & ")}`);
+  }
+
+  const reporters = story.assignments
+    .filter((a) => a.role === "REPORTER")
+    .map((a) => surname(a.person.name));
+  const editors = story.assignments
+    .filter((a) => a.role === "EDITOR")
+    .map((a) => surname(a.person.name));
+
+  if (reporters.length > 0 || editors.length > 0) {
+    let peoplePart = reporters.join(" & ");
+    if (editors.length > 0) {
+      peoplePart = peoplePart
+        ? `${peoplePart}/${editors.join(" & ")}`
+        : `${editors.join(" & ")}/Editor`;
+    }
+    parts.push(peoplePart);
+  }
+
+  return parts.join(". ");
 }
 
 export const ROLE_ABBREV: Record<string, string> = {

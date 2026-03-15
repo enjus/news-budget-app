@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
 
 const WORD_COUNT_LIMIT = 1400
@@ -109,6 +110,16 @@ export function StoryCard({
   isSelected,
   onToggleSelect,
 }: StoryCardProps) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    navigator.clipboard.writeText(formatBudgetLineCopy(story)).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
   const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
   const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
   const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
@@ -127,7 +138,7 @@ export function StoryCard({
     <Link
       href={`/stories/${story.id}`}
       className={cn(
-        "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
+        "group block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
         STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-red-400" : ""),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
@@ -152,7 +163,7 @@ export function StoryCard({
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          {/* Top row: slug + enterprise badge (left) · status/time chip (right) */}
+          {/* Top row: slug + enterprise badge (left) · copy button + status/time chip (right) */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <FileText className="size-3 shrink-0 text-muted-foreground/60" />
@@ -163,7 +174,19 @@ export function StoryCard({
                 </Badge>
               )}
             </div>
-            <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={handleCopy}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-muted-foreground"
+                title="Copy budget line"
+              >
+                {copied
+                  ? <Check className="size-3 text-emerald-500" />
+                  : <Clipboard className="size-3" />
+                }
+              </button>
+              <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+            </div>
           </div>
 
           {/* Budget line */}

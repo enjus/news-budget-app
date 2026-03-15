@@ -19,7 +19,7 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
 export type StoryListItem = Prisma.StoryGetPayload<{
   include: {
     assignments: { include: { person: true } };
-    visuals: { select: { id: true; type: true } };
+    visuals: { select: { id: true; type: true; person: { select: { name: true } } } };
     videos: { select: { id: true } };
   };
 }>;
