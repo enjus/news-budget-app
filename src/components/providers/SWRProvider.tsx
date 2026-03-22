@@ -13,7 +13,7 @@ const fetcher = async (url: string) => {
 
 export function SWRProvider({ children }: { children: React.ReactNode }) {
   return (
-    <SWRConfig value={{ fetcher }}>
+    <SWRConfig value={{ fetcher, dedupingInterval: 10_000, focusThrottleInterval: 60_000 }}>
       {children}
     </SWRConfig>
   )

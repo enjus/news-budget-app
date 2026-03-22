@@ -127,7 +127,7 @@ export function EditionView() {
   const { data, isLoading, mutate } = useSWR<EditionResponse>(
     "/api/budget/edition",
     fetcher,
-    { refreshInterval: 30_000 }
+    { refreshInterval: 60_000 }
   )
 
   const [localGroups, setLocalGroups] = useState<EditionDateGroup[] | null>(null)

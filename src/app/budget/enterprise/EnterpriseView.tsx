@@ -157,7 +157,7 @@ export function EnterpriseView() {
   const { data, isLoading, mutate } = useSWR<EnterpriseResponse>(
     "/api/budget/enterprise",
     fetcher,
-    { refreshInterval: 30_000 }
+    { refreshInterval: 60_000 }
   )
 
   // Local state for optimistic DnD moves
