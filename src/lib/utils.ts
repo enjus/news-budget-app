@@ -261,17 +261,21 @@ export function canEditPrint(role: string): boolean {
   return hasAdminAccess(role)
 }
 
+const ELEVATED_ROLES = ["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR"] as const
+const CONTENT_CREATOR_ROLES = ["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR", "PRODUCER"] as const
+const TEAMS_ROLES = ["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR"] as const
+
 /** Whether the role has elevated privileges (e.g. media request actions). */
 export function hasElevatedAccess(role: string): boolean {
-  return role !== "PRODUCER"
+  return (ELEVATED_ROLES as readonly string[]).includes(role)
 }
 
 /** Whether the My Teams nav item is visible for this role. */
 export function canViewMyTeams(role: string): boolean {
-  return role !== "PRODUCER" && role !== "VIEWER"
+  return (TEAMS_ROLES as readonly string[]).includes(role)
 }
 
 /** Whether the role can create or edit content (stories, videos). */
 export function canCreateContent(role: string): boolean {
-  return role !== "VIEWER"
+  return (CONTENT_CREATOR_ROLES as readonly string[]).includes(role)
 }

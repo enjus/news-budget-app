@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
+import { createUserSchema } from "@/lib/validations"
 
 export const dynamic = 'force-dynamic'
 
@@ -35,11 +36,16 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const { email, name, password, appRole } = body
+  const result = createUserSchema.safeParse(body)
 
-  if (!email || !name || !password) {
-    return Response.json({ error: "email, name, and password are required" }, { status: 400 })
+  if (!result.success) {
+    return Response.json(
+      { error: "Validation failed", fieldErrors: result.error.flatten().fieldErrors },
+      { status: 400 }
+    )
   }
+
+  const { email, name, password, appRole, personId } = result.data
 
   const exists = await prisma.user.findUnique({ where: { email } })
   if (exists) {
@@ -53,7 +59,8 @@ export async function POST(req: Request) {
       email,
       name,
       passwordHash,
-      appRole: appRole ?? "PRODUCER",
+      appRole,
+      personId: personId ?? null,
     },
     select: { id: true, email: true, name: true, appRole: true },
   })

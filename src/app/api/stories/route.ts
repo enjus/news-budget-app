@@ -7,6 +7,9 @@ import { canCreateContent } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic'
 
+let lastShelvedPurge = 0
+const PURGE_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
+
 const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { include: { person: true } },
@@ -27,12 +30,13 @@ export async function GET(request: NextRequest) {
       // Explicit status filter — show exactly that status (including SHELVED if requested)
       where.status = status;
 
-      // When fetching shelved items, first auto-delete any that exceeded 90 days
-      if (status === "SHELVED") {
+      // Fire-and-forget purge of stories shelved >90 days, rate-limited to once/hour
+      if (status === "SHELVED" && Date.now() - lastShelvedPurge > PURGE_INTERVAL_MS) {
+        lastShelvedPurge = Date.now()
         const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-        await prisma.story.deleteMany({
+        prisma.story.deleteMany({
           where: { status: "SHELVED", shelvedAt: { lte: cutoff } },
-        });
+        }).catch((err) => console.error("Shelved story purge error:", err));
       }
     } else {
       // Default: exclude SHELVED

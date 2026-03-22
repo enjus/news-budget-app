@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { hasAdminAccess } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,15 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     if (!team) {
       return NextResponse.json({ error: "Team not found" }, { status: 404 })
+    }
+
+    // Non-admin users must be a member of the team to view its content
+    if (!hasAdminAccess(session.user.appRole)) {
+      const personId = session.user.personId
+      const isMember = personId && team.members.some((m) => m.personId === personId)
+      if (!isMember) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
     }
 
     // Fetch content for all team members in parallel

@@ -176,6 +176,26 @@ export const addTeamMemberSchema = z.object({
   role: TeamMemberRoleEnum.default("MEMBER"),
 });
 
+// ─── User (admin) ────────────────────────────────────────────────────────────
+
+export const AppRoleEnum = z.enum(["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR", "PRODUCER", "VIEWER"])
+
+export const createUserSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  name: z.string().min(1, "Name is required").max(100),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  appRole: AppRoleEnum.default("PRODUCER"),
+  personId: z.string().cuid().nullable().optional(),
+})
+
+export const updateUserSchema = z.object({
+  email: z.string().email("Invalid email address").optional(),
+  name: z.string().min(1).max(100).optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
+  appRole: AppRoleEnum.optional(),
+  personId: z.string().cuid().nullable().optional(),
+})
+
 // ─── Inferred types ───────────────────────────────────────────────────────────
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
