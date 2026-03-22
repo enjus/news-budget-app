@@ -5,14 +5,16 @@ import type { StoryListItem, VideoWithRelations } from "@/types";
 
 export const dynamic = 'force-dynamic'
 
+const personSelect = { select: { id: true, name: true, defaultRole: true } } as const;
+
 const storyInclude = {
-  assignments: { include: { person: true } },
+  assignments: { include: { person: personSelect } },
   visuals: { select: { id: true, type: true, person: { select: { name: true } } } },
   videos: { select: { id: true } },
 } as const;
 
 const videoInclude = {
-  assignments: { include: { person: true } },
+  assignments: { include: { person: personSelect } },
   story: { select: { id: true, slug: true, budgetLine: true } },
 } as const;
 

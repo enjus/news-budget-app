@@ -65,17 +65,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    // Check for duplicate
-    const existing = await prisma.storyAssignment.findUnique({
-      where: { storyId_personId_role: { storyId, personId, role } },
-    });
-    if (existing) {
-      return NextResponse.json(
-        { error: "This person already has that role assigned to this story" },
-        { status: 409 }
-      );
-    }
-
     const assignment = await prisma.storyAssignment.create({
       data: { storyId, personId, role },
       include: { person: true },
@@ -116,20 +105,15 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const assignment = await prisma.storyAssignment.findUnique({
-      where: { storyId_personId_role: { storyId, personId, role } },
-    });
-
-    if (!assignment) {
-      return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
-    }
-
     await prisma.storyAssignment.delete({
       where: { storyId_personId_role: { storyId, personId, role } },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "P2025") {
+      return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
+    }
     console.error("DELETE /api/stories/[id]/assignments error:", error);
     return NextResponse.json({ error: "Failed to delete assignment" }, { status: 500 });
   }

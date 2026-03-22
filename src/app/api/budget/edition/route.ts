@@ -4,8 +4,10 @@ import type { EditionDateGroup, StoryListItem } from "@/types";
 
 export const dynamic = 'force-dynamic'
 
+const personSelect = { select: { id: true, name: true, defaultRole: true } } as const;
+
 const storyInclude = {
-  assignments: { include: { person: true } },
+  assignments: { include: { person: personSelect } },
   visuals: { select: { id: true, type: true, person: { select: { name: true } } } },
   videos: { select: { id: true } },
 } as const;

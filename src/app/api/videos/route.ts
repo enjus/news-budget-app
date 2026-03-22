@@ -40,10 +40,15 @@ export async function GET(request: NextRequest) {
       where.isEnterprise = true;
     }
 
+    const take = Math.min(parseInt(searchParams.get("take") ?? "100", 10) || 100, 200);
+    const skip = parseInt(searchParams.get("skip") ?? "0", 10) || 0;
+
     const videos = await prisma.video.findMany({
       where,
       include: videoInclude,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take,
+      skip,
     });
 
     return NextResponse.json(videos);

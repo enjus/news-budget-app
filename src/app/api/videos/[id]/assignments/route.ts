@@ -65,17 +65,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    // Check for duplicate
-    const existing = await prisma.videoAssignment.findUnique({
-      where: { videoId_personId_role: { videoId, personId, role } },
-    });
-    if (existing) {
-      return NextResponse.json(
-        { error: "This person already has that role assigned to this video" },
-        { status: 409 }
-      );
-    }
-
     const assignment = await prisma.videoAssignment.create({
       data: { videoId, personId, role },
       include: { person: true },
@@ -116,20 +105,15 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const assignment = await prisma.videoAssignment.findUnique({
-      where: { videoId_personId_role: { videoId, personId, role } },
-    });
-
-    if (!assignment) {
-      return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
-    }
-
     await prisma.videoAssignment.delete({
       where: { videoId_personId_role: { videoId, personId, role } },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "P2025") {
+      return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
+    }
     console.error("DELETE /api/videos/[id]/assignments error:", error);
     return NextResponse.json({ error: "Failed to delete assignment" }, { status: 500 });
   }

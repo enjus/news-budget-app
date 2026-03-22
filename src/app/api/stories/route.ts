@@ -46,10 +46,15 @@ export async function GET(request: NextRequest) {
       };
     }
 
+    const take = Math.min(parseInt(searchParams.get("take") ?? "100", 10) || 100, 200);
+    const skip = parseInt(searchParams.get("skip") ?? "0", 10) || 0;
+
     const stories = await prisma.story.findMany({
       where,
       include: storyInclude,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      take,
+      skip,
     });
 
     return NextResponse.json(stories);

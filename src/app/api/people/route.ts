@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role");
 
+    const take = Math.min(parseInt(searchParams.get("take") ?? "200", 10) || 200, 500);
+    const skip = parseInt(searchParams.get("skip") ?? "0", 10) || 0;
+
     const people = await prisma.person.findMany({
       where: role ? { defaultRole: role } : undefined,
       include: {
@@ -24,6 +27,8 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { name: "asc" },
+      take,
+      skip,
     });
 
     return NextResponse.json(people);
