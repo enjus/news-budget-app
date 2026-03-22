@@ -16,7 +16,7 @@ model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String
-  passwordHash String
+  passwordHash String?
   // AppRole: ADMIN | EDITOR | VIEWER
   appRole      String   @default("EDITOR")
   personId     String?  @unique

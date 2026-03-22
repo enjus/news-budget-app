@@ -1,5 +1,7 @@
 import { type NextAuthOptions } from "next-auth"
+import type { Profile } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import AzureADProvider from "next-auth/providers/azure-ad"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 
@@ -10,6 +12,11 @@ const ROLE_REFRESH_JITTER_MS = 2 * 60 * 1000
 
 /** Pre-hashed dummy value so bcrypt.compare takes consistent time even when user is not found. */
 const DUMMY_HASH = "$2a$12$000000000000000000000uGByljPbCHDVMbVJsX.4yuBqFKxVCtz6"
+
+/** Azure AD profile includes group membership when "groups" claim is configured. */
+interface AzureADProfile extends Profile {
+  groups?: string[]
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -26,24 +33,96 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         })
 
+        // SSO-only users have no passwordHash — reject credential login for them
+        if (!user?.passwordHash) {
+          // Still run bcrypt.compare against dummy to prevent timing-based enumeration
+          await bcrypt.compare(credentials.password, DUMMY_HASH)
+          return null
+        }
+
         // Always run bcrypt.compare to prevent timing-based email enumeration
         const valid = await bcrypt.compare(
           credentials.password,
-          user?.passwordHash ?? DUMMY_HASH
+          user.passwordHash
         )
-        if (!user || !valid) return null
+        if (!valid) return null
 
         return { id: user.id, name: user.name, email: user.email, appRole: user.appRole, personId: user.personId }
       },
     }),
+
+    // Azure AD SSO — configure via AZURE_AD_CLIENT_ID, AZURE_AD_CLIENT_SECRET, AZURE_AD_TENANT_ID
+    ...(process.env.AZURE_AD_CLIENT_ID
+      ? [
+          AzureADProvider({
+            clientId: process.env.AZURE_AD_CLIENT_ID!,
+            clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
+            tenantId: process.env.AZURE_AD_TENANT_ID!,
+          }),
+        ]
+      : []),
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === "azure-ad") {
+        const azureProfile = profile as AzureADProfile | undefined
+        const allowedGroupId = process.env.AZURE_AD_ALLOWED_GROUP_ID
+
+        // If an allowed group is configured, enforce membership
+        if (allowedGroupId) {
+          const groups = azureProfile?.groups ?? []
+          if (!groups.includes(allowedGroupId)) {
+            return false
+          }
+        }
+
+        // Look up or auto-create the user by email
+        const email = user.email
+        if (!email) return false
+
+        const dbUser = await prisma.user.findUnique({
+          where: { email },
+        })
+
+        if (!dbUser) {
+          // Auto-create with VIEWER role — admin can promote later
+          await prisma.user.create({
+            data: {
+              email,
+              name: user.name ?? email,
+              passwordHash: null,
+              appRole: "VIEWER",
+            },
+          })
+        }
+
+        return true
+      }
+
+      // Credentials provider — always allow (authorize already validated)
+      return true
+    },
+
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id
-        token.appRole = (user as { id: string; appRole: string }).appRole
-        token.personId = (user as { personId?: string | null }).personId ?? null
+        if (account?.provider === "azure-ad") {
+          // SSO sign-in: look up appRole/personId from the DB user
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email! },
+            select: { id: true, appRole: true, personId: true },
+          })
+          if (dbUser) {
+            token.id = dbUser.id
+            token.appRole = dbUser.appRole
+            token.personId = dbUser.personId
+          }
+        } else {
+          // Credentials sign-in: user object already has appRole from authorize()
+          token.id = user.id
+          token.appRole = (user as { id: string; appRole: string }).appRole
+          token.personId = (user as { personId?: string | null }).personId ?? null
+        }
         token.roleRefreshedAt = Date.now()
         // Per-token jitter so 100 users don't all refresh roles at the same instant
         token.roleRefreshJitter = Math.floor(Math.random() * ROLE_REFRESH_JITTER_MS)

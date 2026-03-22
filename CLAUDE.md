@@ -26,7 +26,7 @@ No test suite exists yet.
 
 - **Next.js 16 App Router** with Turbopack, React 19
 - **Prisma 5.22 + PostgreSQL** — use Prisma 5 (NOT v7; v7 broke SQLite with driver adapters). `DATABASE_URL` in `.env`.
-- **NextAuth v4** — credential-based auth (email/password), JWT sessions, middleware protection
+- **NextAuth v4** — credentials + Azure AD SSO auth, JWT sessions, middleware protection
 - **Zod v4** for validation — `z.string().cuid()`, `.flatten().fieldErrors` for errors
 - **SWR v2** for client data fetching with optimistic DnD updates
 - **@dnd-kit/core + @dnd-kit/sortable** for drag-and-drop
@@ -64,13 +64,15 @@ No test suite exists yet.
 { user: { id, name, email, appRole, personId } }
 ```
 
-**Auth config** lives in `src/lib/auth.ts` (CredentialsProvider, JWT strategy, callbacks to populate appRole/personId).
+**Auth config** lives in `src/lib/auth.ts` (CredentialsProvider + AzureADProvider, JWT strategy, callbacks to populate appRole/personId).
+
+**Azure AD SSO** (optional): When `AZURE_AD_CLIENT_ID` is set, the login page shows a "Sign in with Microsoft" button. SSO users are matched by email to existing `User` records or auto-created as `VIEWER` if they belong to the Azure AD group specified by `AZURE_AD_ALLOWED_GROUP_ID`. The `passwordHash` field is nullable — SSO-only users have no password. See `docs/azure-sso-setup.md` for Azure Portal configuration.
 
 ### Data Models (prisma/schema.prisma)
 
 | Model | Key Fields |
 |-------|-----------|
-| **User** | `id`, `email` (unique), `name`, `passwordHash`, `appRole` (ADMIN\|EDITOR\|VIEWER), `personId` (optional FK → Person) |
+| **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|EDITOR\|VIEWER), `personId` (optional FK → Person) |
 | **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER) |
 | **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed`, `sortOrder`, `shelvedAt`, `postUrl` |
 | **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|OTHER) — composite unique on all three |
@@ -88,7 +90,7 @@ No test suite exists yet.
 | `src/lib/validations.ts` | All Zod schemas: `createStorySchema`, `updateStorySchema`, `createVideoSchema`, `updateVideoSchema`, `createPersonSchema`, `updatePersonSchema`, `createAssignmentSchema`, `createVisualSchema`, etc. |
 | `src/types/index.ts` | Prisma payload types: `StoryWithRelations`, `StoryListItem`, `EnterpriseStoryItem`, `VideoWithRelations`, `PersonWithCounts`, `ContentItem` union, `DailyBudgetSlot`, `EnterpriseDateGroup`, `EditionDateGroup` |
 | `src/lib/prisma.ts` | Prisma singleton (global pattern for hot-reload safety) |
-| `src/lib/auth.ts` | NextAuth configuration (CredentialsProvider, JWT callbacks) |
+| `src/lib/auth.ts` | NextAuth configuration (CredentialsProvider + AzureADProvider, JWT callbacks, SSO group check) |
 | `middleware.ts` | NextAuth `withAuth` middleware — protects all routes |
 | `prisma/seed.ts` | 15-day seed with 9 people, ~40 stories, ~30 videos, 2 user accounts |
 
@@ -144,7 +146,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | Route | Purpose |
 |-------|---------|
 | `/` | Redirect to default view (daily/enterprise/edition based on preferences) |
-| `/login` | Login form (NextAuth CredentialsProvider) |
+| `/login` | Login form (credentials + optional Azure AD SSO) |
 | `/budget/daily/[date]` | Daily time-slot view with DnD |
 | `/budget/enterprise` | Enterprise stories/videos grouped by week |
 | `/budget/edition` | Print edition view |
@@ -185,9 +187,15 @@ Seeds 15-day historical budget + enterprise stories extending 180 days forward.
 ### Environment Variables
 
 ```bash
-DATABASE_URL=          # PostgreSQL connection string
-NEXTAUTH_SECRET=       # Random secret for JWT signing
-NEXTAUTH_URL=          # App base URL (e.g., http://localhost:3000)
+DATABASE_URL=                  # PostgreSQL connection string
+NEXTAUTH_SECRET=               # Random secret for JWT signing
+NEXTAUTH_URL=                  # App base URL (e.g., http://localhost:3000)
+
+# Azure AD SSO (optional — omit AZURE_AD_CLIENT_ID to disable)
+AZURE_AD_CLIENT_ID=            # Azure App Registration client ID
+AZURE_AD_CLIENT_SECRET=        # Azure App Registration client secret
+AZURE_AD_TENANT_ID=            # Azure AD tenant ID
+AZURE_AD_ALLOWED_GROUP_ID=     # Object ID of the security group that grants SSO access
 ```
 
-See `.env.example` for the full template.
+See `.env.example` for the full template. See `docs/azure-sso-setup.md` for Azure Portal configuration.

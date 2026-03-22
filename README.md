@@ -6,7 +6,7 @@ A news budget management tool for tracking editorial stories and videos across d
 
 - **Next.js 16** (App Router, Turbopack) + React 19
 - **Prisma 5 + PostgreSQL** (tested on Neon)
-- **next-auth v4** — credentials-based auth with role support
+- **next-auth v4** — credentials + Azure AD SSO auth with role support
 - **SWR** for client-side data fetching
 - **@dnd-kit** for drag-and-drop
 - **shadcn/ui** + Tailwind 4
@@ -75,6 +75,29 @@ npx prisma db seed       # Re-seed (clears all data)
 npx prisma migrate dev   # Apply schema changes
 ```
 
+## Azure AD SSO (Optional)
+
+The app supports Microsoft Entra ID (Azure AD) single sign-on alongside email/password login. When configured, a "Sign in with Microsoft" button appears on the login page.
+
+SSO users are auto-provisioned as `VIEWER` if they belong to a configured Azure AD security group. Admins can promote roles via `/admin/users`. Pre-provisioned users (created by an admin with a matching email) are matched automatically on first SSO sign-in.
+
+To enable, set four additional environment variables:
+
+```env
+AZURE_AD_CLIENT_ID=...
+AZURE_AD_CLIENT_SECRET=...
+AZURE_AD_TENANT_ID=...
+AZURE_AD_ALLOWED_GROUP_ID=...
+```
+
+See [`docs/azure-sso-setup.md`](docs/azure-sso-setup.md) for full Azure Portal setup instructions.
+
 ## Deployment
 
-The app is designed for Vercel + Neon (PostgreSQL). Set the three environment variables (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`) in your Vercel project settings, then deploy.
+### Vercel (recommended)
+
+Set the environment variables (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, plus Azure AD vars if using SSO) in your Vercel project settings, then deploy.
+
+### AWS / Linux VPS
+
+See [`docs/aws-vps-deployment.md`](docs/aws-vps-deployment.md) for a full guide covering EC2 setup, Nginx, SSL, PM2, and deploy scripts.
