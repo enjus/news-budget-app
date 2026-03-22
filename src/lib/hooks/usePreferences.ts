@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 
 export type DefaultView = "daily-columns" | "daily-agenda" | "enterprise" | "edition"
 export type ContentDefault = "all" | "stories" | "videos"
@@ -41,6 +41,17 @@ export function usePreferences() {
       }
       return next
     })
+  }, [])
+
+  // Sync preferences across tabs via the storage event
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) {
+        setPreferencesState(readPreferences())
+      }
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
   }, [])
 
   return { preferences, setPreferences }
