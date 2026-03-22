@@ -86,6 +86,7 @@ export const updateStorySchema = z.object({
   aiContributed: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   postUrl: optionalUrl,
+  version: z.number().int().optional(), // optimistic locking
 });
 
 // ─── Assignment ───────────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ export const updateVideoSchema = z.object({
   reelsUrl: optionalUrl,
   tiktokUrl: optionalUrl,
   otherUrl: optionalUrl,
+  version: z.number().int().optional(), // optimistic locking
 });
 
 export const createVideoAssignmentSchema = z.object({

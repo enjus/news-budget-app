@@ -56,7 +56,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const { onlinePubDate, storyId, ...rest } = result.data;
+    const { onlinePubDate, storyId, version: clientVersion, ...rest } = result.data;
 
     if (storyId) {
       const story = await prisma.story.findUnique({ where: { id: storyId } });
@@ -88,6 +88,28 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data.shelvedAt = null;
     }
 
+    // Always increment version on every update
+    data.version = { increment: 1 };
+
+    // If client sent a version, use optimistic locking to detect conflicts
+    if (clientVersion !== undefined) {
+      const updated = await prisma.video.updateMany({
+        where: { id, version: clientVersion },
+        data,
+      });
+      if (updated.count === 0) {
+        const exists = await prisma.video.findUnique({ where: { id }, select: { id: true, version: true } });
+        if (!exists) return NextResponse.json({ error: "Video not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "This video was modified by another user. Please reload.", version: exists.version },
+          { status: 409 }
+        );
+      }
+      const video = await prisma.video.findUnique({ where: { id }, include: videoInclude });
+      return NextResponse.json(video);
+    }
+
+    // No version provided (e.g. DnD reorder) — update without conflict check
     const video = await prisma.video.update({
       where: { id },
       data,

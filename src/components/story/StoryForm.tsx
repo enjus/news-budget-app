@@ -185,6 +185,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             : null,
       }
 
+      // Include version for optimistic locking on edits
+      if (isEdit && story?.version !== undefined) {
+        payload.version = story.version
+      }
+
       const url = isEdit ? `/api/stories/${story!.id}` : "/api/stories"
       const method = isEdit ? "PATCH" : "POST"
 
@@ -196,6 +201,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This story was modified by another user. Reloading…")
+          onSuccess?.(story!.id)
+          return
+        }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
 

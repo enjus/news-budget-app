@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    const { onlinePubDate, printPubDate, ...rest } = result.data;
+    const { onlinePubDate, printPubDate, version: clientVersion, ...rest } = result.data;
 
     // Build the update data, only including date fields if they were provided
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,6 +86,29 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data.shelvedAt = null;
     }
 
+    // Always increment version on every update
+    data.version = { increment: 1 };
+
+    // If client sent a version, use optimistic locking to detect conflicts
+    if (clientVersion !== undefined) {
+      const updated = await prisma.story.updateMany({
+        where: { id, version: clientVersion },
+        data,
+      });
+      if (updated.count === 0) {
+        const exists = await prisma.story.findUnique({ where: { id }, select: { id: true, version: true } });
+        if (!exists) return NextResponse.json({ error: "Story not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "This story was modified by another user. Please reload.", version: exists.version },
+          { status: 409 }
+        );
+      }
+      // Fetch the full updated record to return
+      const story = await prisma.story.findUnique({ where: { id }, include: storyInclude });
+      return NextResponse.json(story);
+    }
+
+    // No version provided (e.g. DnD reorder) — update without conflict check
     const story = await prisma.story.update({
       where: { id },
       data,

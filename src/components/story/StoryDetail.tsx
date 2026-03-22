@@ -40,10 +40,15 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
       const res = await fetch(`/api/stories/${story.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, version: story.version }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This story was modified by another user. Reloading…")
+          onUpdate()
+          return
+        }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
       toast.success("Status updated")

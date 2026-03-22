@@ -38,10 +38,15 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
       const res = await fetch(`/api/videos/${video.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, version: video.version }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This video was modified by another user. Reloading…")
+          onUpdate()
+          return
+        }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
       toast.success("Status updated")

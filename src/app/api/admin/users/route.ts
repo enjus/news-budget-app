@@ -51,23 +51,25 @@ export async function POST(req: Request) {
 
   const { email, name, password, appRole, personId } = result.data
 
-  const exists = await prisma.user.findUnique({ where: { email } })
-  if (exists) {
-    return Response.json({ error: "A user with that email already exists" }, { status: 409 })
+  try {
+    const passwordHash = await bcrypt.hash(password, 12)
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name,
+        passwordHash,
+        appRole,
+        personId: personId ?? null,
+      },
+      select: { id: true, email: true, name: true, appRole: true },
+    })
+
+    return Response.json({ user }, { status: 201 })
+  } catch (error: unknown) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      return Response.json({ error: "A user with that email already exists" }, { status: 409 })
+    }
+    throw error
   }
-
-  const passwordHash = await bcrypt.hash(password, 12)
-
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name,
-      passwordHash,
-      appRole,
-      personId: personId ?? null,
-    },
-    select: { id: true, email: true, name: true, appRole: true },
-  })
-
-  return Response.json({ user }, { status: 201 })
 }

@@ -230,6 +230,11 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
         otherUrl: data.otherUrl?.trim() || null,
       }
 
+      // Include version for optimistic locking on edits
+      if (isEdit && video?.version !== undefined) {
+        payload.version = video.version
+      }
+
       const url = isEdit ? `/api/videos/${video!.id}` : "/api/videos"
       const method = isEdit ? "PATCH" : "POST"
 
@@ -241,6 +246,11 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This video was modified by another user. Reloading…")
+          onSuccess?.(video!.id)
+          return
+        }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
 

@@ -8,9 +8,6 @@ import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
-let lastShelvedPurge = 0
-const PURGE_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
-
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
@@ -29,15 +26,6 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       where.status = status;
-
-      // Fire-and-forget purge of videos shelved >90 days, rate-limited to once/hour
-      if (status === "SHELVED" && Date.now() - lastShelvedPurge > PURGE_INTERVAL_MS) {
-        lastShelvedPurge = Date.now()
-        const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-        prisma.video.deleteMany({
-          where: { status: "SHELVED", shelvedAt: { lte: cutoff } },
-        }).catch((err) => console.error("Shelved video purge error:", err));
-      }
     } else {
       where.status = { not: "SHELVED" };
     }

@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/purge-shelved",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

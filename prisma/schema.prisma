@@ -84,6 +84,7 @@ model Story {
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
   postUrl          String?
+  version          Int      @default(0) // optimistic locking — incremented on every PATCH
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -142,6 +143,7 @@ model Video {
   aiContributed    Boolean  @default(false)
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
+  version          Int      @default(0) // optimistic locking — incremented on every PATCH
   youtubeUrl       String?
   reelsUrl         String?
   tiktokUrl        String?
