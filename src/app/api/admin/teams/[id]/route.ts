@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { updateTeamSchema } from "@/lib/validations"
 import { hasAdminAccess } from "@/lib/utils"
+import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
+
   const { id } = await params
   const body = await req.json()
   const parsed = updateTeamSchema.safeParse(body)
@@ -65,6 +69,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
 
   const { id } = await params
   await prisma.team.delete({ where: { id } })

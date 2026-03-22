@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVideoSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +41,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (!session?.user || !canCreateContent(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
+
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
 
     const { id } = await params;
     const body = await request.json();
@@ -109,6 +113,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (!session?.user || !canCreateContent(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
+
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
 
     const { id } = await params;
 

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createPersonSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,9 @@ export async function POST(request: NextRequest) {
     if (!session?.user || !canCreateContent(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
+
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
 
     const body = await request.json();
     const result = createPersonSchema.safeParse(body);

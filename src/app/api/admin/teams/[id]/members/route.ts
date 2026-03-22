@@ -3,6 +3,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { addTeamMemberSchema } from "@/lib/validations"
 import { hasAdminAccess } from "@/lib/utils"
+import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +12,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
 
   const { id: teamId } = await params
   const body = await req.json()

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
 import { createUserSchema } from "@/lib/validations"
+import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +35,9 @@ export async function POST(req: Request) {
   if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
 
   const body = await req.json()
   const result = createUserSchema.safeParse(body)

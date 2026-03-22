@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
 import { updateUserSchema } from "@/lib/validations"
+import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
 
   const { id } = await params
   const body = await req.json()
@@ -55,6 +59,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!session || !hasAdminAccess(session.user.appRole)) {
     return Response.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return limited
 
   const { id } = await params
 
