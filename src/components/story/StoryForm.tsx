@@ -103,6 +103,10 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           wordCount: (story as any).wordCount ?? null,
           notifyTeam: story.notifyTeam,
           aiContributed: story.aiContributed,
+          hereIsOregon: story.hereIsOregon,
+          contentRemix: story.contentRemix,
+          summerFocus: story.summerFocus,
+          oregonInsight: story.oregonInsight,
           postUrl: story.postUrl ?? "",
         }
       : {
@@ -118,6 +122,10 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           wordCount: null,
           notifyTeam: false,
           aiContributed: false,
+          hereIsOregon: false,
+          contentRemix: false,
+          summerFocus: false,
+          oregonInsight: false,
           postUrl: "",
         },
   })
@@ -550,22 +558,88 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )}
       </div>
 
-      {/* AI Contributed */}
-      <div className="flex items-center gap-2">
-        <Controller
-          name="aiContributed"
-          control={control}
-          render={({ field }) => (
-            <Checkbox
-              id="sf-ai"
-              checked={field.value}
-              onCheckedChange={field.onChange}
-            />
-          )}
-        />
-        <Label htmlFor="sf-ai" className="cursor-pointer font-normal">
-          AI Contributed
-        </Label>
+      {/* AI Contributed + Here is Oregon */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex items-center gap-2">
+          <Controller
+            name="aiContributed"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="sf-ai"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="sf-ai" className="cursor-pointer font-normal">
+            AI Contributed
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Controller
+            name="hereIsOregon"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="sf-hio"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="sf-hio" className="cursor-pointer font-normal">
+            Here is Oregon
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Controller
+            name="contentRemix"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="sf-remix"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="sf-remix" className="cursor-pointer font-normal">
+            Content Remix
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Controller
+            name="summerFocus"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="sf-summer"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="sf-summer" className="cursor-pointer font-normal">
+            Summer Focus
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Controller
+            name="oregonInsight"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="sf-insight"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="sf-insight" className="cursor-pointer font-normal">
+            Oregon Insight
+          </Label>
+        </div>
       </div>
 
       {/* Post URL — edit mode only, last field (post-publication) */}

@@ -84,6 +84,10 @@ model Story {
   wordCount        Int?
   notifyTeam       Boolean  @default(false)
   aiContributed    Boolean  @default(false)
+  hereIsOregon     Boolean  @default(false)
+  contentRemix     Boolean  @default(false)
+  summerFocus      Boolean  @default(false)
+  oregonInsight    Boolean  @default(false)
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
   postUrl          String?

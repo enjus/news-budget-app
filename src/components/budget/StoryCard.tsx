@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy } from "@/lib/utils"
@@ -253,6 +253,42 @@ export function StoryCard({
               >
                 <Sparkles className="size-2.5 pointer-events-none" />
                 AI
+              </span>
+            )}
+            {story.hereIsOregon && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
+                title="Here is Oregon"
+              >
+                <MapPin className="size-2.5 pointer-events-none" />
+                HIO
+              </span>
+            )}
+            {story.contentRemix && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-400"
+                title="Content Remix"
+              >
+                <Repeat2 className="size-2.5 pointer-events-none" />
+                Remix
+              </span>
+            )}
+            {story.summerFocus && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                title="Summer Focus"
+              >
+                <Sun className="size-2.5 pointer-events-none" />
+                Summer
+              </span>
+            )}
+            {story.oregonInsight && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
+                title="Oregon Insight"
+              >
+                <Landmark className="size-2.5 pointer-events-none" />
+                Insight
               </span>
             )}
             {wordCount != null && (
