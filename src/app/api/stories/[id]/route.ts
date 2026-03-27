@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, hasAdminAccess } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -29,6 +29,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
+    // Off-budget drafts are only visible to their creator (or admins)
+    if (!story.onBudget) {
+      const session = await getServerSession(authOptions);
+      if (!session?.user || (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
+        return NextResponse.json({ error: "Story not found" }, { status: 404 });
+      }
+    }
+
     return NextResponse.json(story);
   } catch (error) {
     console.error("GET /api/stories/[id] error:", error);
@@ -47,6 +55,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    // Block non-owners from editing off-budget drafts
+    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
+    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const result = updateStorySchema.safeParse(body);
 
@@ -139,6 +154,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    // Block non-owners from deleting off-budget drafts
+    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
+    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
 
     await prisma.story.delete({ where: { id } });
 

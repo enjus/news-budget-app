@@ -134,6 +134,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
 
   const notifyRef = useRef(false)
+  const draftRef = useRef(false)
 
   // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
   // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
@@ -161,18 +162,21 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   }, [watchedStatus, watchedIsEnterprise, watchedAiContributed])
 
   useImperativeHandle(ref, () => ({
-    submitNormal: () => { notifyRef.current = false; handleSubmit(onSubmit)() },
-    submitNotify: () => { notifyRef.current = true; handleSubmit(onSubmit)() },
+    submitNormal: () => { notifyRef.current = false; draftRef.current = false; handleSubmit(onSubmit)() },
+    submitNotify: () => { notifyRef.current = true; draftRef.current = false; handleSubmit(onSubmit)() },
   }))
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
     const notify = notifyRef.current
+    const isDraft = draftRef.current
     notifyRef.current = false
+    draftRef.current = false
     try {
       const payload: Record<string, unknown> = {
         ...data,
         notifyTeam: notify,
+        ...(isDraft && !isEdit ? { onBudget: false } : {}),
         onlinePubDate: data.onlinePubDateTBD
           ? null
           : data.onlinePubDate
@@ -224,6 +228,12 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )
       }
 
+      if (isDraft && !isEdit) {
+        toast.success("Saved as draft")
+        router.push("/me")
+        return
+      }
+
       const budgetDate = saved.onlinePubDateTBD || !saved.onlinePubDate
         ? todayString()
         : new Date(saved.onlinePubDate).toISOString().slice(0, 10)
@@ -245,12 +255,24 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     </Button>
   )
 
+  const draftButton = !isEdit ? (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={isSubmitting}
+      onClick={() => { draftRef.current = true; handleSubmit(onSubmit)() }}
+    >
+      Save as Draft
+    </Button>
+  ) : null
+
   return (
     <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
       {/* Top action row — create mode only */}
       {!isEdit && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {draftButton}
           {submitButton}
         </div>
       )}
@@ -535,6 +557,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       {/* Bottom actions — create mode only; edit mode buttons live in StoryDetail */}
       {!isEdit && (
         <div className="flex justify-end gap-2 pt-2">
+          {draftButton}
           {submitButton}
         </div>
       )}

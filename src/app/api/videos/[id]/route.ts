@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVideoSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, hasAdminAccess } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +28,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
     }
 
+    // Off-budget drafts are only visible to their creator (or admins)
+    if (!video.onBudget) {
+      const session = await getServerSession(authOptions);
+      if (!session?.user || (video.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
+        return NextResponse.json({ error: "Video not found" }, { status: 404 });
+      }
+    }
+
     return NextResponse.json(video);
   } catch (error) {
     console.error("GET /api/videos/[id] error:", error);
@@ -46,6 +54,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    // Block non-owners from editing off-budget drafts
+    const existingDraft = await prisma.video.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
+    if (existingDraft && !existingDraft.onBudget && existingDraft.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+      return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const result = updateVideoSchema.safeParse(body);
 
@@ -140,6 +155,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    // Block non-owners from deleting off-budget drafts
+    const existingDraft = await prisma.video.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
+    if (existingDraft && !existingDraft.onBudget && existingDraft.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+      return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    }
 
     await prisma.video.delete({ where: { id } });
 

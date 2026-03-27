@@ -1,9 +1,10 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ExternalLink } from "lucide-react"
+import { ExternalLink, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -32,6 +33,25 @@ interface VideoDetailProps {
 
 export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
   const formRef = useRef<VideoFormHandle>(null)
+  const router = useRouter()
+  const [sendingToBudget, setSendingToBudget] = useState(false)
+
+  async function handleSendToBudget() {
+    setSendingToBudget(true)
+    try {
+      const res = await fetch(`/api/videos/${video.id}/publish`, { method: "POST" })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? "Failed to send to budget")
+      }
+      toast.success("Video sent to budget")
+      onUpdate()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to send to budget")
+    } finally {
+      setSendingToBudget(false)
+    }
+  }
 
   async function patchStatus(status: string) {
     try {
@@ -218,6 +238,24 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           </div>
         )
       })()}
+
+      {/* Draft banner */}
+      {!video.onBudget && (
+        <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            This is a draft. Only you can see it.
+          </p>
+          <Button
+            size="sm"
+            className="gap-1"
+            disabled={sendingToBudget}
+            onClick={handleSendToBudget}
+          >
+            <Send className="size-3" />
+            {sendingToBudget ? "Sending..." : "Send to Budget"}
+          </Button>
+        </div>
+      )}
 
       <VideoAssignmentSection
         videoId={video.id}

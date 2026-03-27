@@ -73,12 +73,12 @@ export function TopNav() {
               {teamsLabel}
             </Link>
           )}
-          {myPersonId && (
+          {(canCreate || myPersonId) && (
             <Link
-              href={`/people/${myPersonId}`}
+              href="/me"
               className={cn(
                 "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, `/people/${myPersonId}`) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                isActive(pathname, "/me") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
               )}
             >
               Me
@@ -204,11 +204,14 @@ export function TopNav() {
                 {teamsLabel}
               </Link>
             )}
-            {myPersonId && (
+            {(canCreate || myPersonId) && (
               <Link
-                href={`/people/${myPersonId}`}
+                href="/me"
                 onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                className={cn(
+                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                  isActive(pathname, "/me") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
               >
                 Me
               </Link>

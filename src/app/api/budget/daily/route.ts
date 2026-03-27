@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
     const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
       prisma.story.findMany({
         where: {
+          onBudget: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: false,
           onlinePubDate: { gte: dayStart, lte: dayEnd },
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       }) as unknown as StoryListItem[],
 
       prisma.story.findMany({
-        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
+        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
 
       prisma.video.findMany({
         where: {
+          onBudget: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: false,
           onlinePubDate: { gte: dayStart, lte: dayEnd },
@@ -70,7 +72,7 @@ export async function GET(request: NextRequest) {
       }) as unknown as VideoWithRelations[],
 
       prisma.video.findMany({
-        where: { status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
+        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
         include: videoInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,

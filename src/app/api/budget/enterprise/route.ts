@@ -64,6 +64,7 @@ export async function GET() {
       // Dated: at least one of online/print pub date falls within the window
       prisma.story.findMany({
         where: {
+          onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
           OR: [
@@ -78,6 +79,7 @@ export async function GET() {
       // TBD: both dates unset, capped to prevent unbounded growth
       prisma.story.findMany({
         where: {
+          onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: true,
@@ -90,6 +92,7 @@ export async function GET() {
 
       prisma.video.findMany({
         where: {
+          onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: false,
@@ -101,6 +104,7 @@ export async function GET() {
 
       prisma.video.findMany({
         where: {
+          onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: true,

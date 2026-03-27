@@ -477,16 +477,65 @@ async function main() {
     data: { email: "social@newsroom.com",       name: "Social",            passwordHash: staffHash, appRole: "PRODUCER" },
   });
 
-  const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length;
-  const totalVideos   = pastVideos.length  + todayVideoRecords.length;
+  // ─── Sample drafts (off-budget) ──────────────────────────────────────────
+  // Drafts belong to specific users and are invisible to everyone else.
+
+  const adminUser = await prisma.user.findUnique({ where: { email: "admin@newsroom.com" } });
+  const editorUser = await prisma.user.findUnique({ where: { email: "editor@newsroom.com" } });
+
+  if (adminUser) {
+    await prisma.story.create({
+      data: {
+        slug: "BROADBAND EXPANSION",
+        budgetLine: "Federal broadband funding is earmarked for three underserved areas in the county, but local officials are struggling to find contractors willing to do the work at the rates the grants allow. We're looking at the gap between the federal promise and the local reality.",
+        isEnterprise: true,
+        status: "DRAFT",
+        onlinePubDateTBD: true,
+        onBudget: false,
+        createdByUserId: adminUser.id,
+        notes: "Early-stage reporting. Need to identify contractor sources.",
+        sortOrder: 1,
+      },
+    });
+    await prisma.video.create({
+      data: {
+        slug: "NEIGHBORHOOD VOICES",
+        budgetLine: "A series of short interviews with residents in the broadband-gap neighborhoods about internet access, remote work, and the digital divide. Planning stage.",
+        status: "DRAFT",
+        onlinePubDateTBD: true,
+        onBudget: false,
+        createdByUserId: adminUser.id,
+        sortOrder: 1,
+      },
+    });
+  }
+
+  if (editorUser) {
+    await prisma.story.create({
+      data: {
+        slug: "PARKING REVENUE",
+        budgetLine: "The city's parking revenue has dropped 22% since the pandemic as remote work reduced downtown commuter traffic. We're examining what that means for the general fund and whether the city should rethink its parking infrastructure investments.",
+        status: "DRAFT",
+        onlinePubDateTBD: true,
+        onBudget: false,
+        createdByUserId: editorUser.id,
+        notes: "Waiting on finance dept data request.",
+        sortOrder: 1,
+      },
+    });
+  }
+
+  const totalStories  = pastStories.length + todayStoryRecords.length + enterpriseRecords.length + 2;
+  const totalVideos   = pastVideos.length  + todayVideoRecords.length + 1;
 
   console.log(
     `Seed complete: 10 users (2 admin, 2 managing producer, 1 supervisor, 5 producer), 11 people (4 linked to user accounts),\n` +
     `  ${pastStories.length} past stories (14 days × 10/day)\n` +
     `  ${todayStoryRecords.length} today stories (mixed statuses)\n` +
     `  ${enterpriseRecords.length} enterprise stories (next 180 days)\n` +
+    `  3 draft items (off-budget, visible only to their creators)\n` +
     `  ${totalStories} stories total\n` +
-    `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos = ${totalVideos} videos total\n` +
+    `  ${pastVideos.length} past videos + ${todayVideoRecords.length} today videos + 1 draft video = ${totalVideos} videos total\n` +
     `  3 teams (Metro, Investigations, Video)`
   );
 }

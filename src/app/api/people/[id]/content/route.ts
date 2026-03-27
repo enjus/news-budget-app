@@ -33,7 +33,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       prisma.storyAssignment.findMany({
         where: {
           personId: id,
-          story: { status: { not: "SHELVED" } },
+          story: { onBudget: true, status: { not: "SHELVED" } },
         },
         include: {
           story: {
@@ -52,7 +52,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       prisma.videoAssignment.findMany({
         where: {
           personId: id,
-          video: { status: { not: "SHELVED" } },
+          video: { onBudget: true, status: { not: "SHELVED" } },
         },
         include: {
           video: {

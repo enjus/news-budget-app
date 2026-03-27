@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
         where: {
+          onBudget: true,
           status: { not: "SHELVED" },
           AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
           ...(authorId
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
 
       prisma.video.findMany({
         where: {
+          onBudget: true,
           status: { not: "SHELVED" },
           AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
           ...(authorId

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const enterprise = searchParams.get("enterprise");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {};
+    const where: any = { onBudget: true };
 
     if (status) {
       where.status = status;
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { onlinePubDate, storyId, ...rest } = result.data;
+    const { onlinePubDate, storyId, onBudget, ...rest } = result.data;
 
     if (storyId) {
       const story = await prisma.story.findUnique({ where: { id: storyId } });
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
     const video = await prisma.video.create({
       data: {
         ...rest,
+        onBudget: onBudget ?? true,
+        createdByUserId: session.user.id,
         storyId: storyId ?? null,
         onlinePubDateTBD: onlineTBD,
         onlinePubDate: onlineTBD ? null : new Date(onlinePubDate!),

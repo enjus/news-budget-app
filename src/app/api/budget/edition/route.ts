@@ -30,6 +30,7 @@ export async function GET() {
     const [datedStories, tbdStories] = await Promise.all([
       prisma.story.findMany({
         where: {
+          onBudget: true,
           status: { not: "SHELVED" },
           printPubDateTBD: false,
           printPubDate: { gte: windowStart },
@@ -39,7 +40,7 @@ export async function GET() {
       }) as unknown as StoryListItem[],
 
       prisma.story.findMany({
-        where: { status: { not: "SHELVED" }, printPubDateTBD: true },
+        where: { onBudget: true, status: { not: "SHELVED" }, printPubDateTBD: true },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,

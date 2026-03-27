@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get("date");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {};
+    const where: any = { onBudget: true };
 
     if (status) {
       // Explicit status filter — show exactly that status (including SHELVED if requested)
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { onlinePubDate, printPubDate, ...rest } = result.data;
+    const { onlinePubDate, printPubDate, onBudget, ...rest } = result.data;
 
     // If TBD is false but no date provided, revert to TBD
     const onlineTBD = rest.onlinePubDateTBD || !onlinePubDate;
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
     const story = await prisma.story.create({
       data: {
         ...rest,
+        onBudget: onBudget ?? true,
+        createdByUserId: session.user.id,
         onlinePubDateTBD: onlineTBD,
         onlinePubDate: onlineTBD ? null : new Date(onlinePubDate!),
         printPubDateTBD: printTBD,

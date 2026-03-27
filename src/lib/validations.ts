@@ -64,6 +64,7 @@ export const createStorySchema = z.object({
   aiContributed: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   postUrl: optionalUrl,
+  onBudget: z.boolean().default(true),
 });
 
 export const updateStorySchema = z.object({
@@ -86,6 +87,7 @@ export const updateStorySchema = z.object({
   aiContributed: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   postUrl: optionalUrl,
+  onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
 });
 
@@ -131,6 +133,7 @@ export const createVideoSchema = z.object({
   reelsUrl: optionalUrl,
   tiktokUrl: optionalUrl,
   otherUrl: optionalUrl,
+  onBudget: z.boolean().default(true),
 });
 
 export const updateVideoSchema = z.object({
@@ -154,6 +157,7 @@ export const updateVideoSchema = z.object({
   reelsUrl: optionalUrl,
   tiktokUrl: optionalUrl,
   otherUrl: optionalUrl,
+  onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
 });
 
