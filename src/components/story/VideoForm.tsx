@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { Check, ChevronsUpDown, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,7 +34,8 @@ import {
   createVideoSchema,
   type CreateVideoInput,
 } from "@/lib/validations"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString } from "@/lib/utils"
+import { useSession } from "next-auth/react"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString, toVideoAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
@@ -160,6 +161,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
         },
   })
 
+  const { data: session } = useSession()
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
 
   const onlinePubDateTBD = watch("onlinePubDateTBD")
@@ -294,6 +296,10 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
 
   const assignedIds = pendingAssignments.map((a) => a.person.id)
 
+  const myPersonId = session?.user?.personId
+  const myDefaultRole = session?.user?.personDefaultRole
+  const alreadyAssignedMe = myPersonId ? assignedIds.includes(myPersonId) : true
+
   const submitButton = (
     <Button type="submit" disabled={isSubmitting}>
       {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Video"}
@@ -386,15 +392,38 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
               ))}
             </div>
           )}
-          <PersonPicker
-            onSelect={(person, role) =>
-              setPendingAssignments((prev) => [...prev, { person, role }])
-            }
-            excludeIds={assignedIds}
-            roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
-            defaultRole="VIDEOGRAPHER"
-            label="Add person"
-          />
+          <div className="flex items-center gap-2">
+            <PersonPicker
+              onSelect={(person, role) =>
+                setPendingAssignments((prev) => [...prev, { person, role }])
+              }
+              excludeIds={assignedIds}
+              roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
+              defaultRole="VIDEOGRAPHER"
+              label="Add person"
+            />
+            {myPersonId && myDefaultRole && !alreadyAssignedMe && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/people/${myPersonId}`)
+                    if (!res.ok) throw new Error("Could not load your profile")
+                    const person = await res.json()
+                    const role = toVideoAssignmentRole(myDefaultRole) as AssignmentRoleValue
+                    setPendingAssignments((prev) => [...prev, { person, role }])
+                  } catch {
+                    toast.error("Could not add you — profile not found")
+                  }
+                }}
+              >
+                <UserPlus className="size-3.5 mr-1.5" />
+                Add me
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

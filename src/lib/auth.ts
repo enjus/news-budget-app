@@ -31,6 +31,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
+          include: { person: { select: { defaultRole: true } } },
         })
 
         // SSO-only users have no passwordHash — reject credential login for them
@@ -47,7 +48,7 @@ export const authOptions: NextAuthOptions = {
         )
         if (!valid) return null
 
-        return { id: user.id, name: user.name, email: user.email, appRole: user.appRole, personId: user.personId }
+        return { id: user.id, name: user.name, email: user.email, appRole: user.appRole, personId: user.personId, personDefaultRole: user.person?.defaultRole ?? null }
       },
     }),
 
@@ -110,18 +111,20 @@ export const authOptions: NextAuthOptions = {
           // SSO sign-in: look up appRole/personId from the DB user
           const dbUser = await prisma.user.findUnique({
             where: { email: user.email! },
-            select: { id: true, appRole: true, personId: true },
+            select: { id: true, appRole: true, personId: true, person: { select: { defaultRole: true } } },
           })
           if (dbUser) {
             token.id = dbUser.id
             token.appRole = dbUser.appRole
             token.personId = dbUser.personId
+            token.personDefaultRole = dbUser.person?.defaultRole ?? null
           }
         } else {
           // Credentials sign-in: user object already has appRole from authorize()
           token.id = user.id
           token.appRole = (user as { id: string; appRole: string }).appRole
           token.personId = (user as { personId?: string | null }).personId ?? null
+          token.personDefaultRole = (user as { personDefaultRole?: string | null }).personDefaultRole ?? null
         }
         token.roleRefreshedAt = Date.now()
         // Per-token jitter so 100 users don't all refresh roles at the same instant
@@ -135,11 +138,12 @@ export const authOptions: NextAuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { appRole: true, personId: true },
+            select: { appRole: true, personId: true, person: { select: { defaultRole: true } } },
           })
           if (dbUser) {
             token.appRole = dbUser.appRole
             token.personId = dbUser.personId
+            token.personDefaultRole = dbUser.person?.defaultRole ?? null
           }
         } catch {
           // If DB is unreachable, keep the stale token values
@@ -154,6 +158,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         session.user.appRole = token.appRole as string
         session.user.personId = token.personId
+        session.user.personDefaultRole = token.personDefaultRole
       }
       return session
     },

@@ -215,6 +215,18 @@ export const ROLE_ABBREV: Record<string, string> = {
   PUBLICATION_DESIGNER: "PubOps",
 };
 
+/** Map a Person.defaultRole to a valid story assignment role (REPORTER|EDITOR|VIDEOGRAPHER|OTHER). */
+export function toStoryAssignmentRole(defaultRole: string): string {
+  if (defaultRole === "REPORTER" || defaultRole === "EDITOR" || defaultRole === "VIDEOGRAPHER") return defaultRole
+  return "OTHER"
+}
+
+/** Map a Person.defaultRole to a valid video assignment role (VIDEOGRAPHER|REPORTER|EDITOR|OTHER). */
+export function toVideoAssignmentRole(defaultRole: string): string {
+  if (defaultRole === "VIDEOGRAPHER" || defaultRole === "REPORTER" || defaultRole === "EDITOR") return defaultRole
+  return "OTHER"
+}
+
 export const STORY_STATUS_LABELS: Record<string, string> = {
   DRAFT: "In the works",
   SCHEDULED: "Scheduled",

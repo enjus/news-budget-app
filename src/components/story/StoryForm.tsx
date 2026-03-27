@@ -7,6 +7,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import { X } from "lucide-react"
+import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,7 +24,7 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -249,6 +250,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   const assignedIds = pendingAssignments.map((a) => a.person.id)
 
+  // "Add me" — available when session user has a linked Person and isn't already assigned
+  const myPersonId = session?.user?.personId
+  const myDefaultRole = session?.user?.personDefaultRole
+  const alreadyAssignedMe = myPersonId ? assignedIds.includes(myPersonId) : true
+
   const submitButton = (
     <Button type="submit" disabled={isSubmitting}>
       {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Story"}
@@ -341,13 +347,36 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               ))}
             </div>
           )}
-          <PersonPicker
-            onSelect={(person, role) =>
-              setPendingAssignments((prev) => [...prev, { person, role }])
-            }
-            excludeIds={assignedIds}
-            label="Add person"
-          />
+          <div className="flex items-center gap-2">
+            <PersonPicker
+              onSelect={(person, role) =>
+                setPendingAssignments((prev) => [...prev, { person, role }])
+              }
+              excludeIds={assignedIds}
+              label="Add person"
+            />
+            {myPersonId && myDefaultRole && !alreadyAssignedMe && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`/api/people/${myPersonId}`)
+                    if (!res.ok) throw new Error("Could not load your profile")
+                    const person = await res.json()
+                    const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
+                    setPendingAssignments((prev) => [...prev, { person, role }])
+                  } catch {
+                    toast.error("Could not add you — profile not found")
+                  }
+                }}
+              >
+                <UserPlus className="size-3.5 mr-1.5" />
+                Add me
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

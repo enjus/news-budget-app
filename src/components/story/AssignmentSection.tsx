@@ -1,10 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { UserPlus } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { PersonBadge } from "@/components/people/PersonBadge"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
-import { PERSON_ROLE_LABELS } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, toStoryAssignmentRole } from "@/lib/utils"
 import type { AssignmentWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 
@@ -16,6 +19,7 @@ interface AssignmentSectionProps {
 }
 
 export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: AssignmentSectionProps) {
+  const { data: session } = useSession()
   const [isAdding, setIsAdding] = useState(false)
 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
@@ -58,6 +62,33 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
 
   const assignedIds = assignments.map((a) => a.person.id)
 
+  const myPersonId = session?.user?.personId
+  const myDefaultRole = session?.user?.personDefaultRole
+  const alreadyAssignedMe = myPersonId ? assignedIds.includes(myPersonId) : true
+
+  async function handleAddMe() {
+    if (!myPersonId || !myDefaultRole) return
+    setIsAdding(true)
+    try {
+      const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
+      const res = await fetch(`/api/stories/${storyId}/assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personId: myPersonId, role }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? `Failed to add assignment (${res.status})`)
+      }
+      toast.success(`Added you as ${PERSON_ROLE_LABELS[role] ?? role}`)
+      onUpdate()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to add assignment")
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -80,11 +111,25 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
       )}
 
       {!readOnly && (
-        <PersonPicker
-          onSelect={handleAdd}
-          excludeIds={assignedIds}
-          label={isAdding ? "Adding..." : "Add person"}
-        />
+        <div className="flex items-center gap-2">
+          <PersonPicker
+            onSelect={handleAdd}
+            excludeIds={assignedIds}
+            label={isAdding ? "Adding..." : "Add person"}
+          />
+          {myPersonId && myDefaultRole && !alreadyAssignedMe && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isAdding}
+              onClick={handleAddMe}
+            >
+              <UserPlus className="size-3.5 mr-1.5" />
+              Add me
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
