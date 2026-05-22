@@ -517,8 +517,11 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
     if (refreshTrigger > 0) mutate()
   }, [refreshTrigger, mutate])
 
+  const safeDays: AgendaDay[] = currentData?.days ?? []
+  const safeTbd: AgendaDay = currentData?.tbd ?? { date: "TBD", stories: [], videos: [] }
+
   const allDateKeys = new Set([
-    ...(currentData?.days.map((d) => d.date) ?? []),
+    ...safeDays.map((d) => d.date),
     "TBD",
   ])
 
@@ -540,10 +543,13 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
 
       const itemId = isStory ? activeIdStr.slice("story-".length) : activeIdStr.slice("video-".length)
 
-      // Find source group and item
-      const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
+      const currentDays: AgendaDay[] = currentData.days ?? []
+      const currentTbd: AgendaDay = currentData.tbd ?? { date: "TBD", stories: [], videos: [] }
+      const allGroups: AgendaDay[] = [...currentDays, currentTbd]
+
       let sourceDate: string | null = null
       let sourceItem: StoryListItem | VideoWithRelations | null = null
+
       for (const group of allGroups) {
         if (isStory) {
           const story = group.stories.find((s) => s.id === itemId)
@@ -553,6 +559,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
           if (video) { sourceDate = group.date; sourceItem = video; break }
         }
       }
+
       if (!sourceDate || !sourceItem) return
 
       let targetDate: string = sourceDate
@@ -585,16 +592,10 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
       }
 
       if (targetDate === sourceDate && !targetBucketId) return
-      if (targetDate === sourceDate && targetBucketId) {
-        const srcBucket =
-          !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate
-            ? dateToBucket(new Date(sourceItem.onlinePubDate))
-            : null
-        if (srcBucket === targetBucketId) return
-      }
 
       let newPubDate: string | null = null
       let newTBD = false
+
       if (targetDate === "TBD") {
         newTBD = true
       } else if (targetBucketId) {
@@ -606,15 +607,13 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
         } else {
           newTBD = true
         }
+      } else if (!sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
+        const existing = new Date(sourceItem.onlinePubDate)
+        const h = String(existing.getUTCHours()).padStart(2, "0")
+        const m = String(existing.getUTCMinutes()).padStart(2, "0")
+        newPubDate = `${targetDate}T${h}:${m}:00.000Z`
       } else {
-        if (!sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate) {
-          const existing = new Date(sourceItem.onlinePubDate)
-          const h = String(existing.getUTCHours()).padStart(2, "0")
-          const m = String(existing.getUTCMinutes()).padStart(2, "0")
-          newPubDate = `${targetDate}T${h}:${m}:00.000Z`
-        } else {
-          newPubDate = `${targetDate}T00:00:00.000Z`
-        }
+        newPubDate = `${targetDate}T00:00:00.000Z`
       }
 
       const updatedItem = {
@@ -622,17 +621,21 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
         onlinePubDate: newPubDate as unknown as Date | null,
         onlinePubDateTBD: newTBD,
       }
+
       const drop = <T extends { id: string }>(arr: T[]) => arr.filter((x) => x.id !== itemId)
-      const updatedDays = currentData.days.map((day) => ({
+
+      const updatedDays = currentDays.map((day) => ({
         ...day,
         stories: isStory ? drop(day.stories) : day.stories,
         videos: isVideo ? drop(day.videos) : day.videos,
       }))
-      const updatedTbd = {
-        ...currentData.tbd,
-        stories: isStory ? drop(currentData.tbd.stories) : currentData.tbd.stories,
-        videos: isVideo ? drop(currentData.tbd.videos) : currentData.tbd.videos,
+
+      const updatedTbd: AgendaDay = {
+        ...currentTbd,
+        stories: isStory ? drop(currentTbd.stories) : currentTbd.stories,
+        videos: isVideo ? drop(currentTbd.videos) : currentTbd.videos,
       }
+
       if (targetDate === "TBD") {
         if (isStory) updatedTbd.stories.push(updatedItem as StoryListItem)
         else updatedTbd.videos.push(updatedItem as VideoWithRelations)
@@ -643,13 +646,16 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
           else updatedDays[idx].videos.push(updatedItem as VideoWithRelations)
         }
       }
+
       setLocalData({ ...currentData, days: updatedDays, tbd: updatedTbd })
 
       try {
         const patchBody: Record<string, unknown> = newTBD
           ? { onlinePubDateTBD: true, onlinePubDate: null }
           : { onlinePubDateTBD: false, onlinePubDate: newPubDate }
+
         const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
+
         await fetch(endpoint, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -669,21 +675,27 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
 
   function overlayContent() {
     if (!activeId || !currentData) return null
-    const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
+
+    const currentDays: AgendaDay[] = currentData.days ?? []
+    const currentTbd: AgendaDay = currentData.tbd ?? { date: "TBD", stories: [], videos: [] }
+    const allGroups: AgendaDay[] = [...currentDays, currentTbd]
+
     if (activeId.startsWith("story-")) {
       const id = activeId.slice("story-".length)
-      for (const g of allGroups) {
-        const story = g.stories.find((s) => s.id === id)
+      for (const group of allGroups) {
+        const story = group.stories.find((s) => s.id === id)
         if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator videoCount={story.videos.length} />
       }
     }
+
     if (activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
-      for (const g of allGroups) {
-        const video = g.videos.find((v) => v.id === id)
+      for (const group of allGroups) {
+        const video = group.videos.find((v) => v.id === id)
         if (video) return <VideoCard video={video} isDragging />
       }
     }
+
     return null
   }
 
@@ -704,8 +716,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
 
   if (!currentData) return null
 
-  const allGroups: AgendaDay[] = [...currentData.days, currentData.tbd]
-  const tbdGroup = currentData.tbd
+  const tbdGroup: AgendaDay = currentData.tbd ?? { date: "TBD", stories: [], videos: [] }
   const tbdStories = showStories ? tbdGroup.stories : []
   const tbdVideos = showVideos ? tbdGroup.videos : []
   const tbdCount = tbdStories.length + tbdVideos.length
@@ -718,7 +729,6 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
       collisionDetection={closestCenter}
     >
       <div className="space-y-6">
-        {/* ── TBD (collapsible, top) ── */}
         {tbdCount > 0 && (
           <div className="space-y-3">
             <button
@@ -731,12 +741,14 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
                 {tbdCount}
               </span>
             </button>
+
             {tbdExpanded && (() => {
               const tbdMerged = [
                 ...tbdStories.map((item) => ({ kind: "story" as const, item })),
                 ...tbdVideos.map((item) => ({ kind: "video" as const, item })),
               ]
               const tbdItemIds = tbdMerged.map((m) => `${m.kind}-${m.item.id}`)
+
               return (
                 <div className="border-l-2 border-border/40 pl-6">
                   <AgendaDayRow
@@ -776,9 +788,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
           </div>
         )}
 
-        {/* ── Dated days ── */}
-        {currentData.days.map((group) => {
-          const isTbd = false
+        {(currentData.days ?? []).map((group) => {
           const label = format(parseISO(group.date), "EEEE, MMMM d")
           const isToday = group.date === today
 
@@ -800,7 +810,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
           const itemIds = merged.map((m) => `${m.kind}-${m.item.id}`)
           const count = merged.length
 
-          const bucketGroups = isTbd ? null : TIME_BUCKETS
+          const bucketGroups = TIME_BUCKETS
             .filter((b) => b.id !== "TBD")
             .map((b) => ({
               bucket: b,
@@ -821,63 +831,38 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
               itemIds={itemIds}
               count={count}
             >
-              {bucketGroups ? (
-                <div className="space-y-3">
-                  {bucketGroups.map((bg) => (
-                    <DroppableBucketSection
-                      key={bg.bucket.id}
-                      id={`${group.date}::${bg.bucket.id}`}
-                      label={`${BUCKET_NAMES[bg.bucket.id]} · ${bg.bucket.label}`}
-                    >
-                      {bg.items.map((m) => (
-                        <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
-                          {m.kind === "story"
-                            ? <StoryCard
-                                story={m.item}
-                                showWordCount
-                                showPhotoIndicator
-                                videoCount={m.item.videos.length}
-                                budgetLineClamp={3}
-                                selectMode={selectMode}
-                                isSelected={selectedIds.has(`story-${m.item.id}`)}
-                                onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
-                              />
-                            : <VideoCard
-                                video={m.item as VideoWithRelations}
-                                budgetLineClamp={3}
-                                selectMode={selectMode}
-                                isSelected={selectedIds.has(`video-${m.item.id}`)}
-                                onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
-                              />}
-                        </SortableCard>
-                      ))}
-                    </DroppableBucketSection>
-                  ))}
-                </div>
-              ) : (
-                merged.map((m) => (
-                  <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
-                    {m.kind === "story"
-                      ? <StoryCard
-                          story={m.item}
-                          showWordCount
-                          showPhotoIndicator
-                          videoCount={m.item.videos.length}
-                          budgetLineClamp={3}
-                          selectMode={selectMode}
-                          isSelected={selectedIds.has(`story-${m.item.id}`)}
-                          onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
-                        />
-                      : <VideoCard
-                          video={m.item as VideoWithRelations}
-                          budgetLineClamp={3}
-                          selectMode={selectMode}
-                          isSelected={selectedIds.has(`video-${m.item.id}`)}
-                          onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
-                        />}
-                  </SortableCard>
-                ))
-              )}
+              <div className="space-y-3">
+                {bucketGroups.map((bg) => (
+                  <DroppableBucketSection
+                    key={bg.bucket.id}
+                    id={`${group.date}::${bg.bucket.id}`}
+                    label={`${BUCKET_NAMES[bg.bucket.id]} · ${bg.bucket.label}`}
+                  >
+                    {bg.items.map((m) => (
+                      <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
+                        {m.kind === "story"
+                          ? <StoryCard
+                              story={m.item}
+                              showWordCount
+                              showPhotoIndicator
+                              videoCount={m.item.videos.length}
+                              budgetLineClamp={3}
+                              selectMode={selectMode}
+                              isSelected={selectedIds.has(`story-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
+                            />
+                          : <VideoCard
+                              video={m.item as VideoWithRelations}
+                              budgetLineClamp={3}
+                              selectMode={selectMode}
+                              isSelected={selectedIds.has(`video-${m.item.id}`)}
+                              onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
+                            />}
+                      </SortableCard>
+                    ))}
+                  </DroppableBucketSection>
+                ))}
+              </div>
             </AgendaDayRow>
           )
         })}
@@ -885,7 +870,6 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
     </DndProvider>
   )
 }
-
 // ─── Main View ────────────────────────────────────────────────────────────────
 
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
