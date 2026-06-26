@@ -19,6 +19,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { cn, todayString } from "@/lib/utils"
 import type { EditionDateGroup } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ interface EditionResponse {
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -233,7 +234,7 @@ export function EditionView() {
           patchBody = { printPubDate: midnight.toISOString(), printPubDateTBD: false }
         }
 
-        await fetch(`/api/stories/${itemId}`, {
+        await fetch(apiPath(`/api/stories/${itemId}`), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),

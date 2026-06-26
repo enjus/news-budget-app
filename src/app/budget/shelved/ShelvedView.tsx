@@ -23,6 +23,7 @@ import { useStories } from "@/lib/hooks/useStories"
 import { useVideos } from "@/lib/hooks/useVideos"
 import { STORY_STATUS_LABELS, todayString } from "@/lib/utils"
 import { toast } from "sonner"
+import { apiPath } from "@/lib/api-path"
 
 function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
   if (!shelvedAt) return null
@@ -46,7 +47,7 @@ export function ShelvedView() {
   async function unarchive(type: "story" | "video", id: string) {
     setWorking(id)
     try {
-      const endpoint = `/api/${type === "story" ? "stories" : "videos"}/${id}`
+      const endpoint = apiPath(`/api/${type === "story" ? "stories" : "videos"}/${id}`)
       const res = await fetch(endpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -88,7 +89,7 @@ export function ShelvedView() {
   async function deleteItem(type: "story" | "video", id: string) {
     setWorking(id)
     try {
-      const res = await fetch(`/api/${type === "story" ? "stories" : "videos"}/${id}`, {
+      const res = await fetch(apiPath(`/api/${type === "story" ? "stories" : "videos"}/${id}`), {
         method: "DELETE",
       })
       if (!res.ok) throw new Error("Failed to delete")

@@ -17,6 +17,7 @@ import { PersonBadge } from "@/components/people/PersonBadge"
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { VisualWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface VisualSectionProps {
   storyId: string
@@ -40,7 +41,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       if (newDescription.trim()) body.description = newDescription.trim()
       if (newPersonId) body.personId = newPersonId
 
-      const res = await fetch(`/api/stories/${storyId}/visuals`, {
+      const res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -63,7 +64,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
 
   async function handleRemove(visualId: string) {
     try {
-      const res = await fetch(`/api/visuals/${visualId}`, { method: "DELETE" })
+      const res = await fetch(apiPath(`/api/visuals/${visualId}`), { method: "DELETE" })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Failed to remove visual (${res.status})`)

@@ -1,9 +1,10 @@
 "use client"
 
 import { SWRConfig } from "swr"
+import { apiPath } from "@/lib/api-path"
 
 const fetcher = async (url: string) => {
-  const res = await fetch(url)
+  const res = await fetch(apiPath(url))
   if (!res.ok) {
     const error = new Error(`Request failed with status ${res.status}`)
     throw error

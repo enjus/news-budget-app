@@ -18,6 +18,7 @@ import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn } from "@/lib/utils"
 import type { EnterpriseDateGroup, VideoWithRelations } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ interface EnterpriseResponse {
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -335,8 +336,8 @@ export function EnterpriseView() {
         }
 
         const endpoint = isStory
-          ? `/api/stories/${itemId}`
-          : `/api/videos/${itemId}`
+          ? apiPath(`/api/stories/${itemId}`)
+          : apiPath(`/api/videos/${itemId}`)
 
         await fetch(endpoint, {
           method: "PATCH",

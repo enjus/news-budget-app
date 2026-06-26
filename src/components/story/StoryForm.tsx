@@ -29,6 +29,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 const STATUS_OPTIONS = [
   "DRAFT",
@@ -160,7 +161,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       ? `Status → ${STORY_STATUS_LABELS[watchedStatus] ?? watchedStatus}`
       : "Saved"
     prevAutoSaveValues.current = { status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }
-    fetch(`/api/stories/${story!.id}`, {
+    fetch(apiPath(`/api/stories/${story!.id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }),
@@ -203,7 +204,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         payload.version = story.version
       }
 
-      const url = isEdit ? `/api/stories/${story!.id}` : "/api/stories"
+      const url = apiPath(isEdit ? `/api/stories/${story!.id}` : "/api/stories")
       const method = isEdit ? "PATCH" : "POST"
 
       const res = await fetch(url, {
@@ -228,7 +229,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       if (!isEdit && pendingAssignments.length > 0) {
         await Promise.all(
           pendingAssignments.map((a) =>
-            fetch(`/api/stories/${saved.id}/assignments`, {
+            fetch(apiPath(`/api/stories/${saved.id}/assignments`), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ personId: a.person.id, role: a.role }),
@@ -370,7 +371,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
                 size="sm"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/people/${myPersonId}`)
+                    const res = await fetch(apiPath(`/api/people/${myPersonId}`))
                     if (!res.ok) throw new Error("Could not load your profile")
                     const person = await res.json()
                     const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue

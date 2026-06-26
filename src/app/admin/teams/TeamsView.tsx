@@ -14,6 +14,7 @@ import { PersonPicker } from "@/components/people/PersonPicker"
 import { useAdminTeams } from "@/lib/hooks/useTeams"
 import { PERSON_ROLE_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface TeamFormData {
   name: string
@@ -96,7 +97,7 @@ function MembersDialog({
   async function handleAddMember(person: Person, role: string) {
     // Map PersonPicker role to TeamMemberRole
     const teamRole = role === "EDITOR" ? "EDITOR" : "MEMBER"
-    const res = await fetch(`/api/admin/teams/${team.id}/members`, {
+    const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ personId: person.id, role: teamRole }),
@@ -111,7 +112,7 @@ function MembersDialog({
   }
 
   async function handleRemoveMember(memberId: string, memberName: string) {
-    const res = await fetch(`/api/admin/teams/${team.id}/members/${memberId}`, {
+    const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
       method: "DELETE",
     })
     if (!res.ok) {
@@ -204,7 +205,7 @@ export function TeamsView() {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
 
   async function handleCreate(formData: TeamFormData) {
-    const res = await fetch("/api/admin/teams", {
+    const res = await fetch(apiPath("/api/admin/teams"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -222,7 +223,7 @@ export function TeamsView() {
   }
 
   async function handleEdit(teamId: string, formData: TeamFormData) {
-    const res = await fetch(`/api/admin/teams/${teamId}`, {
+    const res = await fetch(apiPath(`/api/admin/teams/${teamId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -241,7 +242,7 @@ export function TeamsView() {
 
   async function handleDelete(team: { id: string; name: string }) {
     if (!confirm(`Delete team "${team.name}"? This cannot be undone.`)) return
-    const res = await fetch(`/api/admin/teams/${team.id}`, { method: "DELETE" })
+    const res = await fetch(apiPath(`/api/admin/teams/${team.id}`), { method: "DELETE" })
     if (!res.ok) {
       toast.error("Failed to delete team")
     } else {

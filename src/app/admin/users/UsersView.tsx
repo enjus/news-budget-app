@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn, APP_ROLE_LABELS } from "@/lib/utils"
+import { apiPath } from "@/lib/api-path"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -134,7 +135,7 @@ export function UsersView() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
 
   async function handleCreate(formData: UserFormData) {
-    const res = await fetch("/api/admin/users", {
+    const res = await fetch(apiPath("/api/admin/users"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
@@ -156,7 +157,7 @@ export function UsersView() {
     }
     if (formData.password) body.password = formData.password
 
-    const res = await fetch(`/api/admin/users/${userId}`, {
+    const res = await fetch(apiPath(`/api/admin/users/${userId}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -172,7 +173,7 @@ export function UsersView() {
 
   async function handleDelete(user: AdminUser) {
     if (!confirm(`Delete user "${user.name}"? This cannot be undone.`)) return
-    const res = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" })
+    const res = await fetch(apiPath(`/api/admin/users/${user.id}`), { method: "DELETE" })
     if (!res.ok) {
       const err = res.status !== 204 ? await res.json() : {}
       toast.error(err.error ?? "Failed to delete user")

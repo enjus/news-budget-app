@@ -26,6 +26,7 @@ import { StoryVideoSection } from "./StoryVideoSection"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface StoryDetailProps {
   story: StoryWithRelations
@@ -41,7 +42,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
   async function handleSendToBudget() {
     setSendingToBudget(true)
     try {
-      const res = await fetch(`/api/stories/${story.id}/publish`, { method: "POST" })
+      const res = await fetch(apiPath(`/api/stories/${story.id}/publish`), { method: "POST" })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? "Failed to send to budget")
@@ -57,7 +58,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
 
   async function patchStatus(status: string) {
     try {
-      const res = await fetch(`/api/stories/${story.id}`, {
+      const res = await fetch(apiPath(`/api/stories/${story.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, version: story.version }),

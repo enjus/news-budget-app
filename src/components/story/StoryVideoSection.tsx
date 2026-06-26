@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/command"
 import { STORY_STATUS_LABELS } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface VideoPickerItem {
   id: string
@@ -45,7 +46,7 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
   async function fetchVideos(q: string) {
     setSearching(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      const res = await fetch(apiPath(`/api/search?q=${encodeURIComponent(q)}`))
       const data = await res.json()
       setResults(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,7 +73,7 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
 
   async function disassociate(videoId: string) {
     try {
-      const res = await fetch(`/api/videos/${videoId}`, {
+      const res = await fetch(apiPath(`/api/videos/${videoId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: null }),
@@ -91,7 +92,7 @@ export function StoryVideoSection({ story, onUpdate }: StoryVideoSectionProps) {
   async function associate(videoId: string) {
     setAssociating(true)
     try {
-      const res = await fetch(`/api/videos/${videoId}`, {
+      const res = await fetch(apiPath(`/api/videos/${videoId}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: story.id }),

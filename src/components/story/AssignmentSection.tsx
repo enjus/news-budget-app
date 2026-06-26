@@ -10,6 +10,7 @@ import { PersonPicker, type AssignmentRoleValue } from "@/components/people/Pers
 import { PERSON_ROLE_LABELS, toStoryAssignmentRole } from "@/lib/utils"
 import type { AssignmentWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface AssignmentSectionProps {
   storyId: string
@@ -25,7 +26,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
     setIsAdding(true)
     try {
-      const res = await fetch(`/api/stories/${storyId}/assignments`, {
+      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: person.id, role }),
@@ -46,7 +47,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
   async function handleRemove(personId: string, role: string) {
     try {
       const params = new URLSearchParams({ personId, role })
-      const res = await fetch(`/api/stories/${storyId}/assignments?${params}`, {
+      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments?${params}`), {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -71,7 +72,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
     setIsAdding(true)
     try {
       const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
-      const res = await fetch(`/api/stories/${storyId}/assignments`, {
+      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: myPersonId, role }),

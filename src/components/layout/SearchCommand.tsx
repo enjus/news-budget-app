@@ -22,6 +22,7 @@ import {
 import { cn, STORY_STATUS_LABELS } from "@/lib/utils"
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { SearchResult } from "@/app/api/search/route"
+import { apiPath } from "@/lib/api-path"
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -97,7 +98,7 @@ export function SearchCommand() {
     if (debouncedQuery) params.set("q", debouncedQuery)
     if (authorId) params.set("authorId", authorId)
 
-    fetch(`/api/search?${params}`)
+    fetch(apiPath(`/api/search?${params}`))
       .then((r) => r.json())
       .then((data) => setResults(data.results ?? []))
       .catch(() => setResults([]))

@@ -28,6 +28,7 @@ import {
 } from "@/lib/validations"
 import { PERSON_ROLE_LABELS } from "@/lib/utils"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 const ROLE_OPTIONS = [
   "REPORTER",
@@ -74,7 +75,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
     try {
-      const url = isEdit ? `/api/people/${person!.id}` : "/api/people"
+      const url = apiPath(isEdit ? `/api/people/${person!.id}` : "/api/people")
       const method = isEdit ? "PATCH" : "POST"
 
       const res = await fetch(url, {

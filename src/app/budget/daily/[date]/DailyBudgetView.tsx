@@ -31,6 +31,7 @@ import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS } from
 import { usePreferences } from "@/lib/hooks/usePreferences"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
+import { apiPath } from "@/lib/api-path"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ interface ContentViewProps {
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 // ─── Next Morning Drop Zone ───────────────────────────────────────────────────
 
@@ -267,7 +268,7 @@ function ColumnsView({ date, showStories, showVideos, selectMode, selectedIds, o
             }
           }
         }
-        const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
+        const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
         await fetch(endpoint, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -654,7 +655,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
           ? { onlinePubDateTBD: true, onlinePubDate: null }
           : { onlinePubDateTBD: false, onlinePubDate: newPubDate }
 
-        const endpoint = isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`
+        const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
 
         await fetch(endpoint, {
           method: "PATCH",
@@ -924,7 +925,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
         snapshot.map(async ([compositeId]) => {
           const isStory = compositeId.startsWith("story-")
           const id = compositeId.slice(isStory ? "story-".length : "video-".length)
-          const res = await fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+          const res = await fetch(apiPath(isStory ? `/api/stories/${id}` : `/api/videos/${id}`), {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status: bulkStatus }),
@@ -944,7 +945,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               snapshot.map(async ([compositeId, originalStatus]) => {
                 const isStory = compositeId.startsWith("story-")
                 const id = compositeId.slice(isStory ? "story-".length : "video-".length)
-                const res = await fetch(isStory ? `/api/stories/${id}` : `/api/videos/${id}`, {
+                const res = await fetch(apiPath(isStory ? `/api/stories/${id}` : `/api/videos/${id}`), {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ status: originalStatus }),

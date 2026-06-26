@@ -38,6 +38,7 @@ import { useSession } from "next-auth/react"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString, toVideoAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import { apiPath } from "@/lib/api-path"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
@@ -87,7 +88,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
   async function fetchStories(q: string) {
     setSearching(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+      const res = await fetch(apiPath(`/api/search?q=${encodeURIComponent(q)}`))
       const data = await res.json()
       setStoryResults(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -204,7 +205,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
       ? `Status → ${STORY_STATUS_LABELS[watchedStatus] ?? watchedStatus}`
       : "Saved"
     prevAutoSaveValues.current = { status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }
-    fetch(`/api/videos/${video!.id}`, {
+    fetch(apiPath(`/api/videos/${video!.id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }),
@@ -241,7 +242,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
         payload.version = video.version
       }
 
-      const url = isEdit ? `/api/videos/${video!.id}` : "/api/videos"
+      const url = apiPath(isEdit ? `/api/videos/${video!.id}` : "/api/videos")
       const method = isEdit ? "PATCH" : "POST"
 
       const res = await fetch(url, {
@@ -266,7 +267,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
       if (!isEdit && pendingAssignments.length > 0) {
         await Promise.all(
           pendingAssignments.map((a) =>
-            fetch(`/api/videos/${saved.id}/assignments`, {
+            fetch(apiPath(`/api/videos/${saved.id}/assignments`), {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ personId: a.person.id, role: a.role }),
@@ -409,7 +410,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                 size="sm"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`/api/people/${myPersonId}`)
+                    const res = await fetch(apiPath(`/api/people/${myPersonId}`))
                     if (!res.ok) throw new Error("Could not load your profile")
                     const person = await res.json()
                     const role = toVideoAssignmentRole(myDefaultRole) as AssignmentRoleValue

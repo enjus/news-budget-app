@@ -14,6 +14,7 @@ import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import type { StoryListItem, VideoWithRelations } from "@/types"
 import { toast } from "sonner"
+import { apiPath } from "@/lib/api-path"
 
 function formatItemDate(date: string | null | undefined, tbd: boolean): string {
   if (tbd || !date) return "TBD"
@@ -58,8 +59,8 @@ function DraftsSection() {
     setPublishing((prev) => new Set(prev).add(id))
     try {
       const endpoint = type === "story"
-        ? `/api/stories/${id}/publish`
-        : `/api/videos/${id}/publish`
+        ? apiPath(`/api/stories/${id}/publish`)
+        : apiPath(`/api/videos/${id}/publish`)
       const res = await fetch(endpoint, { method: "POST" })
       if (!res.ok) {
         const data = await res.json()

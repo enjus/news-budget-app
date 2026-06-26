@@ -21,6 +21,7 @@ import { PersonForm } from "./PersonForm"
 import { usePeople } from "@/lib/hooks/usePeople"
 import { PERSON_ROLE_LABELS } from "@/lib/utils"
 import type { PersonWithCounts } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 export function PersonList() {
   const { people, isLoading, mutate } = usePeople()
@@ -29,7 +30,7 @@ export function PersonList() {
   async function handleDelete(person: PersonWithCounts) {
     setDeletingId(person.id)
     try {
-      const res = await fetch(`/api/people/${person.id}`, { method: "DELETE" })
+      const res = await fetch(apiPath(`/api/people/${person.id}`), { method: "DELETE" })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Delete failed (${res.status})`)

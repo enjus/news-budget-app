@@ -65,6 +65,13 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: "jwt" },
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // baseUrl includes the basePath (from NEXTAUTH_URL), e.g. http://host/news-budget
+      // Keep relative URLs within the app and reject off-site redirects.
+      if (url.startsWith("/")) return `${baseUrl}${url}`
+      if (new URL(url).origin === new URL(baseUrl).origin) return url
+      return baseUrl
+    },
     async signIn({ user, account, profile }) {
       if (account?.provider === "azure-ad") {
         const azureProfile = profile as AzureADProfile | undefined

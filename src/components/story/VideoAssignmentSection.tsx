@@ -10,6 +10,7 @@ import { PersonPicker, type AssignmentRoleValue } from "@/components/people/Pers
 import { PERSON_ROLE_LABELS, toVideoAssignmentRole } from "@/lib/utils"
 import type { VideoAssignmentWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
+import { apiPath } from "@/lib/api-path"
 
 interface VideoAssignmentSectionProps {
   videoId: string
@@ -30,7 +31,7 @@ export function VideoAssignmentSection({
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
     setIsAdding(true)
     try {
-      const res = await fetch(`/api/videos/${videoId}/assignments`, {
+      const res = await fetch(apiPath(`/api/videos/${videoId}/assignments`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: person.id, role }),
@@ -51,7 +52,7 @@ export function VideoAssignmentSection({
   async function handleRemove(personId: string, role: string) {
     try {
       const params = new URLSearchParams({ personId, role })
-      const res = await fetch(`/api/videos/${videoId}/assignments?${params}`, {
+      const res = await fetch(apiPath(`/api/videos/${videoId}/assignments?${params}`), {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -76,7 +77,7 @@ export function VideoAssignmentSection({
     setIsAdding(true)
     try {
       const role = toVideoAssignmentRole(myDefaultRole) as AssignmentRoleValue
-      const res = await fetch(`/api/videos/${videoId}/assignments`, {
+      const res = await fetch(apiPath(`/api/videos/${videoId}/assignments`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: myPersonId, role }),
