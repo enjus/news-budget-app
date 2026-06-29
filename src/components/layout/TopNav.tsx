@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
 import { useMyTeams } from "@/lib/hooks/useTeams"
+import { apiPath } from "@/lib/api-path"
 
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
@@ -152,7 +153,7 @@ export function TopNav() {
                   Settings
                 </Link>
                 <button
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={() => signOut({ callbackUrl: apiPath("/login") })}
                   className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 >
                   <LogOut className="size-3.5" />
@@ -268,7 +269,7 @@ export function TopNav() {
             </Link>
             {session?.user && (
               <button
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                onClick={() => signOut({ callbackUrl: apiPath("/login") })}
                 className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               >
                 <LogOut className="size-4" />
