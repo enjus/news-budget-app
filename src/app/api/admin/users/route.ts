@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
 import { createUserSchema } from "@/lib/validations"
-import { checkWriteLimit } from "@/lib/api-helpers"
+import { checkWriteLimit, userUniqueConstraintMessage } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
     return Response.json({ user }, { status: 201 })
   } catch (error: unknown) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
-      return Response.json({ error: "A user with that email already exists" }, { status: 409 })
+      return Response.json({ error: userUniqueConstraintMessage(error) }, { status: 409 })
     }
     throw error
   }
