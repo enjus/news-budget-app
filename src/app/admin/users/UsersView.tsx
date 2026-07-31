@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { cn, APP_ROLE_LABELS } from "@/lib/utils"
 import { apiPath } from "@/lib/api-path"
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 interface AdminUser {
   id: string

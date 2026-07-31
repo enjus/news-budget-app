@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { apiPath } from "@/lib/api-path"
 import Link from "next/link"
 import useSWR from "swr"
 import { format } from "date-fns"
@@ -38,7 +39,7 @@ interface PersonData {
   items: PersonContentItem[]
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 function itemDateStr(item: PersonContentItem): string | null {
   if (item.onlinePubDateTBD || !item.onlinePubDate) return null
