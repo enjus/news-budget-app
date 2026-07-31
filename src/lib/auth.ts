@@ -94,13 +94,13 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!dbUser) {
-          // Auto-create with VIEWER role — admin can promote later
+          // Auto-create with PRODUCER role — admin can elevate to higher roles later
           await prisma.user.create({
             data: {
               email,
               name: user.name ?? email,
               passwordHash: null,
-              appRole: "VIEWER",
+              appRole: "PRODUCER",
             },
           })
         }
