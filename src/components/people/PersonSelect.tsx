@@ -25,6 +25,12 @@ interface PersonSelectProps {
   onChange: (personId: string | null) => void
   /** People to hide from the list (e.g. already linked to another user). */
   excludeIds?: string[]
+  /**
+   * Display name to fall back to when `value` isn't found in the loaded
+   * `usePeople()` page (e.g. the linked person falls outside the API's
+   * default 200-result page). Display only — does not affect selection.
+   */
+  fallbackLabel?: string | null
   placeholder?: string
   id?: string
 }
@@ -37,6 +43,7 @@ export function PersonSelect({
   value,
   onChange,
   excludeIds = [],
+  fallbackLabel,
   placeholder = "No linked person",
   id,
 }: PersonSelectProps) {
@@ -47,6 +54,9 @@ export function PersonSelect({
   const availablePeople = people.filter(
     (p) => p.id === value || !excludeIds.includes(p.id)
   )
+  // selectedPerson can be null even when a link exists, if that person
+  // falls outside usePeople()'s loaded page — fall back to the known name.
+  const triggerLabel = selectedPerson?.name ?? (value ? fallbackLabel : null) ?? placeholder
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -59,8 +69,8 @@ export function PersonSelect({
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
-          <span className={cn(!selectedPerson && "text-muted-foreground")}>
-            {selectedPerson ? selectedPerson.name : placeholder}
+          <span className={cn(!value && "text-muted-foreground")}>
+            {triggerLabel}
           </span>
           <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
         </Button>

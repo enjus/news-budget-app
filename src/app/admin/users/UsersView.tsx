@@ -129,6 +129,7 @@ function UserForm({
           value={data.personId}
           onChange={(personId) => setData((d) => ({ ...d, personId }))}
           excludeIds={takenPersonIds}
+          fallbackLabel={initial?.person?.name}
         />
         <p className="text-xs text-muted-foreground">
           Links this account to a staff member, so their assigned content shows
