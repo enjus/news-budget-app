@@ -1,3 +1,4 @@
+import { notifyStoryTeam } from "@/lib/notifications";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -119,7 +120,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         );
       }
       // Fetch the full updated record to return
-      const story = await prisma.story.findUnique({ where: { id }, include: storyInclude });
+      const story = await prisma.story.findUnique({
+        where: { id },
+        include: storyInclude,
+      });
+
+      if (story?.notifyTeam) {
+        notifyStoryTeam(story).catch((error) =>
+          console.error("Story notification failed:", error)
+        );
+      }
+
       return NextResponse.json(story);
     }
 
@@ -129,6 +140,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data,
       include: storyInclude,
     });
+
+    if (story?.notifyTeam) {
+      notifyStoryTeam(story).catch((error) =>
+        console.error("Story notification failed:", error)
+      );
+    }
 
     return NextResponse.json(story);
   } catch (error: any) {
