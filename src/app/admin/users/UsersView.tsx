@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { PersonSelect } from "@/components/people/PersonSelect"
 import { cn, APP_ROLE_LABELS } from "@/lib/utils"
 import { apiPath } from "@/lib/api-path"
 
@@ -30,6 +31,7 @@ interface UserFormData {
   email: string
   password: string
   appRole: string
+  personId: string | null
 }
 
 function UserForm({
@@ -37,17 +39,20 @@ function UserForm({
   onSave,
   onClose,
   isCreate,
+  takenPersonIds,
 }: {
   initial?: Partial<AdminUser>
   onSave: (data: UserFormData) => Promise<void>
   onClose: () => void
   isCreate: boolean
+  takenPersonIds: string[]
 }) {
   const [data, setData] = useState<UserFormData>({
     name: initial?.name ?? "",
     email: initial?.email ?? "",
     password: "",
     appRole: initial?.appRole ?? "PRODUCER",
+    personId: initial?.personId ?? null,
   })
   const [saving, setSaving] = useState(false)
 
@@ -117,6 +122,20 @@ function UserForm({
           </SelectContent>
         </Select>
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="u-person">Linked Person</Label>
+        <PersonSelect
+          id="u-person"
+          value={data.personId}
+          onChange={(personId) => setData((d) => ({ ...d, personId }))}
+          excludeIds={takenPersonIds}
+          fallbackLabel={initial?.person?.name}
+        />
+        <p className="text-xs text-muted-foreground">
+          Links this account to a staff member, so their assigned content shows
+          under Me and their teams show under My Teams.
+        </p>
+      </div>
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
@@ -150,10 +169,12 @@ export function UsersView() {
   }
 
   async function handleEdit(userId: string, formData: UserFormData) {
-    const body: Record<string, string> = {
+    const body: Record<string, unknown> = {
       name: formData.name,
       email: formData.email,
       appRole: formData.appRole,
+      // Always sent — an explicit null clears the link
+      personId: formData.personId,
     }
     if (formData.password) body.password = formData.password
 
@@ -185,6 +206,13 @@ export function UsersView() {
 
   const users = data?.users ?? []
 
+  /** People already linked to some account — User.personId is unique. */
+  function takenPersonIdsExcept(userId?: string): string[] {
+    return users
+      .filter((u) => u.personId && u.id !== userId)
+      .map((u) => u.personId!)
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -202,6 +230,7 @@ export function UsersView() {
             </DialogHeader>
             <UserForm
               isCreate
+              takenPersonIds={takenPersonIdsExcept()}
               onSave={handleCreate}
               onClose={() => setCreateOpen(false)}
             />
@@ -272,6 +301,7 @@ export function UsersView() {
                             <UserForm
                               isCreate={false}
                               initial={user}
+                              takenPersonIds={takenPersonIdsExcept(user.id)}
                               onSave={(formData) => handleEdit(user.id, formData)}
                               onClose={() => setEditingUserId(null)}
                             />

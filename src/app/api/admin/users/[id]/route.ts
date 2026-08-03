@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
 import { updateUserSchema } from "@/lib/validations"
-import { checkWriteLimit } from "@/lib/api-helpers"
+import { checkWriteLimit, userUniqueConstraintMessage } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -47,7 +47,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return Response.json({ error: "User not found" }, { status: 404 })
     }
     if (error?.code === "P2002") {
-      return Response.json({ error: "A user with that email already exists" }, { status: 409 })
+      return Response.json({ error: userUniqueConstraintMessage(error) }, { status: 409 })
     }
     console.error("PATCH /api/admin/users/[id] error:", error)
     return Response.json({ error: "Failed to update user" }, { status: 500 })

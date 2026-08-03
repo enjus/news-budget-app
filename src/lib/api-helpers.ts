@@ -35,6 +35,22 @@ export function requireJSON(request: NextRequest): NextResponse | null {
   return null
 }
 
+/**
+ * Message for a P2002 (unique constraint) error on User.
+ * Both `email` and `personId` are unique, so the violated target decides the
+ * wording. Prisma reports `meta.target` as a string[] of field names or a
+ * constraint name, depending on the driver — handle both.
+ */
+export function userUniqueConstraintMessage(error: unknown): string {
+  const meta = (error as { meta?: { target?: string[] | string } }).meta
+  const target = Array.isArray(meta?.target)
+    ? meta.target.join(",")
+    : String(meta?.target ?? "")
+  return target.includes("personId")
+    ? "That person is already linked to another user account"
+    : "A user with that email already exists"
+}
+
 export function checkReadLimit(userId: string): NextResponse | null {
   const { success, remaining } = readLimiter.check(READ_LIMIT, userId)
   if (!success) {
