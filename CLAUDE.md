@@ -101,7 +101,7 @@ No test suite exists yet.
 | `PersonRole` / `defaultRole` | REPORTER, EDITOR, PHOTOGRAPHER, VIDEOGRAPHER, GRAPHIC_DESIGNER, PUBLICATION_DESIGNER, OTHER |
 | `AssignmentRole` (story) | REPORTER, EDITOR, OTHER |
 | `VideoAssignmentRole` | REPORTER, EDITOR, VIDEOGRAPHER, OTHER |
-| `VisualType` | PHOTO, GRAPHIC, MAP |
+| `VisualType` | PHOTO, GRAPHIC, MAP, VIDEO |
 | `StoryStatus` / `VideoStatus` | DRAFT, SCHEDULED, PUBLISHED_ITERATING, PUBLISHED_FINAL, SHELVED |
 | `AppRole` (User) | ADMIN, EDITOR, VIEWER |
 
@@ -183,6 +183,20 @@ Seeds 15-day historical budget + enterprise stories extending 180 days forward.
 - Alice Chen (REPORTER), Bob Martinez (EDITOR), Carol Williams (REPORTER), David Kim (PHOTOGRAPHER), Elena Patel (GRAPHIC_DESIGNER), Frank Johnson (EDITOR), Maya Singh (VIDEOGRAPHER), Sam Okafor (EDITOR → `admin@newsroom.com`), Jamie Rivera (EDITOR → `director@newsroom.com`)
 
 **Date encoding**: All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`). The seed helper `d(offsetDays, hour)` constructs these dates.
+
+### Feature Flags (`src/lib/features.ts`)
+
+| Flag | Env var | Default | Effect when `false` |
+|------|---------|---------|---------------------|
+| `VIDEOS_ENABLED` | `NEXT_PUBLIC_VIDEOS_ENABLED` | `true` | Hides all standalone video UI: "New Video" buttons, the Videos toggle on the daily view, the shelved-videos section, video results in search, and video rows in Me/Teams views. `/videos/new` and `/videos/[id]` redirect to `/`. Videos linked to stories remain in the DB but are not surfaced. |
+
+**Important**: `NEXT_PUBLIC_VIDEOS_ENABLED` is baked into the client bundle at build time. Toggling it requires a full rebuild — changing the env var in a hosting dashboard and redeploying without a rebuild will update server-side redirects but leave the client UI unchanged.
+
+**Activating standalone video** (re-enabling after it has been hidden):
+1. Set `NEXT_PUBLIC_VIDEOS_ENABLED=true` in your environment (or remove the variable — it defaults to `true`).
+2. Rebuild and redeploy (`npm run build`).
+
+**When `VIDEOS_ENABLED=false`**: the `VIDEO` option remains available in the Visuals section on story detail pages as a lightweight substitute — editors can tag a visual element as type `VIDEO` to note that video coverage exists for a story without creating a full standalone video record.
 
 ### Environment Variables
 
