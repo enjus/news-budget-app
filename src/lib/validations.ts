@@ -14,7 +14,7 @@ export const PersonRoleEnum = z.enum([
 
 export const AssignmentRoleEnum = z.enum(["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]);
 
-export const VisualTypeEnum = z.enum(["PHOTO", "GRAPHIC", "MAP"]);
+export const VisualTypeEnum = z.enum(["PHOTO", "GRAPHIC", "MAP", "VIDEO"]);
 
 export const StoryStatusEnum = z.enum([
   "DRAFT",

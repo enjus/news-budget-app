@@ -11,6 +11,7 @@ import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
@@ -103,12 +104,14 @@ export function TopNav() {
                   New Story
                 </Link>
               </Button>
-              <Button asChild size="sm">
-                <Link href="/videos/new">
-                  <Plus className="size-4" />
-                  New Video
-                </Link>
-              </Button>
+              {VIDEOS_ENABLED && (
+                <Button asChild size="sm">
+                  <Link href="/videos/new">
+                    <Plus className="size-4" />
+                    New Video
+                  </Link>
+                </Button>
+              )}
             </>
           )}
 
@@ -228,14 +231,16 @@ export function TopNav() {
                   <Plus className="size-4" />
                   New Story
                 </Link>
-                <Link
-                  href="/videos/new"
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  <Plus className="size-4" />
-                  New Video
-                </Link>
+                {VIDEOS_ENABLED && (
+                  <Link
+                    href="/videos/new"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    <Plus className="size-4" />
+                    New Video
+                  </Link>
+                )}
               </>
             )}
             <div className="my-1 border-t" />

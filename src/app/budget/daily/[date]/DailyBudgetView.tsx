@@ -32,6 +32,7 @@ import { usePreferences } from "@/lib/hooks/usePreferences"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,12 +138,14 @@ function DroppableColumn({
             Story
           </Link>
         </Button>
-        <Button asChild size="sm" variant="outline" className="flex-1 gap-1.5 text-xs">
-          <Link href={newVideoHref}>
-            <Plus className="size-3.5" />
-            Video
-          </Link>
-        </Button>
+        {VIDEOS_ENABLED && (
+          <Button asChild size="sm" variant="outline" className="flex-1 gap-1.5 text-xs">
+            <Link href={newVideoHref}>
+              <Plus className="size-3.5" />
+              Video
+            </Link>
+          </Button>
+        )}
       </div>
       {nextMorningDate && <NextMorningDropZone nextDate={nextMorningDate} />}
     </div>
@@ -876,7 +879,7 @@ function AgendaView({ date, showStories, showVideos, selectMode, selectedIds, on
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const { preferences, setPreferences } = usePreferences()
   const [showStories, setShowStories] = useState(() => preferences.contentDefault !== "videos")
-  const [showVideos, setShowVideos]   = useState(() => preferences.contentDefault !== "stories")
+  const [showVideos, setShowVideos]   = useState(() => VIDEOS_ENABLED && preferences.contentDefault !== "stories")
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
   )
@@ -999,15 +1002,17 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               <FileText className="size-3.5" />
               Stories
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className={cn("rounded-none gap-1.5 text-xs", showVideos && "bg-muted font-medium")}
-              onClick={() => setShowVideos((v) => !v)}
-            >
-              <Video className="size-3.5" />
-              Videos
-            </Button>
+            {VIDEOS_ENABLED && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn("rounded-none gap-1.5 text-xs", showVideos && "bg-muted font-medium")}
+                onClick={() => setShowVideos((v) => !v)}
+              >
+                <Video className="size-3.5" />
+                Videos
+              </Button>
+            )}
           </div>
 
           {/* View mode toggle — hidden on mobile (always agenda) */}
@@ -1049,12 +1054,14 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               New Story
             </Link>
           </Button>
-          <Button asChild size="sm">
-            <Link href="/videos/new">
-              <Plus className="size-4" />
-              New Video
-            </Link>
-          </Button>
+          {VIDEOS_ENABLED && (
+            <Button asChild size="sm">
+              <Link href="/videos/new">
+                <Plus className="size-4" />
+                New Video
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

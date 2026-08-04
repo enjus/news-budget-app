@@ -19,6 +19,7 @@ import { VideoCard } from "@/components/budget/VideoCard"
 import { cn } from "@/lib/utils"
 import type { EnterpriseDateGroup, VideoWithRelations } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ function ActiveItemOverlay({ activeId, groups }: ActiveItemOverlayProps) {
       const story = group.stories.find((s) => s.id === id)
       if (story) return <StoryCard story={story} isDragging hideEnterpriseTag />
     }
-    if (activeId.startsWith("video-")) {
+    if (VIDEOS_ENABLED && activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
       const video = group.videos.find((v) => v.id === id)
       if (video) return <VideoCard video={video} isDragging />
@@ -380,7 +381,7 @@ export function EnterpriseView() {
             <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
           </SortableCard>
         ))}
-        {group.videos.map((video) => (
+        {VIDEOS_ENABLED && group.videos.map((video) => (
           <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
             <VideoCard video={video} budgetLineClamp={3} />
           </SortableCard>
@@ -393,7 +394,7 @@ export function EnterpriseView() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Enterprise Stories &amp; Videos</h2>
+        <h2 className="text-lg font-semibold">Enterprise Stories{VIDEOS_ENABLED ? " & Videos" : ""}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm">
             <Link href="/stories/new?isEnterprise=true">
@@ -401,12 +402,14 @@ export function EnterpriseView() {
               New Story
             </Link>
           </Button>
-          <Button asChild size="sm">
-            <Link href="/videos/new">
-              <Plus className="size-4" />
-              New Video
-            </Link>
-          </Button>
+          {VIDEOS_ENABLED && (
+            <Button asChild size="sm">
+              <Link href="/videos/new">
+                <Plus className="size-4" />
+                New Video
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 

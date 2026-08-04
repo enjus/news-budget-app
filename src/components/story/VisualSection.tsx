@@ -28,7 +28,7 @@ interface VisualSectionProps {
 
 export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
-  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP">("PHOTO")
+  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP" | "VIDEO">("PHOTO")
   const [newDescription, setNewDescription] = useState("")
   const [newPersonId, setNewPersonId] = useState<string>("")
 
@@ -94,7 +94,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
                 variant={visual.type === "PHOTO" ? "default" : "secondary"}
                 className="shrink-0"
               >
-                {visual.type === "PHOTO" ? "Photo" : visual.type === "MAP" ? "Map" : "Graphic"}
+                {visual.type === "PHOTO" ? "Photo" : visual.type === "MAP" ? "Map" : visual.type === "VIDEO" ? "Video" : "Graphic"}
               </Badge>
 
               {visual.description && (
@@ -130,7 +130,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
 
       {/* Add new visual */}
       {!readOnly && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
-        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP")}>
+        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP" | "VIDEO")}>
           <SelectTrigger className="h-8 w-[110px]">
             <SelectValue />
           </SelectTrigger>
@@ -138,6 +138,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
             <SelectItem value="PHOTO">Photo</SelectItem>
             <SelectItem value="GRAPHIC">Graphic</SelectItem>
             <SelectItem value="MAP">Map</SelectItem>
+            <SelectItem value="VIDEO">Video</SelectItem>
           </SelectContent>
         </Select>
 

@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   basePath,
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
+    NEXT_PUBLIC_VIDEOS_ENABLED: process.env.NEXT_PUBLIC_VIDEOS_ENABLED ?? "true",
   },
   async headers() {
     return [

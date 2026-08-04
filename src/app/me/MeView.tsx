@@ -15,6 +15,7 @@ import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import type { StoryListItem, VideoWithRelations } from "@/types"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 function formatItemDate(date: string | null | undefined, tbd: boolean): string {
   if (tbd || !date) return "TBD"
@@ -125,7 +126,7 @@ function DraftsSection() {
               onPublish={() => handlePublish("story", story.id)}
             />
           ))}
-          {videos.map((video) => (
+          {VIDEOS_ENABLED && videos.map((video) => (
             <DraftRow
               key={`video-${video.id}`}
               type="video"
@@ -230,7 +231,7 @@ function MyContentSection({ personId }: { personId: string }) {
     )
   }
 
-  const items = data?.items ?? []
+  const items = (data?.items ?? []).filter((i) => VIDEOS_ENABLED || i.type !== "video")
 
   if (items.length === 0) {
     return (

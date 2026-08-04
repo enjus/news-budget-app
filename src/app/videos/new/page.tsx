@@ -3,9 +3,12 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { canCreateContent } from "@/lib/utils"
+import { VIDEOS_ENABLED } from "@/lib/features"
 import { VideoFormWrapper } from "./VideoFormWrapper"
 
 export default async function NewVideoPage() {
+  if (!VIDEOS_ENABLED) redirect("/")
+
   const session = await getServerSession(authOptions)
   if (!session || !canCreateContent(session.user.appRole)) {
     redirect("/budget/daily")

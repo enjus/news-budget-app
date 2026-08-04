@@ -24,6 +24,7 @@ import { useVideos } from "@/lib/hooks/useVideos"
 import { STORY_STATUS_LABELS, todayString } from "@/lib/utils"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
   if (!shelvedAt) return null
@@ -212,7 +213,7 @@ export function ShelvedView() {
           </section>
 
           {/* Videos */}
-          <section className="space-y-3">
+          {VIDEOS_ENABLED && <section className="space-y-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Shelved Videos ({videos.length})
             </h3>
@@ -296,7 +297,7 @@ export function ShelvedView() {
                 ))}
               </div>
             )}
-          </section>
+          </section>}
         </>
       )}
     </div>
