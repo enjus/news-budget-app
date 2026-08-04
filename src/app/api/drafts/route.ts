@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { VIDEOS_ENABLED } from "@/lib/features";
 
 export const dynamic = 'force-dynamic'
 
@@ -31,11 +32,13 @@ export async function GET() {
         include: storyInclude,
         orderBy: { createdAt: "desc" },
       }),
-      prisma.video.findMany({
-        where: { createdByUserId: session.user.id, onBudget: false },
-        include: videoInclude,
-        orderBy: { createdAt: "desc" },
-      }),
+      VIDEOS_ENABLED
+        ? prisma.video.findMany({
+            where: { createdByUserId: session.user.id, onBudget: false },
+            include: videoInclude,
+            orderBy: { createdAt: "desc" },
+          })
+        : Promise.resolve([]),
     ]);
 
     return NextResponse.json({ stories, videos });

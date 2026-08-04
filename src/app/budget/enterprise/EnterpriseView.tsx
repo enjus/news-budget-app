@@ -394,7 +394,7 @@ export function EnterpriseView() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Enterprise Stories{VIDEOS_ENABLED ? " & Videos" : ""}</h2>
+        <h2 className="text-lg font-semibold">{VIDEOS_ENABLED ? "Enterprise Stories & Videos" : "Enterprise Stories"}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <Button asChild size="sm">
             <Link href="/stories/new?isEnterprise=true">

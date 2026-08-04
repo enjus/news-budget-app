@@ -91,7 +91,7 @@ function DraftsSection() {
     )
   }
 
-  const isEmpty = stories.length === 0 && videos.length === 0
+  const isEmpty = stories.length === 0 && (!VIDEOS_ENABLED || videos.length === 0)
 
   return (
     <div className="space-y-3">
