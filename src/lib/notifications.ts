@@ -40,18 +40,20 @@ export async function notifyStoryTeam(story: NotifiableStory): Promise<void> {
   if (recipients.length === 0) return;
 
   const link = `${APP_URL}/stories/${story.id}`;
-  const subject = `News Budget: ${story.budgetLine}`;
+  const subject = `News Budget story updated: ${story.slug}`;
 
-  const notesLine = story.notes ? `\n\nNotes:\n${story.notes}` : "";
+  const notesLine = story.notes ? `\n\nNotes: ${story.notes}` : "";
   const text =
     `A story you're assigned to has been updated in the News Budget.\n\n` +
-    `${story.budgetLine}${notesLine}\n\n` +
+    `${story.slug}: ${story.budgetLine}${notesLine}\n\n` +
     `View it here: ${link}`;
 
   const html =
     `<p>A story you're assigned to has been updated in the News Budget.</p>` +
-    `<p><strong>${escapeHtml(story.budgetLine)}</strong></p>` +
-    (story.notes ? `<p>${escapeHtml(story.notes).replace(/\n/g, "<br>")}</p>` : "") +
+    `<p><strong>${escapeHtml(story.slug)}:</strong> ${escapeHtml(story.budgetLine)}</p>` +
+    (story.notes
+      ? `<p><strong>Notes:</strong> ${escapeHtml(story.notes).replace(/\n/g, "<br>")}</p>`
+      : "") +
     `<p><a href="${link}">View it in the News Budget</a></p>`;
 
   await sendEmail({ to: recipients, subject, text, html });
@@ -65,18 +67,20 @@ export async function notifyVideoTeam(video: NotifiableVideo): Promise<void> {
   if (recipients.length === 0) return;
 
   const link = `${APP_URL}/videos/${video.id}`;
-  const subject = `News Budget: ${video.budgetLine}`;
+  const subject = `News Budget video updated: ${video.slug}`;
 
-  const notesLine = video.notes ? `\n\nNotes:\n${video.notes}` : "";
+  const notesLine = video.notes ? `\n\nNotes: ${video.notes}` : "";
   const text =
     `A video you're assigned to has been updated in the News Budget.\n\n` +
-    `${video.budgetLine}${notesLine}\n\n` +
+    `${video.slug}: ${video.budgetLine}${notesLine}\n\n` +
     `View it here: ${link}`;
 
   const html =
     `<p>A video you're assigned to has been updated in the News Budget.</p>` +
-    `<p><strong>${escapeHtml(video.budgetLine)}</strong></p>` +
-    (video.notes ? `<p>${escapeHtml(video.notes).replace(/\n/g, "<br>")}</p>` : "") +
+    `<p><strong>${escapeHtml(video.slug)}:</strong> ${escapeHtml(video.budgetLine)}</p>` +
+    (video.notes
+      ? `<p><strong>Notes:</strong> ${escapeHtml(video.notes).replace(/\n/g, "<br>")}</p>`
+      : "") +
     `<p><a href="${link}">View it in the News Budget</a></p>`;
 
   await sendEmail({ to: recipients, subject, text, html });
