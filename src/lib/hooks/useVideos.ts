@@ -8,7 +8,7 @@ interface UseVideosParams {
   enterprise?: boolean
 }
 
-export function useVideos(params?: UseVideosParams) {
+export function useVideos(params?: UseVideosParams | null) {
   const searchParams = new URLSearchParams()
 
   if (params?.status) searchParams.set("status", params.status)
@@ -17,7 +17,7 @@ export function useVideos(params?: UseVideosParams) {
   if (params?.enterprise !== undefined) searchParams.set("enterprise", String(params.enterprise))
 
   const query = searchParams.toString()
-  const url = `/api/videos${query ? `?${query}` : ""}`
+  const url = params === null ? null : `/api/videos${query ? `?${query}` : ""}`
 
   const { data, isLoading, error, mutate } = useSWR<VideoWithRelations[]>(url)
 
