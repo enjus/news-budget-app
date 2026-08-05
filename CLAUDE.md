@@ -56,7 +56,7 @@ No test suite exists yet.
 **Middleware** (`middleware.ts`): NextAuth `withAuth` protects all routes except `/login` and `/api/auth/*`. Unauthenticated requests redirect to `/login`.
 
 **User model** fields:
-- `appRole`: `ADMIN` | `EDITOR` | `VIEWER`
+- `appRole`: `ADMIN` | `LEADERSHIP` | `MANAGING_PRODUCER` | `SUPERVISOR` | `PRODUCER` | `VIEWER`
 - `personId`: optional link to a `Person` (staff member)
 
 **Session shape** (available via `useSession()`):
@@ -66,19 +66,21 @@ No test suite exists yet.
 
 **Auth config** lives in `src/lib/auth.ts` (CredentialsProvider + AzureADProvider, JWT strategy, callbacks to populate appRole/personId).
 
-**Azure AD SSO** (optional): When `AZURE_AD_CLIENT_ID` is set, the login page shows a "Sign in with Microsoft" button. SSO users are matched by email to existing `User` records or auto-created as `VIEWER` if they belong to the Azure AD group specified by `AZURE_AD_ALLOWED_GROUP_ID`. The `passwordHash` field is nullable — SSO-only users have no password. See `docs/azure-sso-setup.md` for Azure Portal configuration.
+**Azure AD SSO** (optional): When `AZURE_AD_CLIENT_ID` is set, the login page shows a "Sign in with Microsoft" button. SSO users are matched by email to existing `User` records or auto-created as `PRODUCER` if they belong to the Azure AD group specified by `AZURE_AD_ALLOWED_GROUP_ID`. The `passwordHash` field is nullable — SSO-only users have no password. See `docs/azure-sso-setup.md` for Azure Portal configuration.
 
 ### Data Models (prisma/schema.prisma)
 
 | Model | Key Fields |
 |-------|-----------|
-| **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|EDITOR\|VIEWER), `personId` (optional FK → Person) |
+| **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|LEADERSHIP\|MANAGING_PRODUCER\|SUPERVISOR\|PRODUCER\|VIEWER), `personId` (optional FK → Person) |
 | **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER) |
-| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed`, `sortOrder`, `shelvedAt`, `postUrl` |
+| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed`, `hereIsOregon`, `contentRemix`, `summerFocus`, `oregonInsight` (boolean flags), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `createdByUserId` (FK → User), `version` (optimistic locking) |
 | **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|OTHER) — composite unique on all three |
 | **Visual** | `storyId`, `type` (PHOTO\|GRAPHIC\|MAP), `description`, `personId` (optional) |
-| **Video** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status`, `storyId` (optional—standalone or linked), `onlinePubDate`, `onlinePubDateTBD`, `notes`, `notifyTeam`, `aiContributed`, `sortOrder`, `shelvedAt`, `youtubeUrl`, `reelsUrl`, `tiktokUrl`, `otherUrl` |
+| **Video** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status`, `storyId` (optional—standalone or linked), `onlinePubDate`, `onlinePubDateTBD`, `notes`, `notifyTeam`, `aiContributed`, `sortOrder`, `shelvedAt`, `version` (optimistic locking), `youtubeUrl`, `reelsUrl`, `tiktokUrl`, `otherUrl` |
 | **VideoAssignment** | `videoId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER) — composite unique on all three |
+| **Team** | `id`, `name` (unique), `description` |
+| **TeamMember** | `teamId`, `personId`, `role` (EDITOR\|MEMBER) — unique on (teamId, personId) |
 
 **Performance indexes** on Story and Video: `(status, onlinePubDate)`, `(isEnterprise, status)`.
 
@@ -91,6 +93,11 @@ No test suite exists yet.
 | `src/types/index.ts` | Prisma payload types: `StoryWithRelations`, `StoryListItem`, `EnterpriseStoryItem`, `VideoWithRelations`, `PersonWithCounts`, `ContentItem` union, `DailyBudgetSlot`, `EnterpriseDateGroup`, `EditionDateGroup` |
 | `src/lib/prisma.ts` | Prisma singleton (global pattern for hot-reload safety) |
 | `src/lib/auth.ts` | NextAuth configuration (CredentialsProvider + AzureADProvider, JWT callbacks, SSO group check) |
+| `src/lib/email.ts` | nodemailer transport (localhost:25 postfix relay, no auth) |
+| `src/lib/notifications.ts` | Story change email notifications to assigned staff |
+| `src/lib/rate-limit.ts` | In-memory sliding-window rate limiter (per-user, per-instance) |
+| `src/lib/api-path.ts` | `apiPath()` — prepends `NEXT_PUBLIC_BASE_PATH` to client fetch URLs |
+| `src/lib/api-helpers.ts` | `checkWriteLimit()`, `checkReadLimit()`, `requireJSON()` route helpers |
 | `middleware.ts` | NextAuth `withAuth` middleware — protects all routes |
 | `prisma/seed.ts` | 15-day seed with 9 people, ~40 stories, ~30 videos, 2 user accounts |
 
@@ -103,7 +110,8 @@ No test suite exists yet.
 | `VideoAssignmentRole` | REPORTER, EDITOR, VIDEOGRAPHER, OTHER |
 | `VisualType` | PHOTO, GRAPHIC, MAP |
 | `StoryStatus` / `VideoStatus` | DRAFT, SCHEDULED, PUBLISHED_ITERATING, PUBLISHED_FINAL, SHELVED |
-| `AppRole` (User) | ADMIN, EDITOR, VIEWER |
+| `AppRole` (User) | ADMIN, LEADERSHIP, MANAGING_PRODUCER, SUPERVISOR, PRODUCER, VIEWER |
+| `TeamRole` | EDITOR, MEMBER |
 
 ### API Routes (`src/app/api/`)
 
@@ -130,6 +138,11 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/people/[id]/content` | GET | Content assigned to a person |
 | `/api/admin/users` | GET/POST | List/create app users (admin only) |
 | `/api/admin/users/[id]` | GET/PUT/DELETE | User CRUD (admin only) |
+| `/api/drafts` | GET | Current user's draft stories + videos |
+| `/api/teams/[id]` | GET/PUT/DELETE | Team CRUD |
+| `/api/teams/[id]/content` | GET | Content assigned to a team |
+| `/api/teams/my` | GET | Teams the current user belongs to |
+| `/api/cron/purge-shelved` | GET | Purge stories/videos shelved 90+ days (requires `Authorization: Bearer CRON_SECRET`) |
 
 ### SWR Hooks (`src/lib/hooks/`)
 
@@ -140,6 +153,10 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `useVideos(params?)` | Fetch videos (filters: status, storyId, standalone, enterprise) |
 | `usePeople(role?)` | Fetch staff (optional role filter) |
 | `usePreferences()` | Client-side localStorage for view preferences (defaultView, contentDefault) |
+| `useDrafts()` | Fetch current user's draft stories + videos |
+| `useMyTeams()` | Fetch teams the current user belongs to |
+| `useTeams()` | Fetch all teams (admin use) |
+| `useTeamContent(teamId)` | Fetch content assigned to a team |
 
 ### Client Routing (`src/app/`)
 
@@ -157,6 +174,8 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/videos/[id]` | Video detail/edit with assignments |
 | `/people` | Staff directory |
 | `/people/[id]` | Person detail with assigned content |
+| `/me` | Current user's assigned content |
+| `/teams` | Teams view |
 | `/settings` | User preferences (view/layout defaults) |
 | `/admin/users` | Admin: manage app users |
 
@@ -190,6 +209,18 @@ Seeds 15-day historical budget + enterprise stories extending 180 days forward.
 DATABASE_URL=                  # PostgreSQL connection string
 NEXTAUTH_SECRET=               # Random secret for JWT signing
 NEXTAUTH_URL=                  # App base URL (e.g., http://localhost:3000)
+
+# Subpath deployment (optional — omit for root deployment)
+BASE_PATH=                     # e.g. /news-budget — mirrors to NEXT_PUBLIC_BASE_PATH for fetch calls
+
+# Email notifications (optional — omit to disable)
+SMTP_HOST=                     # Mail relay host (default: localhost)
+SMTP_PORT=                     # Mail relay port (default: 25)
+MAIL_FROM=                     # From address (default: News Budget <newsbudget-noreply@oregonian.com>)
+APP_PUBLIC_URL=                # Public app URL for links in notification emails
+
+# Cron jobs
+CRON_SECRET=                   # Bearer token for /api/cron/* routes (set in vercel.json cron config too)
 
 # Azure AD SSO (optional — omit AZURE_AD_CLIENT_ID to disable)
 AZURE_AD_CLIENT_ID=            # Azure App Registration client ID
