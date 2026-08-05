@@ -79,7 +79,7 @@ npx prisma migrate dev   # Apply schema changes
 
 The app supports Microsoft Entra ID (Azure AD) single sign-on alongside email/password login. When configured, a "Sign in with Microsoft" button appears on the login page.
 
-SSO users are auto-provisioned as `VIEWER` if they belong to a configured Azure AD security group. Admins can promote roles via `/admin/users`. Pre-provisioned users (created by an admin with a matching email) are matched automatically on first SSO sign-in.
+SSO users are auto-provisioned as `PRODUCER` if they belong to a configured Azure AD security group. Admins can promote roles via `/admin/users`. Pre-provisioned users (created by an admin with a matching email) are matched automatically on first SSO sign-in.
 
 To enable, set four additional environment variables:
 

@@ -112,7 +112,7 @@ npx prisma db push
 2. Navigate to `/login` — you should see a "Sign in with Microsoft" button above the email/password form
 3. Click it — you should be redirected to Microsoft's login page
 4. After authenticating, you should be redirected back to the app
-5. If you're in the allowed group and no `User` record exists, one is auto-created with the `VIEWER` role
+5. If you're in the allowed group and no `User` record exists, one is auto-created with the `PRODUCER` role
 
 ## How It Works
 
@@ -123,14 +123,14 @@ npx prisma db push
 3. Microsoft authenticates the user and returns an ID token with group claims
 4. The `signIn` callback checks if the user's groups include `AZURE_AD_ALLOWED_GROUP_ID`
 5. If the user passes the group check, their email is matched to a `User` record in the database
-6. If no record exists, one is auto-created with `appRole: "VIEWER"`
+6. If no record exists, one is auto-created with `appRole: "PRODUCER"`
 7. The `jwt` callback populates `appRole` and `personId` from the database record
 
 ### User provisioning
 
 | Method | How it works |
 |---|---|
-| **Auto-provision via SSO** | User is in the Azure AD group → signs in → gets created as `VIEWER`. Admin promotes via `/admin/users`. |
+| **Auto-provision via SSO** | User is in the Azure AD group → signs in → gets created as `PRODUCER`. Admin adjusts role via `/admin/users`. |
 | **Pre-provision by admin** | Admin creates user at `/admin/users` with matching email (password optional). SSO sign-in matches by email. |
 | **Hybrid** | Admin creates user with a password. User can sign in via either method. |
 
