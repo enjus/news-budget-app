@@ -129,7 +129,7 @@ model Visual {
   id          String   @id @default(cuid())
   story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   storyId     String
-  // VisualType: PHOTO | GRAPHIC
+  // VisualType: PHOTO | GRAPHIC | MAP | VIDEO
   type        String
   description String?
   person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Search, FileText, Video, X, User } from "lucide-react"
+import { VIDEOS_ENABLED } from "@/lib/features"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
@@ -152,7 +153,7 @@ export function SearchCommand() {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search stories and videos…"
+              placeholder={VIDEOS_ENABLED ? "Search stories and videos…" : "Search stories…"}
               className="flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
             />
             {/* Author filter */}
@@ -225,7 +226,7 @@ export function SearchCommand() {
 
             {!loading && results.length > 0 && (
               <ul className="py-1">
-                {results.map((result) => (
+                {results.filter((r) => VIDEOS_ENABLED || r.type !== "video").map((result) => (
                   <li key={`${result.type}-${result.id}`}>
                     <button
                       onClick={() => navigate(result)}

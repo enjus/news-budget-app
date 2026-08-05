@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation"
 import { getServerSession } from "next-auth"
+import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { canCreateContent } from "@/lib/utils"
+import { VIDEOS_ENABLED } from "@/lib/features"
 import { VideoDetailWrapper } from "./VideoDetailWrapper"
 
 interface VideoPageProps {
@@ -10,6 +12,8 @@ interface VideoPageProps {
 }
 
 export default async function VideoPage({ params }: VideoPageProps) {
+  if (!VIDEOS_ENABLED) redirect("/")
+
   const [{ id }, session] = await Promise.all([params, getServerSession(authOptions)])
 
   const video = await prisma.video.findUnique({

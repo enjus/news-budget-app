@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { addDays, subDays } from "date-fns";
+import { VIDEOS_ENABLED } from "@/lib/features";
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,13 @@ export async function GET(request: NextRequest) {
       ? { OR: [{ slug: { contains: q, mode: Prisma.QueryMode.insensitive } }, { budgetLine: { contains: q, mode: Prisma.QueryMode.insensitive } }] }
       : null;
 
+    const videoWhere = VIDEOS_ENABLED ? {
+      onBudget: true,
+      status: { not: "SHELVED" },
+      AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
+      ...(authorId ? { assignments: { some: { personId: authorId } } } : {}),
+    } : null;
+
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
         where: {
@@ -64,25 +72,20 @@ export async function GET(request: NextRequest) {
         take: 50,
       }),
 
-      prisma.video.findMany({
-        where: {
-          onBudget: true,
-          status: { not: "SHELVED" },
-          AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
-          ...(authorId
-            ? { assignments: { some: { personId: authorId } } }
-            : {}),
-        },
-        select: {
-          id: true,
-          slug: true,
-          budgetLine: true,
-          status: true,
-          onlinePubDate: true,
-          onlinePubDateTBD: true,
-        },
-        take: 50,
-      }),
+      videoWhere
+        ? prisma.video.findMany({
+            where: videoWhere,
+            select: {
+              id: true,
+              slug: true,
+              budgetLine: true,
+              status: true,
+              onlinePubDate: true,
+              onlinePubDateTBD: true,
+            },
+            take: 50,
+          })
+        : Promise.resolve([]),
     ]);
 
     const todayMs = today.getTime();

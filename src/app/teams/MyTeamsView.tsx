@@ -19,6 +19,7 @@ import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
 import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Unpublished" },
@@ -143,6 +144,7 @@ function TeamContentView({ teamId }: { teamId: string }) {
   // Filter and categorize items per member
   const filteredMembers = memberContent.map((mc) => {
     const filtered = mc.items.filter((item) => {
+      if (!VIDEOS_ENABLED && item.type === "video") return false
       if (typeFilter !== "all" && item.type !== typeFilter) return false
       if (statusFilter !== "all" && item.status !== statusFilter) return false
       return true
@@ -169,10 +171,10 @@ function TeamContentView({ teamId }: { teamId: string }) {
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-md border text-sm overflow-hidden">
-          {(["all", "story", "video"] as const).map((t) => (
+          {(["all", "story", ...(VIDEOS_ENABLED ? ["video"] : [])] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setTypeFilter(t)}
+              onClick={() => setTypeFilter(t as "all" | "story" | "video")}
               className={`px-3 py-1.5 capitalize transition-colors ${
                 typeFilter === t
                   ? "bg-primary text-primary-foreground"

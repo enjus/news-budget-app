@@ -23,6 +23,7 @@ import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { StoryVideoSection } from "./StoryVideoSection"
+import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
@@ -149,9 +150,9 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           readOnly
         />
 
-        <Separator />
+        {VIDEOS_ENABLED && <Separator />}
 
-        <StoryVideoSection story={story} onUpdate={onUpdate} />
+        {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
 
       </div>
     )
@@ -270,9 +271,9 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         onUpdate={onUpdate}
       />
 
-      <Separator />
+      {VIDEOS_ENABLED && <Separator />}
 
-      <StoryVideoSection story={story} onUpdate={onUpdate} />
+      {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
 
       <Separator />
 

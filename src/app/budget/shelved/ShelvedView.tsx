@@ -24,6 +24,7 @@ import { useVideos } from "@/lib/hooks/useVideos"
 import { STORY_STATUS_LABELS, todayString } from "@/lib/utils"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
+import { VIDEOS_ENABLED } from "@/lib/features"
 
 function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
   if (!shelvedAt) return null
@@ -39,9 +40,9 @@ function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
 
 export function ShelvedView() {
   const { stories, isLoading: storiesLoading, mutate: mutateStories } = useStories({ status: "SHELVED" })
-  const { videos, isLoading: videosLoading, mutate: mutateVideos } = useVideos({ status: "SHELVED" })
+  const { videos, isLoading: videosLoading, mutate: mutateVideos } = useVideos(VIDEOS_ENABLED ? { status: "SHELVED" } : null)
   const [working, setWorking] = useState<string | null>(null)
-  const isLoading = storiesLoading || videosLoading
+  const isLoading = storiesLoading || (VIDEOS_ENABLED && videosLoading)
   const router = useRouter()
 
   async function unarchive(type: "story" | "video", id: string) {
@@ -212,7 +213,8 @@ export function ShelvedView() {
           </section>
 
           {/* Videos */}
-          <section className="space-y-3">
+          {VIDEOS_ENABLED && (
+            <section className="space-y-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Shelved Videos ({videos.length})
             </h3>
@@ -297,6 +299,7 @@ export function ShelvedView() {
               </div>
             )}
           </section>
+          )}
         </>
       )}
     </div>
