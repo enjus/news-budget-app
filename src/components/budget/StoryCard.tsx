@@ -120,10 +120,11 @@ export function StoryCard({
       setTimeout(() => setCopied(false), 2000)
     })
   }
-  const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
-  const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
-  const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
-  const hasVisuals   = photoCount > 0 || graphicCount > 0 || mapCount > 0 || (videoCount ?? 0) > 0
+  const hasPhoto    = showPhotoIndicator ? story.visuals.some((v) => v.type === "PHOTO")   : false
+  const hasGraphic  = showPhotoIndicator ? story.visuals.some((v) => v.type === "GRAPHIC") : false
+  const hasMap      = showPhotoIndicator ? story.visuals.some((v) => v.type === "MAP")     : false
+  const hasVisualVideo = showPhotoIndicator ? story.visuals.some((v) => v.type === "VIDEO") : false
+  const hasVisuals   = hasPhoto || hasGraphic || hasMap || hasVisualVideo || (videoCount ?? 0) > 0
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
@@ -197,28 +198,24 @@ export function StoryCard({
           {/* Visual indicators row — only when visuals or linked videos are present */}
           {hasVisuals && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {photoCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
+              {hasPhoto && (
+                <span className="flex items-center text-sky-600 dark:text-sky-400" title="Photo">
                   <Camera className="size-3.5 shrink-0" />
-                  {photoCount}
                 </span>
               )}
-              {graphicCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-violet-600 dark:text-violet-400">
+              {hasGraphic && (
+                <span className="flex items-center text-violet-600 dark:text-violet-400" title="Graphic">
                   <BarChart2 className="size-3.5 shrink-0" />
-                  {graphicCount}
                 </span>
               )}
-              {mapCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+              {hasMap && (
+                <span className="flex items-center text-emerald-600 dark:text-emerald-400" title="Map">
                   <Map className="size-3.5 shrink-0" />
-                  {mapCount}
                 </span>
               )}
-              {(videoCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+              {(hasVisualVideo || (videoCount ?? 0) > 0) && (
+                <span className="flex items-center text-orange-600 dark:text-orange-400" title="Video">
                   <Video className="size-3.5 shrink-0" />
-                  {videoCount}
                 </span>
               )}
             </div>
