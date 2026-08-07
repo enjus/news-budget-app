@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasAdminAccess } from "@/lib/utils"
+import { hasAdminAccess, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
+
+// Safety cap on past items per member. TBD and upcoming items stay unbounded
+// (matches /api/budget/daily and /api/budget/agenda, which only cap TBD via
+// take — history accumulation is the actual performance concern here).
+const PAST_CAP = 10
 
 export interface TeamContentResponse {
   team: { id: string; name: string }
@@ -51,14 +56,24 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       }
     }
 
-    // Fetch content for all team members in parallel
+    // Pub times are stored as newsroom-time-as-UTC (see /api/budget/daily), so
+    // "today" uses the same Pacific-time-aware boundary as the rest of the budget views.
+    const todayStart = new Date(`${todayString()}T00:00:00Z`)
+
+    // Fetch content for all team members in parallel. Past items are capped
+    // (PAST_CAP) since they can accumulate unboundedly; TBD/upcoming items
+    // stay unbounded, matching /api/budget/daily and /api/budget/agenda.
     const memberContent = await Promise.all(
       team.members.map(async (member) => {
-        const [storyAssignments, videoAssignments] = await Promise.all([
+        const [storyUpcoming, storyPast, videoUpcoming, videoPast] = await Promise.all([
           prisma.storyAssignment.findMany({
             where: {
               personId: member.personId,
-              story: { onBudget: true, status: { not: "SHELVED" } },
+              story: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
+              },
             },
             include: {
               story: {
@@ -73,10 +88,39 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
               },
             },
           }),
+          prisma.storyAssignment.findMany({
+            where: {
+              personId: member.personId,
+              story: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                onlinePubDateTBD: false,
+                onlinePubDate: { lt: todayStart },
+              },
+            },
+            include: {
+              story: {
+                select: {
+                  id: true,
+                  slug: true,
+                  budgetLine: true,
+                  status: true,
+                  onlinePubDate: true,
+                  onlinePubDateTBD: true,
+                },
+              },
+            },
+            orderBy: { story: { onlinePubDate: "desc" } },
+            take: PAST_CAP,
+          }),
           prisma.videoAssignment.findMany({
             where: {
               personId: member.personId,
-              video: { onBudget: true, status: { not: "SHELVED" } },
+              video: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
+              },
             },
             include: {
               video: {
@@ -91,7 +135,35 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
               },
             },
           }),
+          prisma.videoAssignment.findMany({
+            where: {
+              personId: member.personId,
+              video: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                onlinePubDateTBD: false,
+                onlinePubDate: { lt: todayStart },
+              },
+            },
+            include: {
+              video: {
+                select: {
+                  id: true,
+                  slug: true,
+                  budgetLine: true,
+                  status: true,
+                  onlinePubDate: true,
+                  onlinePubDateTBD: true,
+                },
+              },
+            },
+            orderBy: { video: { onlinePubDate: "desc" } },
+            take: PAST_CAP,
+          }),
         ])
+
+        const storyAssignments = [...storyUpcoming, ...storyPast]
+        const videoAssignments = [...videoUpcoming, ...videoPast]
 
         const items: PersonContentItem[] = [
           ...storyAssignments.map((a) => ({

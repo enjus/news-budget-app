@@ -2,9 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import useSWR from "swr"
 import { format } from "date-fns"
-import { FileText, Video, ChevronDown, ChevronRight, Users } from "lucide-react"
+import { FileText, Video, ChevronDown, ChevronRight, Users, LayoutGrid, List } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,9 +16,11 @@ import {
 } from "@/components/ui/select"
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
+import { usePreferences, type TeamsView } from "@/lib/hooks/usePreferences"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { TeamScheduleView } from "@/app/teams/TeamScheduleView"
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Unpublished" },
@@ -46,9 +47,11 @@ function itemDateStr(item: PersonContentItem): string | null {
 export function MyTeamsView() {
   const { teams, isLoading: teamsLoading } = useMyTeams()
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+  const { preferences, setPreferences } = usePreferences()
 
   // Auto-select first team once loaded
   const activeTeamId = selectedTeamId ?? teams[0]?.id ?? null
+  const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null
 
   if (teamsLoading) {
     return (
@@ -103,16 +106,57 @@ export function MyTeamsView() {
         </div>
       )}
 
-      {activeTeamId && <TeamContentView teamId={activeTeamId} />}
+      {/* View tabs */}
+      <div className="flex divide-x overflow-hidden rounded-md border w-fit">
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn("rounded-none gap-1.5 text-xs", preferences.teamsView === "columns" && "bg-muted font-medium")}
+          onClick={() => setPreferences({ teamsView: "columns" as TeamsView })}
+        >
+          <LayoutGrid className="size-3.5" />
+          Columns
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn("rounded-none gap-1.5 text-xs", preferences.teamsView === "agenda" && "bg-muted font-medium")}
+          onClick={() => setPreferences({ teamsView: "agenda" as TeamsView })}
+        >
+          <List className="size-3.5" />
+          Agenda
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cn("rounded-none gap-1.5 text-xs", preferences.teamsView === "members" && "bg-muted font-medium")}
+          onClick={() => setPreferences({ teamsView: "members" as TeamsView })}
+        >
+          <Users className="size-3.5" />
+          Members
+        </Button>
+      </div>
+
+      {activeTeam && preferences.teamsView === "columns" && (
+        <TeamScheduleView team={activeTeam} mode="columns" />
+      )}
+      {activeTeam && preferences.teamsView === "agenda" && (
+        <TeamScheduleView team={activeTeam} mode="agenda" />
+      )}
+      {activeTeamId && preferences.teamsView === "members" && (
+        <TeamMembersView teamId={activeTeamId} />
+      )}
     </div>
   )
 }
 
-function TeamContentView({ teamId }: { teamId: string }) {
+function TeamMembersView({ teamId }: { teamId: string }) {
   const { team, memberContent, isLoading } = useTeamContent(teamId)
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [collapsedMembers, setCollapsedMembers] = useState<Set<string>>(new Set())
+  // Past and TBD sections start collapsed per member; Upcoming stays expanded.
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
   if (isLoading) {
     return (
@@ -137,6 +181,15 @@ function TeamContentView({ teamId }: { teamId: string }) {
       const next = new Set(prev)
       if (next.has(personId)) next.delete(personId)
       else next.add(personId)
+      return next
+    })
+  }
+
+  function toggleSection(key: string) {
+    setExpandedSections((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
@@ -224,6 +277,8 @@ function TeamContentView({ teamId }: { teamId: string }) {
         {filteredMembers.map((mc) => {
           const isCollapsed = collapsedMembers.has(mc.person.id)
           const Chevron = isCollapsed ? ChevronRight : ChevronDown
+          const tbdKey = `${mc.person.id}:tbd`
+          const pastKey = `${mc.person.id}:past`
 
           return (
             <div key={mc.person.id} className="rounded-lg border bg-card">
@@ -260,14 +315,24 @@ function TeamContentView({ teamId }: { teamId: string }) {
                     <p className="text-sm text-muted-foreground text-center py-2">No items</p>
                   ) : (
                     <>
-                      {mc.tbdItems.length > 0 && (
-                        <ContentSection title="TBD" items={mc.tbdItems} />
-                      )}
                       {mc.upcomingItems.length > 0 && (
                         <ContentSection title="Upcoming" items={mc.upcomingItems} />
                       )}
+                      {mc.tbdItems.length > 0 && (
+                        <CollapsibleContentSection
+                          title="TBD"
+                          items={mc.tbdItems}
+                          expanded={expandedSections.has(tbdKey)}
+                          onToggle={() => toggleSection(tbdKey)}
+                        />
+                      )}
                       {mc.pastItems.length > 0 && (
-                        <ContentSection title="Past" items={mc.pastItems.slice(0, 5)} />
+                        <CollapsibleContentSection
+                          title="Past"
+                          items={mc.pastItems}
+                          expanded={expandedSections.has(pastKey)}
+                          onToggle={() => toggleSection(pastKey)}
+                        />
                       )}
                     </>
                   )}
@@ -290,6 +355,39 @@ function ContentSection({ title, items }: { title: string; items: PersonContentI
           <ContentRow key={`${item.type}-${item.id}`} item={item} />
         ))}
       </div>
+    </div>
+  )
+}
+
+function CollapsibleContentSection({
+  title,
+  items,
+  expanded,
+  onToggle,
+}: {
+  title: string
+  items: PersonContentItem[]
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const Chevron = expanded ? ChevronDown : ChevronRight
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 transition-colors"
+      >
+        <Chevron className="size-3 shrink-0" />
+        {title}
+        <span className="font-normal">({items.length})</span>
+      </button>
+      {expanded && (
+        <div className="space-y-1">
+          {items.map((item) => (
+            <ContentRow key={`${item.type}-${item.id}`} item={item} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const start = searchParams.get("start");
+    const personIdsParam = searchParams.get("personIds");
+    const personIds = personIdsParam ? personIdsParam.split(",").filter(Boolean) : null;
 
     if (!start) {
       return NextResponse.json({ error: "Query param start (YYYY-MM-DD) is required" }, { status: 400 });
@@ -54,6 +56,11 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(`${start}T00:00:00Z`);
     const windowEnd = addDays(startDate, 7);
 
+    // Optional scoping to a set of assigned people (used by the team-filtered budget views).
+    const assignmentFilter = personIds
+      ? { assignments: { some: { personId: { in: personIds } } } }
+      : {};
+
     const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
       prisma.story.findMany({
         where: {
@@ -61,13 +68,14 @@ export async function GET(request: NextRequest) {
           status: { not: "SHELVED" },
           onlinePubDateTBD: false,
           onlinePubDate: { gte: startDate, lt: windowEnd },
+          ...assignmentFilter,
         },
         include: storyInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
       }) as unknown as StoryListItem[],
 
       prisma.story.findMany({
-        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
+        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false, ...assignmentFilter },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,
@@ -79,13 +87,14 @@ export async function GET(request: NextRequest) {
           status: { not: "SHELVED" },
           onlinePubDateTBD: false,
           onlinePubDate: { gte: startDate, lt: windowEnd },
+          ...assignmentFilter,
         },
         include: videoInclude,
         orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
       }) as unknown as VideoWithRelations[],
 
       prisma.video.findMany({
-        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false },
+        where: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: true, isEnterprise: false, ...assignmentFilter },
         include: videoInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,

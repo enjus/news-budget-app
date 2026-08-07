@@ -4,10 +4,12 @@ import { useState, useCallback, useEffect } from "react"
 
 export type DefaultView = "daily-columns" | "daily-agenda" | "enterprise" | "edition"
 export type ContentDefault = "all" | "stories" | "videos"
+export type TeamsView = "columns" | "agenda" | "members"
 
 export interface UserPreferences {
   defaultView: DefaultView
   contentDefault: ContentDefault
+  teamsView: TeamsView
 }
 
 const STORAGE_KEY = "news-budget-prefs"
@@ -15,6 +17,8 @@ const STORAGE_KEY = "news-budget-prefs"
 export const DEFAULT_PREFERENCES: UserPreferences = {
   defaultView: "daily-columns",
   contentDefault: "all",
+  // "members" preserves the pre-redesign default landing view on /teams.
+  teamsView: "members",
 }
 
 function readPreferences(): UserPreferences {
