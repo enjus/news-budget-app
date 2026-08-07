@@ -17,7 +17,7 @@ import {
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
 import { usePreferences, type TeamsView } from "@/lib/hooks/usePreferences"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { TeamScheduleView } from "@/app/teams/TeamScheduleView"
@@ -174,7 +174,10 @@ function TeamMembersView({ teamId }: { teamId: string }) {
 
   if (!team) return null
 
-  const today = format(new Date(), "yyyy-MM-dd")
+  // Matches the Pacific-time boundary /api/teams/[id]/content uses to split
+  // upcoming (unbounded) from past (capped), so client display and server
+  // fetching agree on what "today" means.
+  const today = todayString()
 
   function toggleMember(personId: string) {
     setCollapsedMembers((prev) => {

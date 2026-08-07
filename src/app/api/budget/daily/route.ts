@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TIME_BUCKETS, dateToBucket } from "@/lib/utils";
+import { parsePersonIds, personAssignmentFilter } from "@/lib/budget-query";
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types";
 
 export const dynamic = 'force-dynamic'
@@ -26,8 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
-    const personIdsParam = searchParams.get("personIds");
-    const personIds = personIdsParam ? personIdsParam.split(",").filter(Boolean) : null;
+    const personIds = parsePersonIds(searchParams);
 
     if (!date) {
       return NextResponse.json({ error: "Query param date (YYYY-MM-DD) is required" }, { status: 400 });
@@ -42,9 +42,7 @@ export async function GET(request: NextRequest) {
     const dayEnd = new Date(`${date}T23:59:59.999Z`);
 
     // Optional scoping to a set of assigned people (used by the team-filtered budget views).
-    const assignmentFilter = personIds
-      ? { assignments: { some: { personId: { in: personIds } } } }
-      : {};
+    const assignmentFilter = personAssignmentFilter(personIds);
 
     // Split dated and TBD queries so the TBD cap can be applied independently.
     // A combined OR query cannot efficiently cap only the TBD branch.

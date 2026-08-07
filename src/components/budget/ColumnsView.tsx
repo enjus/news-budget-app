@@ -18,6 +18,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, cn } from "@/lib/utils"
+import { personIdsQueryParts } from "@/lib/budget-query"
 import type { DailyBudgetSlot } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -156,10 +157,8 @@ export function ColumnsView({
   const router = useRouter()
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  const personIdsKey = personIds?.join(",") ?? null
-  const queryUrl = personIds && personIds.length > 0
-    ? `/api/budget/daily?date=${date}&personIds=${personIdsKey}`
-    : `/api/budget/daily?date=${date}`
+  const { cacheKey: personIdsKey, querySuffix } = personIdsQueryParts(personIds)
+  const queryUrl = `/api/budget/daily?date=${date}${querySuffix}`
 
   const { data, isLoading, mutate } = useSWR<DailyBudgetResponse>(
     [cacheKeyPrefix, date, personIdsKey],

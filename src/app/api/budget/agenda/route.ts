@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays } from "date-fns";
+import { parsePersonIds, personAssignmentFilter } from "@/lib/budget-query";
 import type { StoryListItem, VideoWithRelations } from "@/types";
 
 export const dynamic = 'force-dynamic'
@@ -43,8 +44,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const start = searchParams.get("start");
-    const personIdsParam = searchParams.get("personIds");
-    const personIds = personIdsParam ? personIdsParam.split(",").filter(Boolean) : null;
+    const personIds = parsePersonIds(searchParams);
 
     if (!start) {
       return NextResponse.json({ error: "Query param start (YYYY-MM-DD) is required" }, { status: 400 });
@@ -57,9 +57,7 @@ export async function GET(request: NextRequest) {
     const windowEnd = addDays(startDate, 7);
 
     // Optional scoping to a set of assigned people (used by the team-filtered budget views).
-    const assignmentFilter = personIds
-      ? { assignments: { some: { personId: { in: personIds } } } }
-      : {};
+    const assignmentFilter = personAssignmentFilter(personIds);
 
     const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
       prisma.story.findMany({
