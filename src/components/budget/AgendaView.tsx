@@ -15,6 +15,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
+import { personIdsQueryParts } from "@/lib/budget-query"
 import type { StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 import { apiPath } from "@/lib/api-path"
@@ -121,10 +122,8 @@ export function AgendaView({
   const [activeId, setActiveId] = useState<string | null>(null)
   const [tbdExpanded, setTbdExpanded] = useState(false)
 
-  const personIdsKey = personIds?.join(",") ?? null
-  const queryUrl = personIds && personIds.length > 0
-    ? `/api/budget/agenda?start=${date}&personIds=${personIdsKey}`
-    : `/api/budget/agenda?start=${date}`
+  const { cacheKey: personIdsKey, querySuffix } = personIdsQueryParts(personIds)
+  const queryUrl = `/api/budget/agenda?start=${date}${querySuffix}`
 
   const { data, isLoading, mutate } = useSWR<AgendaResponse>(
     [cacheKeyPrefix, date, personIdsKey],

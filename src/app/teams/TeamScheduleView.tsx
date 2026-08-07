@@ -6,7 +6,6 @@ import { format, parseISO, addDays, subDays } from "date-fns"
 import { ChevronLeft, ChevronRight, FileText, Video } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Skeleton } from "@/components/ui/skeleton"
 import { ColumnsView } from "@/components/budget/ColumnsView"
 import { AgendaView } from "@/components/budget/AgendaView"
 import { todayString, cn } from "@/lib/utils"
@@ -136,19 +135,6 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
           cacheKeyPrefix={`/api/budget/agenda::team-${team.id}`}
         />
       )}
-    </div>
-  )
-}
-
-export function TeamScheduleSkeleton() {
-  return (
-    <div className="space-y-4">
-      <Skeleton className="h-8 w-64" />
-      <div className="grid grid-cols-5 gap-4">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-40 w-full rounded-lg" />
-        ))}
-      </div>
     </div>
   )
 }
