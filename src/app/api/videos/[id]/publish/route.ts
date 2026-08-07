@@ -12,6 +12,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
+  _count: { select: { comments: true } },
 } as const;
 
 export async function POST(_request: NextRequest, { params }: RouteContext) {

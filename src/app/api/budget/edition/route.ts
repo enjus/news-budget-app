@@ -10,6 +10,7 @@ const storyInclude = {
   assignments: { include: { person: personSelect } },
   visuals: { select: { id: true, type: true, person: { select: { name: true } } } },
   videos: { select: { id: true } },
+  _count: { select: { comments: true } },
 } as const;
 
 const TBD_CAP = 500;

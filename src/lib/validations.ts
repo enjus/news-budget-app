@@ -116,6 +116,22 @@ export const createVisualSchema = z.object({
 
 export const updateVisualSchema = createVisualSchema.partial();
 
+// ─── Comment ──────────────────────────────────────────────────────────────────
+
+export const createCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment can't be empty").max(5000),
+  // Person ids @-mentioned in the body. The body keeps the literal "@Name" text;
+  // these are the authoritative records used for notifications and highlighting.
+  mentionIds: z.array(z.string().cuid()).max(20).optional(),
+  // true = "Post and Notify All" (email everyone assigned to the story/video)
+  notifyAll: z.boolean().optional(),
+});
+
+export const updateCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment can't be empty").max(5000),
+  mentionIds: z.array(z.string().cuid()).max(20).optional(),
+});
+
 // ─── Video ────────────────────────────────────────────────────────────────────
 
 export const createVideoSchema = z.object({
@@ -225,3 +241,5 @@ export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSch
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;

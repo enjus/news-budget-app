@@ -135,6 +135,43 @@ export function todayString(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Format a real instant (e.g. a comment's createdAt) in Pacific Time.
+ *  Unlike formatPubDate, this must NOT read UTC fields — pub dates are
+ *  "newsroom time encoded as UTC" but timestamps are genuine instants, so we
+ *  convert properly via Intl. The year is included only when it isn't the
+ *  current Pacific year. */
+export function formatTimestampPacific(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const year = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+  }).format(d);
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    month: "short",
+    day: "numeric",
+    ...(year === todayString().slice(0, 4) ? {} : { year: "numeric" as const }),
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+/** Full Pacific-time timestamp with weekday and zone — for title/tooltips. */
+export function formatTimestampPacificLong(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  }).format(d);
+}
+
 /** Return initials from a full name (up to 2 chars) */
 export function initials(name: string): string {
   return name

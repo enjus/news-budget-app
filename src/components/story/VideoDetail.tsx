@@ -21,13 +21,14 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
 import { VideoAssignmentSection } from "./VideoAssignmentSection"
+import { CommentSection } from "./CommentSection"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
-import type { VideoWithRelations } from "@/types/index"
+import type { VideoWithComments } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
 interface VideoDetailProps {
-  video: VideoWithRelations
+  video: VideoWithComments
   onUpdate: () => void
   readOnly?: boolean
 }
@@ -154,6 +155,15 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           onUpdate={onUpdate}
           readOnly
         />
+
+        <Separator />
+
+        <CommentSection
+          videoId={video.id}
+          comments={video.comments}
+          onUpdate={onUpdate}
+          readOnly
+        />
       </div>
     )
   }
@@ -272,6 +282,14 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         key={String(video.updatedAt)}
         video={video}
         onSuccess={() => onUpdate()}
+      />
+
+      <Separator />
+
+      <CommentSection
+        videoId={video.id}
+        comments={video.comments}
+        onUpdate={onUpdate}
       />
 
       <Separator />

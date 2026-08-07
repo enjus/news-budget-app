@@ -1,4 +1,5 @@
 import { sendEmail } from "@/lib/email";
+import { linkifyToHtml } from "@/lib/comment-text";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -9,7 +10,7 @@ const APP_URL =
   "https://ornews-advancelocal.msappproxy.net/news-budget";
 
 /** Minimal shape of an assigned person we need for notifications. */
-interface AssignedPerson {
+export interface AssignedPerson {
   person: { name: string; email: string };
   role: string;
 }
@@ -86,8 +87,91 @@ export async function notifyVideoTeam(video: NotifiableVideo): Promise<void> {
   await sendEmail({ to: recipients, subject, text, html });
 }
 
+/** The item a comment was posted on. */
+export interface CommentedItem {
+  id: string;
+  slug: string;
+  budgetLine: string;
+}
+
+interface CommentNotification {
+  item: CommentedItem;
+  kind: "story" | "video";
+  authorName: string;
+  body: string;
+  recipients: string[];
+}
+
+function commentLink(kind: "story" | "video", id: string): string {
+  return `${APP_URL}/${kind === "story" ? "stories" : "videos"}/${id}`;
+}
+
+function commentEmail(
+  { item, kind, authorName, body }: CommentNotification,
+  lead: string
+) {
+  const link = commentLink(kind, item.id);
+
+  const text =
+    `${lead}\n\n` +
+    `${item.slug}: ${item.budgetLine}\n\n` +
+    `${authorName} wrote:\n${body}\n\n` +
+    `View it here: ${link}`;
+
+  const html =
+    `<p>${escapeHtml(lead)}</p>` +
+    `<p><strong>${escapeHtml(item.slug)}:</strong> ${escapeHtml(item.budgetLine)}</p>` +
+    `<p><strong>${escapeHtml(authorName)} wrote:</strong><br>${linkifyToHtml(body)}</p>` +
+    `<p><a href="${link}">View it in the News Budget</a></p>`;
+
+  return { text, html };
+}
+
+/**
+ * Notify People tagged in a comment. Sent on both "Post" and "Post and Notify All".
+ * Fire-and-forget: failures are logged, never thrown.
+ */
+export async function notifyCommentMention(
+  notification: CommentNotification
+): Promise<void> {
+  if (notification.recipients.length === 0) return;
+  const { item, kind, authorName } = notification;
+  const { text, html } = commentEmail(
+    notification,
+    `${authorName} mentioned you in a comment on a ${kind} in the News Budget.`
+  );
+  await sendEmail({
+    to: notification.recipients,
+    subject: `You were mentioned on ${item.slug}`,
+    text,
+    html,
+  });
+}
+
+/**
+ * Notify everyone assigned to the item ("Post and Notify All"). Recipients are
+ * computed by the caller, which excludes anyone already emailed as a mention
+ * and the comment's own author.
+ */
+export async function notifyCommentTeam(
+  notification: CommentNotification
+): Promise<void> {
+  if (notification.recipients.length === 0) return;
+  const { item, kind, authorName } = notification;
+  const { text, html } = commentEmail(
+    notification,
+    `${authorName} commented on a ${kind} you're assigned to in the News Budget.`
+  );
+  await sendEmail({
+    to: notification.recipients,
+    subject: `New comment on ${item.slug}`,
+    text,
+    html,
+  });
+}
+
 /** Dedupe + extract valid emails from assignments. */
-function collectEmails(assignments: AssignedPerson[]): string[] {
+export function collectEmails(assignments: AssignedPerson[]): string[] {
   const emails = new Set<string>();
   for (const a of assignments) {
     if (a.person?.email) emails.add(a.person.email);

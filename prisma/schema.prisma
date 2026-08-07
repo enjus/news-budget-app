@@ -26,6 +26,7 @@ model User {
 
   createdStories Story[] @relation("storiesCreated")
   createdVideos  Video[] @relation("videosCreated")
+  comments       Comment[]
 
   @@index([appRole])
 }
@@ -44,6 +45,7 @@ model Person {
   visuals          Visual[]
   videoAssignments VideoAssignment[]
   teamMemberships  TeamMember[]
+  commentMentions  CommentMention[]
 }
 
 model Team {
@@ -101,6 +103,7 @@ model Story {
   assignments StoryAssignment[]
   visuals     Visual[]
   videos      Video[]
+  comments    Comment[]
 
   @@index([status])
   @@index([isEnterprise])
@@ -167,6 +170,7 @@ model Video {
   updatedAt        DateTime @updatedAt
 
   assignments VideoAssignment[]
+  comments    Comment[]
 
   @@index([status])
   @@index([isEnterprise])
@@ -188,4 +192,39 @@ model VideoAssignment {
   createdAt DateTime @default(now())
 
   @@unique([videoId, personId, role])
+}
+
+// Comments hang off either a Story or a Video — exactly one of storyId/videoId
+// is set. Prisma can't express that, so the API layer enforces it.
+model Comment {
+  id         String    @id @default(cuid())
+  body       String
+  story      Story?    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  storyId    String?
+  video      Video?    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoId    String?
+  // SetNull plus a denormalized name, so a deleted user's comments keep their byline.
+  author     User?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorId   String?
+  authorName String
+  editedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  mentions CommentMention[]
+
+  @@index([storyId, createdAt])
+  @@index([videoId, createdAt])
+}
+
+model CommentMention {
+  id        String   @id @default(cuid())
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, personId])
+  @@index([personId])
 }

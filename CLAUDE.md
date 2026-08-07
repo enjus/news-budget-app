@@ -53,6 +53,10 @@ No test suite exists yet.
 
 **"Today" boundary**: Always use `todayString()` (`src/lib/utils.ts`, Pacific-time) to compute "today" for upcoming/past splits — never `format(new Date(), "yyyy-MM-dd")` or other browser-local-time formatting. Mixing the two causes near-midnight categorization bugs when client and server disagree on the boundary.
 
+**Comment timestamps vs. pub dates**: `formatPubDate()` reads `getUTC*` because pub times are "newsroom time encoded as UTC". A `Comment.createdAt` is a *genuine* instant, so it must be formatted with `formatTimestampPacific()` (Intl + `America/Los_Angeles`) instead — using `formatPubDate()` on it would display the wrong time.
+
+**Comment notifications**: @-mentioned People are always emailed. "Post and Notify All" additionally emails everyone assigned to the item, minus anyone already emailed as a mention and minus the comment's author. Editing a comment sends nothing.
+
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 
 ### Authentication
@@ -85,6 +89,8 @@ No test suite exists yet.
 | **VideoAssignment** | `videoId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER) — composite unique on all three |
 | **Team** | `id`, `name` (unique), `description` |
 | **TeamMember** | `teamId`, `personId`, `role` (EDITOR\|MEMBER) — unique on (teamId, personId) |
+| **Comment** | `id`, `body` (plain text), `storyId` **or** `videoId` (exactly one — enforced by the API, not Prisma), `authorId` (FK → User, `SetNull`), `authorName` (denormalized so deleted users keep a byline), `editedAt`, `createdAt` |
+| **CommentMention** | `commentId`, `personId` — unique on (commentId, personId); the authoritative record of who was @-tagged |
 
 **Performance indexes** on Story and Video: `(status, onlinePubDate)`, `(isEnterprise, status)`.
 
@@ -92,14 +98,16 @@ No test suite exists yet.
 
 | File | Purpose |
 |------|---------|
-| `src/lib/utils.ts` | `cn()`, `TIME_BUCKETS`, `dateToBucket()`, `formatPubDate()`, `formatPrintDate()`, `todayString()`, `initials()`, `surname()`, status/role label maps |
+| `src/lib/utils.ts` | `cn()`, `TIME_BUCKETS`, `dateToBucket()`, `formatPubDate()`, `formatPrintDate()`, `todayString()`, `formatTimestampPacific()`, `initials()`, `surname()`, status/role label maps |
 | `src/lib/budget-query.ts` | `parsePersonIds()`, `personAssignmentFilter()`, `personIdsQueryParts()` — shared team-scoping helpers used by `/api/budget/daily`, `/api/budget/agenda`, `ColumnsView`, `AgendaView` |
 | `src/lib/validations.ts` | All Zod schemas: `createStorySchema`, `updateStorySchema`, `createVideoSchema`, `updateVideoSchema`, `createPersonSchema`, `updatePersonSchema`, `createAssignmentSchema`, `createVisualSchema`, etc. |
 | `src/types/index.ts` | Prisma payload types: `StoryWithRelations`, `StoryListItem`, `EnterpriseStoryItem`, `VideoWithRelations`, `PersonWithCounts`, `ContentItem` union, `DailyBudgetSlot`, `EnterpriseDateGroup`, `EditionDateGroup` |
 | `src/lib/prisma.ts` | Prisma singleton (global pattern for hot-reload safety) |
 | `src/lib/auth.ts` | NextAuth configuration (CredentialsProvider + AzureADProvider, JWT callbacks, SSO group check) |
 | `src/lib/email.ts` | nodemailer transport (localhost:25 postfix relay, no auth) |
-| `src/lib/notifications.ts` | Story change email notifications to assigned staff |
+| `src/lib/notifications.ts` | Story/video change + comment email notifications to assigned staff |
+| `src/lib/comments.ts` | `commentInclude`, `commentOrderBy`, and the `listComments()` / `createComment()` handlers shared by the story and video comment routes |
+| `src/lib/comment-text.ts` | `tokenizeCommentBody()` (React tokens: text/link/mention), `linkifyToHtml()` (email HTML) — comment bodies are plain text, linkified at render time |
 | `src/lib/rate-limit.ts` | In-memory sliding-window rate limiter (per-user, per-instance) |
 | `src/lib/api-path.ts` | `apiPath()` — prepends `NEXT_PUBLIC_BASE_PATH` to client fetch URLs |
 | `src/lib/api-helpers.ts` | `checkWriteLimit()`, `checkReadLimit()`, `requireJSON()` route helpers |
@@ -138,6 +146,9 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/videos/[id]` | GET/PUT/DELETE | Video CRUD |
 | `/api/videos/[id]/assignments` | GET/POST | Video staff assignments |
 | `/api/visuals/[id]` | PUT/DELETE | Update/delete individual visual |
+| `/api/stories/[id]/comments` | GET/POST | Story comments; POST body `{ body, mentionIds?, notifyAll? }` |
+| `/api/videos/[id]/comments` | GET/POST | Video comments (same shape) |
+| `/api/comments/[id]` | PATCH/DELETE | Edit (author only) / delete (author or ADMIN) a comment |
 | `/api/people` | GET/POST | List/create staff |
 | `/api/people/[id]` | GET/PUT/DELETE | Person CRUD |
 | `/api/people/[id]/content` | GET | Content assigned to a person |
@@ -194,7 +205,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `layout/` | TopNav.tsx, SearchCommand.tsx (Cmd+K), BudgetTabNav.tsx |
 | `people/` | PersonBadge.tsx, PersonForm.tsx, PersonList.tsx, PersonPicker.tsx |
 | `providers/` | SWRProvider.tsx, SessionProvider.tsx, ThemeProvider.tsx |
-| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx, VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, VideoAssignmentSection.tsx |
+| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx, VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, VideoAssignmentSection.tsx, CommentSection.tsx, MentionTextarea.tsx |
 | `ui/` | 20+ shadcn/ui components (button, card, dialog, input, select, date-time-picker, etc.) |
 
 Root layout (`src/app/layout.tsx`) wraps: `SessionProvider` → `ThemeProvider` → `SWRProvider` → `TopNav` + `Toaster`.

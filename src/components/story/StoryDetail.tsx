@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator"
 import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
+import { CommentSection } from "./CommentSection"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
@@ -154,6 +155,15 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
 
         {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
 
+        <Separator />
+
+        <CommentSection
+          storyId={story.id}
+          comments={story.comments}
+          onUpdate={onUpdate}
+          readOnly
+        />
+
       </div>
     )
   }
@@ -274,6 +284,14 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
       {VIDEOS_ENABLED && <Separator />}
 
       {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
+
+      <Separator />
+
+      <CommentSection
+        storyId={story.id}
+        comments={story.comments}
+        onUpdate={onUpdate}
+      />
 
       <Separator />
 

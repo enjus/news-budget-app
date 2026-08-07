@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent, hasAdminAccess } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
+import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { include: { person: true } },
   videos: true,
+  comments: { include: commentInclude, orderBy: commentOrderBy },
 } as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
