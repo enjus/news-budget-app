@@ -589,9 +589,9 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )}
       </div>
 
-      {/* Indicators — Enterprise/AI are real fields (auto-save above); the rest are tags */}
+      {/* Tags — Enterprise/AI are real fields (auto-save above); the rest are tags */}
       <div className="space-y-1.5">
-        <Label>Indicators</Label>
+        <Label>Tags</Label>
         <div className="flex flex-wrap gap-1.5">
           {INDICATOR_OPTIONS.map((opt) => {
             const active = opt.value === "ENTERPRISE"

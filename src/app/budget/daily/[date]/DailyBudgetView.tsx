@@ -1189,7 +1189,6 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
                   </Select>
                   <Button
                     size="sm"
-                    variant="outline"
                     disabled={!bulkIndicator || applicableCount === 0 || applying}
                     title={selectedOpt && applicableCount === 0 ? "This tag only applies to stories — none are selected" : undefined}
                     onClick={applyBulkIndicator}
