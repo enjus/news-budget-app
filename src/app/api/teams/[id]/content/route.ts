@@ -9,10 +9,12 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-// Safety cap on past items per member. TBD and upcoming items stay unbounded
-// (matches /api/budget/daily and /api/budget/agenda, which only cap TBD via
-// take — history accumulation is the actual performance concern here).
+// Safety cap on past items per member, across stories + videos combined.
 const PAST_CAP = 10
+
+// Safety cap on TBD/upcoming items per member (matches /api/budget/daily,
+// /api/budget/agenda, /api/budget/enterprise, /api/budget/edition).
+const TBD_CAP = 500
 
 export interface TeamContentResponse {
   team: { id: string; name: string }
@@ -21,6 +23,8 @@ export interface TeamContentResponse {
     person: { id: string; name: string; defaultRole: string }
     teamRole: string
     items: PersonContentItem[]
+    /** True if this member has more past items than PAST_CAP; `items` was truncated. */
+    pastTruncated: boolean
   }>
 }
 
@@ -60,9 +64,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     // "today" uses the same Pacific-time-aware boundary as the rest of the budget views.
     const todayStart = new Date(`${todayString()}T00:00:00Z`)
 
-    // Fetch content for all team members in parallel. Past items are capped
-    // (PAST_CAP) since they can accumulate unboundedly; TBD/upcoming items
-    // stay unbounded, matching /api/budget/daily and /api/budget/agenda.
+    // Fetch content for all team members in parallel. Both past and
+    // TBD/upcoming items are capped (PAST_CAP, TBD_CAP) since either can
+    // accumulate unboundedly, matching /api/budget/daily and /api/budget/agenda.
     const memberContent = await Promise.all(
       team.members.map(async (member) => {
         const [storyUpcoming, storyPast, videoUpcoming, videoPast] = await Promise.all([
@@ -87,6 +91,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                 },
               },
             },
+            take: TBD_CAP,
           }),
           prisma.storyAssignment.findMany({
             where: {
@@ -111,7 +116,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
               },
             },
             orderBy: { story: { onlinePubDate: "desc" } },
-            take: PAST_CAP,
+            // Fetch one extra past PAST_CAP so we can tell whether the
+            // story+video combined past list was actually truncated below.
+            take: PAST_CAP + 1,
           }),
           prisma.videoAssignment.findMany({
             where: {
@@ -134,6 +141,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                 },
               },
             },
+            take: TBD_CAP,
           }),
           prisma.videoAssignment.findMany({
             where: {
@@ -158,35 +166,60 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
               },
             },
             orderBy: { video: { onlinePubDate: "desc" } },
-            take: PAST_CAP,
+            take: PAST_CAP + 1,
           }),
         ])
 
-        const storyAssignments = [...storyUpcoming, ...storyPast]
-        const videoAssignments = [...videoUpcoming, ...videoPast]
+        const storyUpcomingItems: PersonContentItem[] = storyUpcoming.map((a) => ({
+          type: "story" as const,
+          id: a.story.id,
+          slug: a.story.slug,
+          budgetLine: a.story.budgetLine,
+          status: a.story.status,
+          onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
+          onlinePubDateTBD: a.story.onlinePubDateTBD,
+          role: a.role,
+        }))
+        const videoUpcomingItems: PersonContentItem[] = videoUpcoming.map((a) => ({
+          type: "video" as const,
+          id: a.video.id,
+          slug: a.video.slug,
+          budgetLine: a.video.budgetLine,
+          status: a.video.status,
+          onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
+          onlinePubDateTBD: a.video.onlinePubDateTBD,
+          role: a.role,
+        }))
+        const storyPastItems: PersonContentItem[] = storyPast.map((a) => ({
+          type: "story" as const,
+          id: a.story.id,
+          slug: a.story.slug,
+          budgetLine: a.story.budgetLine,
+          status: a.story.status,
+          onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
+          onlinePubDateTBD: a.story.onlinePubDateTBD,
+          role: a.role,
+        }))
+        const videoPastItems: PersonContentItem[] = videoPast.map((a) => ({
+          type: "video" as const,
+          id: a.video.id,
+          slug: a.video.slug,
+          budgetLine: a.video.budgetLine,
+          status: a.video.status,
+          onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
+          onlinePubDateTBD: a.video.onlinePubDateTBD,
+          role: a.role,
+        }))
 
-        const items: PersonContentItem[] = [
-          ...storyAssignments.map((a) => ({
-            type: "story" as const,
-            id: a.story.id,
-            slug: a.story.slug,
-            budgetLine: a.story.budgetLine,
-            status: a.story.status,
-            onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
-            onlinePubDateTBD: a.story.onlinePubDateTBD,
-            role: a.role,
-          })),
-          ...videoAssignments.map((a) => ({
-            type: "video" as const,
-            id: a.video.id,
-            slug: a.video.slug,
-            budgetLine: a.video.budgetLine,
-            status: a.video.status,
-            onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
-            onlinePubDateTBD: a.video.onlinePubDateTBD,
-            role: a.role,
-          })),
-        ]
+        // Merge past stories + videos, sort reverse-chrono, then cap the
+        // *combined* list at PAST_CAP (not each type independently).
+        const mergedPast = [...storyPastItems, ...videoPastItems].sort(
+          (a, b) => new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime()
+        )
+        const pastTruncated = mergedPast.length > PAST_CAP
+        const pastItems = mergedPast.slice(0, PAST_CAP)
+
+        const items: PersonContentItem[] = [...storyUpcomingItems, ...videoUpcomingItems, ...pastItems]
 
         // TBD first (alpha), then reverse-chrono
         items.sort((a, b) => {
@@ -204,6 +237,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           },
           teamRole: member.role,
           items,
+          pastTruncated,
         }
       })
     )

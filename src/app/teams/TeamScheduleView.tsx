@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
-import { format, parseISO, addDays, subDays } from "date-fns"
+import { format, parseISO, addDays, subDays, isValid } from "date-fns"
 import { ChevronLeft, ChevronRight, FileText, Video } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -37,8 +37,11 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
     [team]
   )
 
-  let parsedDate: Date
-  try { parsedDate = parseISO(date) } catch { parsedDate = new Date() }
+  // parseISO never throws on a malformed string — it returns an Invalid Date —
+  // so guard with isValid() rather than try/catch. Fall back to the
+  // Pacific-time-aware today boundary (todayString()), not browser-local time.
+  const parsed = parseISO(date)
+  const parsedDate: Date = isValid(parsed) ? parsed : parseISO(todayString())
 
   const prevDate = format(subDays(parsedDate, 1), "yyyy-MM-dd")
   const nextDate = format(addDays(parsedDate, 1), "yyyy-MM-dd")

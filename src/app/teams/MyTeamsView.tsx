@@ -335,6 +335,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
                           items={mc.pastItems}
                           expanded={expandedSections.has(pastKey)}
                           onToggle={() => toggleSection(pastKey)}
+                          truncated={mc.pastTruncated}
                         />
                       )}
                     </>
@@ -367,11 +368,13 @@ function CollapsibleContentSection({
   items,
   expanded,
   onToggle,
+  truncated,
 }: {
   title: string
   items: PersonContentItem[]
   expanded: boolean
   onToggle: () => void
+  truncated?: boolean
 }) {
   const Chevron = expanded ? ChevronDown : ChevronRight
   return (
@@ -382,7 +385,17 @@ function CollapsibleContentSection({
       >
         <Chevron className="size-3 shrink-0" />
         {title}
-        <span className="font-normal">({items.length})</span>
+        <span className="font-normal">
+          ({items.length}{truncated ? "+" : ""})
+        </span>
+        {truncated && (
+          <span
+            className="font-normal text-muted-foreground/70"
+            title="Older items exist but aren't shown here."
+          >
+            showing most recent
+          </span>
+        )}
       </button>
       {expanded && (
         <div className="space-y-1">

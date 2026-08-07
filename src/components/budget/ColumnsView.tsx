@@ -272,11 +272,14 @@ export function ColumnsView({
           }
         }
         const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
-        await fetch(endpoint, {
+        const res = await fetch(endpoint, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         })
+        if (!res.ok) {
+          throw new Error(`PATCH ${endpoint} failed with ${res.status}`)
+        }
         if (undoPayload) {
           const frozenUndo = undoPayload
           const frozenNextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")

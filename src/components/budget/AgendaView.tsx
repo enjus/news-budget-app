@@ -276,11 +276,14 @@ export function AgendaView({
 
         const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
 
-        await fetch(endpoint, {
+        const res = await fetch(endpoint, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(patchBody),
         })
+        if (!res.ok) {
+          throw new Error(`PATCH ${endpoint} failed with ${res.status}`)
+        }
       } catch (err) {
         console.error("Failed to update agenda item:", err)
         setLocalData(null)
