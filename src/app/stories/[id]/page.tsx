@@ -18,6 +18,7 @@ export default async function StoryPage({ params }: StoryPageProps) {
       assignments: { include: { person: true } },
       visuals: { include: { person: true } },
       videos: true,
+      tags: true,
     },
   })
 

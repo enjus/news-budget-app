@@ -1,6 +1,6 @@
-import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, Prisma } from "@prisma/client";
+import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, StoryTag, Prisma } from "@prisma/client";
 
-export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember };
+export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, StoryTag };
 
 // ─── Story types ─────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
     assignments: { include: { person: true } };
     visuals: { include: { person: true } };
     videos: true;
+    tags: true;
   };
 }>;
 
@@ -21,6 +22,7 @@ export type StoryListItem = Prisma.StoryGetPayload<{
     assignments: { include: { person: true } };
     visuals: { select: { id: true; type: true; person: { select: { name: true } } } };
     videos: { select: { id: true } };
+    tags: true;
   };
 }>;
 

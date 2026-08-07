@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Sparkles, Video as VideoIcon, Check } from "lucide-react"
+import { Video as VideoIcon, Check } from "lucide-react"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
@@ -129,15 +129,6 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
                 </span>
               )
             })}
-            {video.aiContributed && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
-                title="AI Contributed"
-              >
-                <Sparkles className="size-2.5 pointer-events-none" />
-                AI
-              </span>
-            )}
           </div>
 
           {/* Parent story link label */}
