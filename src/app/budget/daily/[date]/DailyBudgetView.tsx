@@ -1169,7 +1169,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             </Button>
             <Select value={bulkIndicator} onValueChange={setBulkIndicator}>
               <SelectTrigger className="h-8 w-[180px] text-sm">
-                <SelectValue placeholder="Add indicator…" />
+                <SelectValue placeholder="Add tag…" />
               </SelectTrigger>
               <SelectContent>
                 {INDICATOR_OPTIONS.map((opt) => (
