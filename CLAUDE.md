@@ -25,7 +25,7 @@ No test suite exists yet.
 ### Tech Stack
 
 - **Next.js 16 App Router** with Turbopack, React 19
-- **Prisma 5.22 + PostgreSQL** — use Prisma 5 (NOT v7; v7 broke SQLite with driver adapters). `DATABASE_URL` in `.env`.
+- **Prisma 5.22 + PostgreSQL** — use Prisma 5 (NOT v7; v7 broke SQLite with driver adapters). `DATABASE_URL` in `.env`. Schema changes deploy via `prisma db push`, not migration files — see [docs/schema-migration-deploys.md](./docs/schema-migration-deploys.md) before pushing anything that drops or renames a populated column.
 - **NextAuth v4** — credentials + Azure AD SSO auth, JWT sessions, middleware protection
 - **Zod v4** for validation — `z.string().cuid()`, `.flatten().fieldErrors` for errors
 - **SWR v2** for client data fetching with optimistic DnD updates

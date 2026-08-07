@@ -168,7 +168,8 @@ npm ci --production=false
 
 echo "Running Prisma generate + db push..."
 npx prisma generate
-npx prisma db push
+npx prisma db push   # See docs/schema-migration-deploys.md before merging a schema change
+                      # that drops/renames a populated column — db push has no rollback.
 
 echo "Building..."
 npm run build
