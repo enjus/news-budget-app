@@ -49,6 +49,8 @@ No test suite exists yet.
 
 **Optimistic drag-and-drop**: dnd-kit updates local SWR cache immediately on drop; server PATCH confirms persistence. `sortOrder` field on Story/Video drives ordering.
 
+**Off-budget draft privacy is per-route, not centralized**: Story/Video routes gate access with `if (!parent.onBudget && parent.createdByUserId !== session.user.id && !hasAdminAccess(...))` → 404. There's no shared middleware/helper enforcing this — any new route touching a Story/Video or its child resources (comments, visuals, assignments) must replicate the check explicitly, including selecting `onBudget`/`createdByUserId` in the query.
+
 **TBD content**: Items without a publication time have `onlinePubDateTBD: true` and float in a TBD bucket. A `TBD_CAP` (500) prevents unbounded queries.
 
 **"Today" boundary**: Always use `todayString()` (`src/lib/utils.ts`, Pacific-time) to compute "today" for upcoming/past splits — never `format(new Date(), "yyyy-MM-dd")` or other browser-local-time formatting. Mixing the two causes near-midnight categorization bugs when client and server disagree on the boundary.
@@ -173,6 +175,8 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `useMyTeams()` | Fetch teams the current user belongs to |
 | `useTeams()` | Fetch all teams (admin use) |
 | `useTeamContent(teamId)` | Fetch content assigned to a team |
+
+**SWR hooks return `[]`/`undefined` while loading, not just when empty** — code deriving "is this id still valid" from a hook's list (e.g. `usePeople()`) must check the hook's `isLoading` flag first, or a cold cache reads as "nothing exists" and can silently strip valid state (e.g. mention pruning in `MentionTextarea.tsx`).
 
 ### Client Routing (`src/app/`)
 
