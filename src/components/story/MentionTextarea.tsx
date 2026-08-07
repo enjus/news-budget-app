@@ -52,7 +52,7 @@ export function MentionTextarea({
   className,
   "aria-label": ariaLabel,
 }: MentionTextareaProps) {
-  const { people } = usePeople()
+  const { people, isLoading: peopleLoading } = usePeople()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const pendingCaret = useRef<number | null>(null)
 
@@ -74,8 +74,14 @@ export function MentionTextarea({
         .slice(0, MAX_SUGGESTIONS)
     : []
 
-  /** Drop tags whose "@Name" text is no longer in the body. */
+  /**
+   * Drop tags whose "@Name" text is no longer in the body. While the people
+   * list is still loading, every lookup would miss and strip all mentions —
+   * so skip pruning until it's ready rather than treating "not found yet" as
+   * "removed".
+   */
   function pruneMentions(text: string, ids: string[]): string[] {
+    if (peopleLoading) return ids
     return ids.filter((id) => {
       const person = people.find((p) => p.id === id)
       return person ? text.includes(`@${person.name}`) : false
