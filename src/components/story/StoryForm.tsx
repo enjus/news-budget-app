@@ -24,7 +24,7 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -104,10 +104,6 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           wordCount: (story as any).wordCount ?? null,
           notifyTeam: story.notifyTeam,
           aiContributed: story.aiContributed,
-          hereIsOregon: story.hereIsOregon,
-          contentRemix: story.contentRemix,
-          summerFocus: story.summerFocus,
-          oregonInsight: story.oregonInsight,
           postUrl: story.postUrl ?? "",
         }
       : {
@@ -123,13 +119,17 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           wordCount: null,
           notifyTeam: false,
           aiContributed: false,
-          hereIsOregon: false,
-          contentRemix: false,
-          summerFocus: false,
-          oregonInsight: false,
           postUrl: "",
         },
   })
+
+  // Editorial campaign tags (StoryTag rows) — kept as local state since they're
+  // not Story columns. Edit mode auto-saves each toggle immediately, mirroring
+  // the isEnterprise/aiContributed/status auto-save below. Create mode posts
+  // them after the story is created, like pendingAssignments.
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    () => story?.tags.map((t) => t.tag) ?? []
+  )
 
   const { data: session } = useSession()
   const canEditPrintDate = canEditPrint(session?.user?.appRole ?? "")
@@ -175,6 +175,40 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     submitNormal: () => { notifyRef.current = false; draftRef.current = false; handleSubmit(onSubmit)() },
     submitNotify: () => { notifyRef.current = true; draftRef.current = false; handleSubmit(onSubmit)() },
   }))
+
+  // Toggle any indicator chip (Enterprise, AI Contributed, or an editorial tag).
+  // Enterprise/AI are real form fields (picked up by the auto-save effect above).
+  // Tags live outside the form — edit mode auto-saves the diff immediately.
+  function toggleIndicator(value: string) {
+    if (value === "ENTERPRISE") {
+      setValue("isEnterprise", !watchedIsEnterprise, { shouldDirty: true })
+      return
+    }
+    if (value === "AI_CONTRIBUTED") {
+      setValue("aiContributed", !watchedAiContributed, { shouldDirty: true })
+      return
+    }
+    const removing = selectedTags.includes(value)
+    setSelectedTags((prev) => (removing ? prev.filter((t) => t !== value) : [...prev, value]))
+    if (isEdit && story) {
+      const label = STORY_TAG_LABELS[value] ?? value
+      if (removing) {
+        fetch(apiPath(`/api/stories/${story.id}/tags?tag=${value}`), { method: "DELETE" })
+          .then((res) => { if (!res.ok) throw new Error() })
+          .then(() => toast.success(`Removed ${label}`, { duration: 2000 }))
+          .catch(() => toast.error(`Failed to remove ${label}`))
+      } else {
+        fetch(apiPath(`/api/stories/${story.id}/tags`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tag: value }),
+        })
+          .then((res) => { if (!res.ok) throw new Error() })
+          .then(() => toast.success(`Added ${label}`, { duration: 2000 }))
+          .catch(() => toast.error(`Failed to add ${label}`))
+      }
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
@@ -233,6 +267,19 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ personId: a.person.id, role: a.role }),
+            })
+          )
+        )
+      }
+
+      // Post pending tags after story creation
+      if (!isEdit && selectedTags.length > 0) {
+        await Promise.all(
+          selectedTags.map((tag) =>
+            fetch(apiPath(`/api/stories/${saved.id}/tags`), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tag }),
             })
           )
         )
@@ -429,23 +476,6 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             <p className="text-xs text-destructive">{errors.wordCount.message}</p>
           )}
         </div>
-
-        <div className="flex items-center gap-2 pt-7">
-          <Controller
-            name="isEnterprise"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-enterprise"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-enterprise" className="cursor-pointer font-normal">
-            Enterprise
-          </Label>
-        </div>
       </div>
 
       {/* Online Pub Date */}
@@ -559,87 +589,30 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         )}
       </div>
 
-      {/* AI Contributed + Here is Oregon */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <div className="flex items-center gap-2">
-          <Controller
-            name="aiContributed"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-ai"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-ai" className="cursor-pointer font-normal">
-            AI Contributed
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Controller
-            name="hereIsOregon"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-hio"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-hio" className="cursor-pointer font-normal">
-            Here is Oregon
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Controller
-            name="contentRemix"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-remix"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-remix" className="cursor-pointer font-normal">
-            Content Remix
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Controller
-            name="summerFocus"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-summer"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-summer" className="cursor-pointer font-normal">
-            Summer Focus
-          </Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Controller
-            name="oregonInsight"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="sf-insight"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="sf-insight" className="cursor-pointer font-normal">
-            Oregon Insight
-          </Label>
+      {/* Tags — Enterprise/AI are real fields (auto-save above); the rest are tags */}
+      <div className="space-y-1.5">
+        <Label>Tags</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {INDICATOR_OPTIONS.map((opt) => {
+            const active = opt.value === "ENTERPRISE"
+              ? watchedIsEnterprise
+              : opt.value === "AI_CONTRIBUTED"
+                ? watchedAiContributed
+                : selectedTags.includes(opt.value)
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => toggleIndicator(opt.value)}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  active ? cn(opt.color, "border-transparent") : "border-input text-muted-foreground hover:bg-accent"
+                )}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

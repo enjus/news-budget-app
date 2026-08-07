@@ -24,6 +24,16 @@ export const StoryStatusEnum = z.enum([
   "SHELVED",
 ]);
 
+// Editorial campaign tags — see StoryTag model comment in prisma/schema.prisma.
+// Labels/colors for these live in STORY_TAG_LABELS etc. in src/lib/utils.ts.
+export const StoryTagEnum = z.enum([
+  "HERE_IS_OREGON",
+  "CONTENT_REMIX",
+  "SUMMER_FOCUS",
+  "OREGON_INSIGHT",
+  "VIDEO_POTENTIAL",
+]);
+
 // Empty string → null before URL validation so blank inputs don't error
 const optionalUrl = z.preprocess(
   (v) => (v === "" ? null : v),
@@ -62,10 +72,6 @@ export const createStorySchema = z.object({
   wordCount: z.number().int().min(0).nullable().optional(),
   notifyTeam: z.boolean().default(false),
   aiContributed: z.boolean().default(false),
-  hereIsOregon: z.boolean().default(false),
-  contentRemix: z.boolean().default(false),
-  summerFocus: z.boolean().default(false),
-  oregonInsight: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   postUrl: optionalUrl,
   onBudget: z.boolean().default(true),
@@ -89,10 +95,6 @@ export const updateStorySchema = z.object({
   wordCount: z.number().int().min(0).nullable().optional(),
   notifyTeam: z.boolean().optional(),
   aiContributed: z.boolean().optional(),
-  hereIsOregon: z.boolean().optional(),
-  contentRemix: z.boolean().optional(),
-  summerFocus: z.boolean().optional(),
-  oregonInsight: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   postUrl: optionalUrl,
   onBudget: z.boolean().optional(),
@@ -104,6 +106,12 @@ export const updateStorySchema = z.object({
 export const createAssignmentSchema = z.object({
   personId: z.string().cuid(),
   role: AssignmentRoleEnum,
+});
+
+// ─── Story Tag ────────────────────────────────────────────────────────────────
+
+export const createStoryTagSchema = z.object({
+  tag: StoryTagEnum,
 });
 
 // ─── Visual ───────────────────────────────────────────────────────────────────
@@ -135,7 +143,6 @@ export const createVideoSchema = z.object({
   onlinePubDateTBD: z.boolean().default(true),
   notes: z.string().max(5000).nullable().optional(),
   notifyTeam: z.boolean().default(false),
-  aiContributed: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   youtubeUrl: optionalUrl,
   reelsUrl: optionalUrl,
@@ -159,7 +166,6 @@ export const updateVideoSchema = z.object({
   onlinePubDateTBD: z.boolean().optional(),
   notes: z.string().max(5000).nullable().optional(),
   notifyTeam: z.boolean().optional(),
-  aiContributed: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   youtubeUrl: optionalUrl,
   reelsUrl: optionalUrl,
@@ -217,6 +223,7 @@ export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
+export type CreateStoryTagInput = z.infer<typeof createStoryTagSchema>;
 export type CreateVisualInput = z.infer<typeof createVisualSchema>;
 export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
