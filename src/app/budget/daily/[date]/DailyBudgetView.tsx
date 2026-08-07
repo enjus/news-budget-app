@@ -973,11 +973,12 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
     if (!bulkIndicator || selectedItems.size === 0) return
     const opt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
     if (!opt) return
-    setApplying(true)
     const snapshot = [...selectedItems.keys()]
     // Story-only indicators (AI Contributed, the editorial tags) skip video items.
     const applicable = opt.storyOnly ? snapshot.filter((id) => id.startsWith("story-")) : snapshot
     const skipped = snapshot.length - applicable.length
+    if (applicable.length === 0) return // nothing to do — e.g. a story-only tag with only videos selected
+    setApplying(true)
     try {
       await Promise.all(
         applicable.map(async (compositeId) => {
@@ -1167,24 +1168,37 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             >
               {applying ? "Applying…" : "Apply"}
             </Button>
-            <Select value={bulkIndicator} onValueChange={setBulkIndicator}>
-              <SelectTrigger className="h-8 w-[180px] text-sm">
-                <SelectValue placeholder="Add tag…" />
-              </SelectTrigger>
-              <SelectContent>
-                {INDICATOR_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!bulkIndicator || selectedItems.size === 0 || applying}
-              onClick={applyBulkIndicator}
-            >
-              {applying ? "Applying…" : "Add"}
-            </Button>
+            {(() => {
+              const selectedOpt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
+              const applicableCount = selectedOpt
+                ? (selectedOpt.storyOnly
+                    ? [...selectedItems.keys()].filter((id) => id.startsWith("story-")).length
+                    : selectedItems.size)
+                : 0
+              return (
+                <>
+                  <Select value={bulkIndicator} onValueChange={setBulkIndicator}>
+                    <SelectTrigger className="h-8 w-[180px] text-sm">
+                      <SelectValue placeholder="Add tag…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICATOR_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!bulkIndicator || applicableCount === 0 || applying}
+                    title={selectedOpt && applicableCount === 0 ? "This tag only applies to stories — none are selected" : undefined}
+                    onClick={applyBulkIndicator}
+                  >
+                    {applying ? "Applying…" : "Add"}
+                  </Button>
+                </>
+              )
+            })()}
             <Button size="sm" variant="ghost" onClick={exitSelectMode}>
               Cancel
             </Button>
