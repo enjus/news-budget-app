@@ -10,7 +10,8 @@ import type { StoryListItem } from "@/types/index"
 
 const WORD_COUNT_LIMIT = 1400
 
-// Left border accent keyed to status — DRAFT gets no override (default border)
+// Left border accent keyed to status — DRAFT falls through to the
+// unassigned/due overrides applied inline where this map is consulted.
 const STATUS_BORDER: Record<string, string> = {
   SCHEDULED:           "border-l-4 border-l-blue-400",
   PUBLISHED_ITERATING: "border-l-4 border-l-emerald-500",
@@ -23,6 +24,17 @@ function isPastDue(onlinePubDate: Date | string): boolean {
   const now = new Date()
   const nowFake = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()))
   return new Date(onlinePubDate) < nowFake
+}
+
+/** DRAFT, assigned, with a fixed pub date that has already passed — nobody confirmed it's ready. */
+function isDraftDue(story: StoryListItem): boolean {
+  return (
+    story.status === "DRAFT" &&
+    story.assignments.length > 0 &&
+    !story.onlinePubDateTBD &&
+    !!story.onlinePubDate &&
+    isPastDue(story.onlinePubDate)
+  )
 }
 
 interface StoryCardProps {
@@ -82,8 +94,9 @@ function StatusTimeChip({
           Shelved
         </span>
       )
-    default:
-      // DRAFT — flag unassigned stories; otherwise show time only if set
+    default: {
+      // DRAFT — flag unassigned stories first, then stories whose target pub
+      // date has passed while still in DRAFT (nobody locked in readiness).
       if (story.assignments.length === 0) {
         return (
           <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
@@ -91,9 +104,17 @@ function StatusTimeChip({
           </span>
         )
       }
+      if (isDraftDue(story)) {
+        return (
+          <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+            ⚠ Due{time ? ` ${time}` : ""}
+          </span>
+        )
+      }
       return time ? (
         <span className="shrink-0 text-[10px] text-muted-foreground">{time}</span>
       ) : null
+    }
   }
 }
 
@@ -139,7 +160,13 @@ export function StoryCard({
       href={`/stories/${story.id}`}
       className={cn(
         "group block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
-        STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-red-400" : ""),
+        STATUS_BORDER[story.status] ?? (
+          story.status === "DRAFT" && story.assignments.length === 0
+            ? "border-l-4 border-l-red-400"
+            : isDraftDue(story)
+              ? "border-l-4 border-l-amber-400"
+              : ""
+        ),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
       )}
