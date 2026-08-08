@@ -322,6 +322,21 @@ export function StoryCard({
                 Post
               </a>
             )}
+            {story.workingDraftUrl &&
+              story.status !== "PUBLISHED_FINAL" &&
+              story.status !== "PUBLISHED_ITERATING" && (
+              <a
+                href={story.workingDraftUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+                title="Open working draft"
+              >
+                <FileText className="size-2.5" />
+                Draft
+              </a>
+            )}
           </div>
         </div>
       </div>

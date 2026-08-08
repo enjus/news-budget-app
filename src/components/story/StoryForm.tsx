@@ -109,6 +109,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           summerFocus: story.summerFocus,
           oregonInsight: story.oregonInsight,
           postUrl: story.postUrl ?? "",
+          workingDraftUrl: story.workingDraftUrl ?? "",
         }
       : {
           slug: "",
@@ -128,6 +129,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           summerFocus: false,
           oregonInsight: false,
           postUrl: "",
+          workingDraftUrl: "",
         },
   })
 
@@ -543,6 +545,19 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           </p>
         </div>
       ) : null}
+
+      {/* Working Draft URL */}
+      <div className="space-y-1.5">
+        <Label htmlFor="sf-working-draft-url">Working Draft URL</Label>
+        <Input
+          id="sf-working-draft-url"
+          {...register("workingDraftUrl")}
+          placeholder="https://"
+        />
+        {errors.workingDraftUrl && (
+          <p className="text-xs text-destructive">{errors.workingDraftUrl.message as string}</p>
+        )}
+      </div>
 
       {/* Notes */}
       <div className="space-y-1.5">

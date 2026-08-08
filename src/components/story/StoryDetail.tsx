@@ -130,6 +130,22 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
               </Link>
             </div>
           )}
+          {story.workingDraftUrl &&
+            story.status !== "PUBLISHED_FINAL" &&
+            story.status !== "PUBLISHED_ITERATING" && (
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Working Draft</p>
+              <Link
+                href={story.workingDraftUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline break-all"
+              >
+                {story.workingDraftUrl}
+                <ExternalLink className="size-3 shrink-0" />
+              </Link>
+            </div>
+          )}
         </div>
 
         <Separator />
