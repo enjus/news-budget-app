@@ -18,6 +18,8 @@ npx prisma generate      # Regenerate Prisma client (runs automatically via post
 
 No test suite exists yet.
 
+**Before editing shared files** (API routes, `src/lib/*`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`). If an open PR already touches your target file, do that piece after it merges instead of risking a conflict.
+
 ## Architecture Overview
 
 **News budget management app** for tracking editorial stories and videos across daily/enterprise/edition/shelved views with drag-and-drop scheduling.
@@ -83,6 +85,10 @@ No test suite exists yet.
 | **TeamMember** | `teamId`, `personId`, `role` (EDITOR\|MEMBER) — unique on (teamId, personId) |
 
 **Performance indexes** on Story and Video: `(status, onlinePubDate)`, `(isEnterprise, status)`.
+
+**Note:** `Visual.personId` credits a person on a story outside of `StoryAssignment`. `notifyStoryTeam` and `/api/people/[id]/content` include these credits as recipients/content; `/api/teams/[id]/content` does not yet (tracked in #21).
+
+**Gotcha:** `PersonContentItem[]` (from `/api/people/[id]/content`, `/api/teams/[id]/content`) can contain multiple items for the same `type`+`id` (e.g. a person assigned REPORTER *and* credited on a PHOTO visual for the same story). Always key list rows by `${type}-${id}-${role}`, never `${type}-${id}` alone.
 
 ### Important Files
 
