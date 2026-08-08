@@ -14,12 +14,18 @@ interface AssignedPerson {
   role: string;
 }
 
+/** Minimal shape of a visual element's credited person. */
+interface CreditedVisual {
+  person: { name: string; email: string } | null;
+}
+
 interface NotifiableStory {
   id: string;
   slug: string;
   budgetLine: string;
   notes: string | null;
   assignments: AssignedPerson[];
+  visuals: CreditedVisual[];
 }
 
 interface NotifiableVideo {
@@ -36,7 +42,7 @@ interface NotifiableVideo {
  * Fire-and-forget: failures are logged, never thrown.
  */
 export async function notifyStoryTeam(story: NotifiableStory): Promise<void> {
-  const recipients = collectEmails(story.assignments);
+  const recipients = collectEmails(story.assignments, story.visuals);
   if (recipients.length === 0) return;
 
   const link = `${APP_URL}/stories/${story.id}`;
@@ -86,11 +92,14 @@ export async function notifyVideoTeam(video: NotifiableVideo): Promise<void> {
   await sendEmail({ to: recipients, subject, text, html });
 }
 
-/** Dedupe + extract valid emails from assignments. */
-function collectEmails(assignments: AssignedPerson[]): string[] {
+/** Dedupe + extract valid emails from assignments and (for stories) credited visuals. */
+function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
   for (const a of assignments) {
     if (a.person?.email) emails.add(a.person.email);
+  }
+  for (const v of visuals) {
+    if (v.person?.email) emails.add(v.person.email);
   }
   return Array.from(emails);
 }
