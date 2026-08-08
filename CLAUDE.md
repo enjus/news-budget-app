@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev              # Dev server at http://localhost:3000 (Turbopack)
-npm run build            # Production build (prisma generate + db push + next build)
+npm run build            # Production build (prisma generate + next build — no db push/migrate)
 npm run start            # Production server
 npm run lint             # ESLint
 
@@ -50,6 +50,8 @@ No test suite exists yet.
 **TBD content**: Items without a publication time have `onlinePubDateTBD: true` and float in a TBD bucket. A `TBD_CAP` (500) prevents unbounded queries.
 
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
+
+**Database schema sync is deliberate, not automatic**: `npm run build` only runs `prisma generate` (regenerate client types) — it does **not** push or migrate the database schema. Production (VPS) applies schema changes explicitly via `npx prisma db push` as a manual deploy step (see `docs/aws-vps-deployment.md` §7). Vercel deployments use a separate `vercel-build` script (`scripts/vercel-build-db-sync.js`) that runs `prisma db push --accept-data-loss` automatically, but **only when `VERCEL_ENV === 'preview'`** — production-on-Vercel and anything else skips it. This exists because Vercel preview databases have no other way to pick up schema changes; if story/video saves start failing on a preview deploy with a generic 500, check whether the preview DB is missing recently added columns first.
 
 ### Authentication
 
