@@ -38,7 +38,9 @@ interface NotifiableVideo {
 
 /**
  * Notify the people assigned to a story that it needs their attention.
- * Recipients = everyone assigned to the story (via StoryAssignment).
+ * Recipients = everyone assigned to the story (via StoryAssignment) plus
+ * everyone credited on any of its Visual elements — any update to the
+ * story re-notifies both groups, not just whoever's own contribution changed.
  * Fire-and-forget: failures are logged, never thrown.
  */
 export async function notifyStoryTeam(story: NotifiableStory): Promise<void> {
