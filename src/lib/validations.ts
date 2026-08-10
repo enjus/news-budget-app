@@ -74,6 +74,7 @@ export const createStorySchema = z.object({
   aiContributed: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   postUrl: optionalUrl,
+  workingDraftUrl: optionalUrl,
   onBudget: z.boolean().default(true),
 });
 
@@ -97,6 +98,7 @@ export const updateStorySchema = z.object({
   aiContributed: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   postUrl: optionalUrl,
+  workingDraftUrl: optionalUrl,
   onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
 });

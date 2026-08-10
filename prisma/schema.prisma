@@ -87,6 +87,7 @@ model Story {
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
   postUrl          String?
+  workingDraftUrl  String? // link to in-progress draft doc; hidden from cards once story is published
   onBudget         Boolean  @default(true)
   createdByUserId  String?
   createdByUser    User?    @relation("storiesCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
