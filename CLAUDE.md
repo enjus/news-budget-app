@@ -57,6 +57,8 @@ No test suite exists yet.
 
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 
+**Database schema sync is deliberate, not automatic**: `npm run build` only runs `prisma generate` (regenerate client types) — it does **not** push or migrate the database schema. Production (VPS) applies schema changes explicitly via `npx prisma db push` as a manual deploy step (see `docs/aws-vps-deployment.md` §7). Vercel deployments use a separate `vercel-build` script (`scripts/vercel-build-db-sync.js`) that runs `prisma db push --accept-data-loss` automatically, but **only when `VERCEL_ENV === 'preview'`** — production-on-Vercel and anything else skips it. This exists because Vercel preview databases have no other way to pick up schema changes; if story/video saves start failing on a preview deploy with a generic 500, check whether the preview DB is missing recently added columns first.
+
 ### Authentication
 
 **Middleware** (`middleware.ts`): NextAuth `withAuth` protects all routes except `/login` and `/api/auth/*`. Unauthenticated requests redirect to `/login`.
