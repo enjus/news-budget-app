@@ -84,13 +84,10 @@ model Story {
   wordCount        Int?
   notifyTeam       Boolean  @default(false)
   aiContributed    Boolean  @default(false)
-  hereIsOregon     Boolean  @default(false)
-  contentRemix     Boolean  @default(false)
-  summerFocus      Boolean  @default(false)
-  oregonInsight    Boolean  @default(false)
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
   postUrl          String?
+  workingDraftUrl  String? // link to in-progress draft doc; hidden from cards once story is published
   onBudget         Boolean  @default(true)
   createdByUserId  String?
   createdByUser    User?    @relation("storiesCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -101,6 +98,7 @@ model Story {
   assignments StoryAssignment[]
   visuals     Visual[]
   videos      Video[]
+  tags        StoryTag[]
 
   @@index([status])
   @@index([isEnterprise])
@@ -123,6 +121,21 @@ model StoryAssignment {
   createdAt DateTime @default(now())
 
   @@unique([storyId, personId, role])
+}
+
+// Editorial campaign labels — rotate over time, so kept as data (a String tag)
+// rather than a boolean column per indicator. New tags can be added without a
+// schema migration; see StoryTagEnum in src/lib/validations.ts for valid values.
+model StoryTag {
+  id        String   @id @default(cuid())
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  storyId   String
+  // StoryTagType: HERE_IS_OREGON | CONTENT_REMIX | SUMMER_FOCUS | OREGON_INSIGHT
+  tag       String
+  createdAt DateTime @default(now())
+
+  @@unique([storyId, tag])
+  @@index([tag])
 }
 
 model Visual {
@@ -152,7 +165,6 @@ model Video {
   onlinePubDateTBD Boolean  @default(true)
   notes            String?
   notifyTeam       Boolean  @default(false)
-  aiContributed    Boolean  @default(false)
   sortOrder        Int      @default(0)
   shelvedAt        DateTime? // set when status → SHELVED, cleared otherwise
   version          Int      @default(0) // optimistic locking — incremented on every PATCH
