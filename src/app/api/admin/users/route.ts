@@ -54,13 +54,23 @@ export async function POST(req: Request) {
   try {
     const passwordHash = password ? await bcrypt.hash(password, 12) : null
 
+    // Auto-link to a matching Person by email when the caller didn't pick one explicitly
+    let resolvedPersonId = personId ?? null
+    if (!resolvedPersonId) {
+      const matchingPerson = await prisma.person.findUnique({
+        where: { email },
+        select: { id: true },
+      })
+      resolvedPersonId = matchingPerson?.id ?? null
+    }
+
     const user = await prisma.user.create({
       data: {
         email,
         name,
         passwordHash,
         appRole,
-        personId: personId ?? null,
+        personId: resolvedPersonId,
       },
       select: { id: true, email: true, name: true, appRole: true },
     })

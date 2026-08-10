@@ -94,6 +94,12 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!dbUser) {
+          // Auto-link to a matching Person by email; leave unlinked if no match
+          const matchingPerson = await prisma.person.findUnique({
+            where: { email },
+            select: { id: true },
+          })
+
           // Auto-create with PRODUCER role — admin can elevate to higher roles later
           await prisma.user.create({
             data: {
@@ -101,6 +107,7 @@ export const authOptions: NextAuthOptions = {
               name: user.name ?? email,
               passwordHash: null,
               appRole: "PRODUCER",
+              personId: matchingPerson?.id ?? null,
             },
           })
         }
