@@ -15,6 +15,7 @@ const storyInclude = {
   assignments: { include: { person: true } },
   visuals: { include: { person: true } },
   videos: true,
+  tags: true,
 } as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {

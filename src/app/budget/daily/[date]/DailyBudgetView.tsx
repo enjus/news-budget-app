@@ -27,7 +27,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS, INDICATOR_OPTIONS } from "@/lib/utils"
 import { usePreferences } from "@/lib/hooks/usePreferences"
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
@@ -888,6 +888,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const [selectMode, setSelectMode] = useState(false)
   const [selectedItems, setSelectedItems] = useState<Map<string, string>>(new Map()) // compositeId → originalStatus
   const [bulkStatus, setBulkStatus] = useState("")
+  const [bulkIndicator, setBulkIndicator] = useState("")
   const [applying, setApplying] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -917,6 +918,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
     setSelectMode(false)
     setSelectedItems(new Map())
     setBulkStatus("")
+    setBulkIndicator("")
   }
 
   async function applyBulkStatus() {
@@ -960,6 +962,59 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
           },
         },
       })
+    } catch {
+      toast.error("Some updates failed — please try again.")
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  async function applyBulkIndicator() {
+    if (!bulkIndicator || selectedItems.size === 0) return
+    const opt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
+    if (!opt) return
+    const snapshot = [...selectedItems.keys()]
+    // Story-only indicators (AI Contributed, the editorial tags) skip video items.
+    const applicable = opt.storyOnly ? snapshot.filter((id) => id.startsWith("story-")) : snapshot
+    const skipped = snapshot.length - applicable.length
+    if (applicable.length === 0) return // nothing to do — e.g. a story-only tag with only videos selected
+    setApplying(true)
+    try {
+      await Promise.all(
+        applicable.map(async (compositeId) => {
+          const isStory = compositeId.startsWith("story-")
+          const id = compositeId.slice(isStory ? "story-".length : "video-".length)
+          if (opt.value === "ENTERPRISE") {
+            const res = await fetch(apiPath(isStory ? `/api/stories/${id}` : `/api/videos/${id}`), {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ isEnterprise: true }),
+            })
+            if (!res.ok) throw new Error(`Failed to update ${compositeId}`)
+          } else if (opt.value === "AI_CONTRIBUTED") {
+            const res = await fetch(apiPath(`/api/stories/${id}`), {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ aiContributed: true }),
+            })
+            if (!res.ok) throw new Error(`Failed to update ${compositeId}`)
+          } else {
+            const res = await fetch(apiPath(`/api/stories/${id}/tags`), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ tag: opt.value }),
+            })
+            // 409 = already tagged — not a failure for a bulk "add" action
+            if (!res.ok && res.status !== 409) throw new Error(`Failed to update ${compositeId}`)
+          }
+        })
+      )
+      exitSelectMode()
+      setRefreshTrigger((t) => t + 1)
+      toast.success(
+        `Added "${opt.label}" to ${applicable.length} ${applicable.length === 1 ? "item" : "items"}`
+        + (skipped > 0 ? ` (skipped ${skipped} video${skipped === 1 ? "" : "s"})` : "")
+      )
     } catch {
       toast.error("Some updates failed — please try again.")
     } finally {
@@ -1113,6 +1168,36 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             >
               {applying ? "Applying…" : "Apply"}
             </Button>
+            {(() => {
+              const selectedOpt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
+              const applicableCount = selectedOpt
+                ? (selectedOpt.storyOnly
+                    ? [...selectedItems.keys()].filter((id) => id.startsWith("story-")).length
+                    : selectedItems.size)
+                : 0
+              return (
+                <>
+                  <Select value={bulkIndicator} onValueChange={setBulkIndicator}>
+                    <SelectTrigger className="h-8 w-[180px] text-sm">
+                      <SelectValue placeholder="Add tag…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDICATOR_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    disabled={!bulkIndicator || applicableCount === 0 || applying}
+                    title={selectedOpt && applicableCount === 0 ? "This tag only applies to stories — none are selected" : undefined}
+                    onClick={applyBulkIndicator}
+                  >
+                    {applying ? "Applying…" : "Add"}
+                  </Button>
+                </>
+              )
+            })()}
             <Button size="sm" variant="ghost" onClick={exitSelectMode}>
               Cancel
             </Button>

@@ -138,7 +138,6 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
           onlinePubDateTBD: video.onlinePubDateTBD,
           notes: video.notes ?? "",
           notifyTeam: video.notifyTeam,
-          aiContributed: video.aiContributed,
           youtubeUrl: video.youtubeUrl ?? "",
           reelsUrl: video.reelsUrl ?? "",
           tiktokUrl: video.tiktokUrl ?? "",
@@ -154,7 +153,6 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
           onlinePubDateTBD: initialValues?.onlinePubDateTBD ?? true,
           notes: "",
           notifyTeam: false,
-          aiContributed: false,
           youtubeUrl: "",
           reelsUrl: "",
           tiktokUrl: "",
@@ -169,7 +167,6 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
   const storyId = watch("storyId")
   const watchedStatus = watch("status")
   const watchedIsEnterprise = watch("isEnterprise")
-  const watchedAiContributed = watch("aiContributed")
 
   // For the trigger label: check live results first, then fall back to
   // video.story (edit mode) in case the linked story is outside the search window
@@ -190,10 +187,10 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     submitNotify: () => { notifyRef.current = true; draftRef.current = false; handleSubmit(onSubmit)() },
   }))
 
-  // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
+  // Auto-save status, isEnterprise on change (edit mode only).
   // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
   const autoSaveMounted = useRef(false)
-  const prevAutoSaveValues = useRef({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed })
+  const prevAutoSaveValues = useRef({ status: watchedStatus, isEnterprise: watchedIsEnterprise })
   useEffect(() => {
     if (!isEdit) return
     if (!autoSaveMounted.current) {
@@ -204,16 +201,16 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     const message = watchedStatus !== prev.status
       ? `Status → ${STORY_STATUS_LABELS[watchedStatus] ?? watchedStatus}`
       : "Saved"
-    prevAutoSaveValues.current = { status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }
+    prevAutoSaveValues.current = { status: watchedStatus, isEnterprise: watchedIsEnterprise }
     fetch(apiPath(`/api/videos/${video!.id}`), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }),
+      body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise }),
     })
       .then((res) => res.ok ? toast.success(message, { duration: 2000 }) : res.json().then((j) => { throw new Error(j?.error) }))
       .catch((err) => toast.error(err instanceof Error ? err.message : "Auto-save failed"))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedStatus, watchedIsEnterprise, watchedAiContributed])
+  }, [watchedStatus, watchedIsEnterprise])
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function onSubmit(data: any) {
@@ -428,26 +425,6 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
         </div>
       )}
 
-      {/* AI Contributed — directly below assignments in create mode */}
-      {!isEdit && (
-        <div className="flex items-center gap-2">
-          <Controller
-            name="aiContributed"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="vf-ai"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
-            AI Contributed
-          </Label>
-        </div>
-      )}
-
       {/* Status + Enterprise */}
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex-1 min-w-[180px] space-y-1.5">
@@ -621,26 +598,6 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
           <p className="text-xs text-destructive">{errors.notes.message}</p>
         )}
       </div>
-
-      {/* AI Contributed — edit mode (above platform links) */}
-      {isEdit && (
-        <div className="flex items-center gap-2">
-          <Controller
-            name="aiContributed"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="vf-ai"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="vf-ai" className="cursor-pointer font-normal">
-            AI Contributed
-          </Label>
-        </div>
-      )}
 
       {/* Platform Links — edit mode only */}
       {isEdit && (
