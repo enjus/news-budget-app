@@ -298,7 +298,22 @@ export const PERSON_ROLE_LABELS: Record<string, string> = {
   GRAPHIC_DESIGNER: "Graphic Designer",
   PUBLICATION_DESIGNER: "Publication Designer",
   OTHER: "Other",
+  // Visual credit types (Story.visuals) — shown as a "role" on person/team content lists.
+  PHOTO: "Photo",
+  GRAPHIC: "Graphic",
+  MAP: "Map",
+  VIDEO: "Video",
 };
+
+/** Collapse duplicate visual credits (same story + visual type) for one person down to one entry each. */
+export function dedupeVisualCredits<T extends { storyId: string; type: string }>(visuals: T[]): T[] {
+  const seen = new Map<string, T>();
+  for (const v of visuals) {
+    const key = `${v.storyId}:${v.type}`;
+    if (!seen.has(key)) seen.set(key, v);
+  }
+  return Array.from(seen.values());
+}
 
 export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
   EDITOR: "Editor",

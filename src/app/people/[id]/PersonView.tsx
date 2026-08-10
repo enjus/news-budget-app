@@ -253,7 +253,7 @@ export function PersonView({ id }: PersonViewProps) {
           ) : (
             <div className="space-y-1">
               {tbdItems.map((item) => (
-                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+                <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
               ))}
             </div>
           )}
@@ -270,7 +270,7 @@ export function PersonView({ id }: PersonViewProps) {
           ) : (
             <div className="space-y-1">
               {upcomingItems.map((item) => (
-                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+                <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
               ))}
             </div>
           )}
@@ -290,7 +290,7 @@ export function PersonView({ id }: PersonViewProps) {
           ) : (
             <div className="space-y-1">
               {visiblePastItems.map((item) => (
-                <ContentRow key={`${item.type}-${item.id}`} item={item} />
+                <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
               ))}
               {pastItems.length > PAST_INITIAL_COUNT && (
                 <button

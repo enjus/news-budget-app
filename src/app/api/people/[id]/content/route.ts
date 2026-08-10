@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { dedupeVisualCredits } from "@/lib/utils";
 
 export const dynamic = 'force-dynamic'
 
@@ -29,8 +30,27 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    const [storyAssignments, videoAssignments] = await Promise.all([
+    const [storyAssignments, visualCredits, videoAssignments] = await Promise.all([
       prisma.storyAssignment.findMany({
+        where: {
+          personId: id,
+          story: { onBudget: true, status: { not: "SHELVED" } },
+        },
+        include: {
+          story: {
+            select: {
+              id: true,
+              slug: true,
+              budgetLine: true,
+              status: true,
+              onlinePubDate: true,
+              onlinePubDateTBD: true,
+            },
+          },
+        },
+      }),
+
+      prisma.visual.findMany({
         where: {
           personId: id,
           story: { onBudget: true, status: { not: "SHELVED" } },
@@ -79,6 +99,16 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
         onlinePubDateTBD: a.story.onlinePubDateTBD,
         role: a.role,
+      })),
+      ...dedupeVisualCredits(visualCredits).map((v) => ({
+        type: "story" as const,
+        id: v.story.id,
+        slug: v.story.slug,
+        budgetLine: v.story.budgetLine,
+        status: v.story.status,
+        onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
+        onlinePubDateTBD: v.story.onlinePubDateTBD,
+        role: v.type,
       })),
       ...videoAssignments.map((a) => ({
         type: "video" as const,
