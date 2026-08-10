@@ -16,6 +16,8 @@ npx prisma db push       # Apply schema changes to the DB (the real workflow —
 npx prisma generate      # Regenerate Prisma client (runs automatically via postinstall)
 ```
 
+If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a package that *is* in `package.json` (e.g. `nodemailer`), `node_modules` has drifted — run `npm install` first.
+
 No test suite exists yet.
 
 **Schema changes are deployed via `prisma db push`, not migrations.** `prisma/migrations/migration_lock.toml` is still stamped `provider = "sqlite"` from before the project moved to Postgres, and no migration has been added since — `prisma migrate dev`/`deploy` are effectively dead here. Before a schema change that drops or renames a column with existing data, write a one-off SQL backfill script to run *before* `db push` (see `prisma/manual-backfill-story-tags.sql` for the pattern) — there's no migration history to roll back to otherwise.
@@ -50,6 +52,8 @@ No test suite exists yet.
 **Optimistic drag-and-drop**: dnd-kit updates local SWR cache immediately on drop; server PATCH confirms persistence. `sortOrder` field on Story/Video drives ordering.
 
 **TBD content**: Items without a publication time have `onlinePubDateTBD: true` and float in a TBD bucket. A `TBD_CAP` (500) prevents unbounded queries.
+
+**"Today" boundary**: Always use `todayString()` (`src/lib/utils.ts`, Pacific-time) to compute "today" for upcoming/past splits — never `format(new Date(), "yyyy-MM-dd")` or other browser-local-time formatting. Mixing the two causes near-midnight categorization bugs when client and server disagree on the boundary.
 
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 
@@ -92,6 +96,7 @@ No test suite exists yet.
 | File | Purpose |
 |------|---------|
 | `src/lib/utils.ts` | `cn()`, `TIME_BUCKETS`, `dateToBucket()`, `formatPubDate()`, `formatPrintDate()`, `todayString()`, `initials()`, `surname()`, status/role label maps |
+| `src/lib/budget-query.ts` | `parsePersonIds()`, `personAssignmentFilter()`, `personIdsQueryParts()` — shared team-scoping helpers used by `/api/budget/daily`, `/api/budget/agenda`, `ColumnsView`, `AgendaView` |
 | `src/lib/validations.ts` | All Zod schemas: `createStorySchema`, `updateStorySchema`, `createVideoSchema`, `updateVideoSchema`, `createPersonSchema`, `updatePersonSchema`, `createAssignmentSchema`, `createVisualSchema`, etc. |
 | `src/types/index.ts` | Prisma payload types: `StoryWithRelations`, `StoryListItem`, `EnterpriseStoryItem`, `VideoWithRelations`, `PersonWithCounts`, `ContentItem` union, `DailyBudgetSlot`, `EnterpriseDateGroup`, `EditionDateGroup` |
 | `src/lib/prisma.ts` | Prisma singleton (global pattern for hot-reload safety) |
@@ -123,10 +128,10 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | Route | Methods | Purpose |
 |-------|---------|---------|
 | `/api/auth/[...nextauth]` | GET/POST | NextAuth handler |
-| `/api/budget/daily?date=YYYY-MM-DD` | GET | Stories+videos grouped by TIME_BUCKETS |
+| `/api/budget/daily?date=YYYY-MM-DD&personIds=` | GET | Stories+videos grouped by TIME_BUCKETS; optional comma-separated `personIds` scopes to assignees (team views) |
 | `/api/budget/enterprise` | GET | Enterprise stories+videos grouped by week |
 | `/api/budget/edition` | GET | Stories grouped by print pub date |
-| `/api/budget/agenda` | GET | Agenda view |
+| `/api/budget/agenda?start=&personIds=` | GET | Agenda view; optional `personIds` scopes to assignees (team views) |
 | `/api/search?q=` | GET | Full-text search across stories/videos |
 | `/api/stories` | GET/POST | List/create stories |
 | `/api/stories/[id]` | GET/PUT/DELETE | Story CRUD |
@@ -179,7 +184,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/people` | Staff directory |
 | `/people/[id]` | Person detail with assigned content |
 | `/me` | Current user's assigned content |
-| `/teams` | Teams view |
+| `/teams` | Teams view — Columns/Agenda (team-filtered Daily/Agenda) + Members tabs |
 | `/settings` | User preferences (view/layout defaults) |
 | `/admin/users` | Admin: manage app users |
 
@@ -188,7 +193,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | Directory | Key Components |
 |-----------|--------------|
 | `auth/` | LoginForm.tsx |
-| `budget/` | StoryCard.tsx, VideoCard.tsx |
+| `budget/` | StoryCard.tsx, VideoCard.tsx, ColumnsView.tsx, AgendaView.tsx (shared by Daily and Team schedule views) |
 | `dnd/` | DndProvider.tsx, SortableCard.tsx |
 | `layout/` | TopNav.tsx, SearchCommand.tsx (Cmd+K), BudgetTabNav.tsx |
 | `people/` | PersonBadge.tsx, PersonForm.tsx, PersonList.tsx, PersonPicker.tsx |
