@@ -2,15 +2,25 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, type LucideIcon } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
+
+// Icons for StoryTag values — kept here (not in utils.ts) since they're components.
+const TAG_ICON: Record<string, LucideIcon> = {
+  HERE_IS_OREGON: MapPin,
+  CONTENT_REMIX: Repeat2,
+  SUMMER_FOCUS: Sun,
+  OREGON_INSIGHT: Landmark,
+  VIDEO_POTENTIAL: Clapperboard,
+}
 
 const WORD_COUNT_LIMIT = 1400
 
-// Left border accent keyed to status — DRAFT gets no override (default border)
+// Left border accent keyed to status — DRAFT falls through to the
+// unassigned/due overrides applied inline where this map is consulted.
 const STATUS_BORDER: Record<string, string> = {
   SCHEDULED:           "border-l-4 border-l-blue-400",
   PUBLISHED_ITERATING: "border-l-4 border-l-emerald-500",
@@ -23,6 +33,17 @@ function isPastDue(onlinePubDate: Date | string): boolean {
   const now = new Date()
   const nowFake = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()))
   return new Date(onlinePubDate) < nowFake
+}
+
+/** DRAFT, assigned, with a fixed pub date that has already passed — nobody confirmed it's ready. */
+function isDraftDue(story: StoryListItem): boolean {
+  return (
+    story.status === "DRAFT" &&
+    story.assignments.length > 0 &&
+    !story.onlinePubDateTBD &&
+    !!story.onlinePubDate &&
+    isPastDue(story.onlinePubDate)
+  )
 }
 
 interface StoryCardProps {
@@ -82,8 +103,9 @@ function StatusTimeChip({
           Shelved
         </span>
       )
-    default:
-      // DRAFT — flag unassigned stories; otherwise show time only if set
+    default: {
+      // DRAFT — flag unassigned stories first, then stories whose target pub
+      // date has passed while still in DRAFT (nobody locked in readiness).
       if (story.assignments.length === 0) {
         return (
           <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
@@ -91,9 +113,17 @@ function StatusTimeChip({
           </span>
         )
       }
+      if (isDraftDue(story)) {
+        return (
+          <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+            ⚠ Due{time ? ` ${time}` : ""}
+          </span>
+        )
+      }
       return time ? (
         <span className="shrink-0 text-[10px] text-muted-foreground">{time}</span>
       ) : null
+    }
   }
 }
 
@@ -120,10 +150,11 @@ export function StoryCard({
       setTimeout(() => setCopied(false), 2000)
     })
   }
-  const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
-  const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
-  const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
-  const hasVisuals   = photoCount > 0 || graphicCount > 0 || mapCount > 0 || (videoCount ?? 0) > 0
+  const hasPhoto    = showPhotoIndicator ? story.visuals.some((v) => v.type === "PHOTO")   : false
+  const hasGraphic  = showPhotoIndicator ? story.visuals.some((v) => v.type === "GRAPHIC") : false
+  const hasMap      = showPhotoIndicator ? story.visuals.some((v) => v.type === "MAP")     : false
+  const hasVisualVideo = showPhotoIndicator ? story.visuals.some((v) => v.type === "VIDEO") : false
+  const hasVisuals   = hasPhoto || hasGraphic || hasMap || hasVisualVideo || (videoCount ?? 0) > 0
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
@@ -139,7 +170,13 @@ export function StoryCard({
       href={`/stories/${story.id}`}
       className={cn(
         "group block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
-        STATUS_BORDER[story.status] ?? (story.status === "DRAFT" && story.assignments.length === 0 ? "border-l-4 border-l-red-400" : ""),
+        STATUS_BORDER[story.status] ?? (
+          story.status === "DRAFT" && story.assignments.length === 0
+            ? "border-l-4 border-l-red-400"
+            : isDraftDue(story)
+              ? "border-l-4 border-l-amber-400"
+              : ""
+        ),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
       )}
@@ -197,28 +234,24 @@ export function StoryCard({
           {/* Visual indicators row — only when visuals or linked videos are present */}
           {hasVisuals && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {photoCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
+              {hasPhoto && (
+                <span className="flex items-center text-sky-600 dark:text-sky-400" title="Photo">
                   <Camera className="size-3.5 shrink-0" />
-                  {photoCount}
                 </span>
               )}
-              {graphicCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-violet-600 dark:text-violet-400">
+              {hasGraphic && (
+                <span className="flex items-center text-violet-600 dark:text-violet-400" title="Graphic">
                   <BarChart2 className="size-3.5 shrink-0" />
-                  {graphicCount}
                 </span>
               )}
-              {mapCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+              {hasMap && (
+                <span className="flex items-center text-emerald-600 dark:text-emerald-400" title="Map">
                   <Map className="size-3.5 shrink-0" />
-                  {mapCount}
                 </span>
               )}
-              {(videoCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+              {(hasVisualVideo || (videoCount ?? 0) > 0) && (
+                <span className="flex items-center text-orange-600 dark:text-orange-400" title="Video">
                   <Video className="size-3.5 shrink-0" />
-                  {videoCount}
                 </span>
               )}
             </div>
@@ -255,42 +288,19 @@ export function StoryCard({
                 AI
               </span>
             )}
-            {story.hereIsOregon && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                title="Here is Oregon"
-              >
-                <MapPin className="size-2.5 pointer-events-none" />
-                HIO
-              </span>
-            )}
-            {story.contentRemix && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-400"
-                title="Content Remix"
-              >
-                <Repeat2 className="size-2.5 pointer-events-none" />
-                Remix
-              </span>
-            )}
-            {story.summerFocus && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                title="Summer Focus"
-              >
-                <Sun className="size-2.5 pointer-events-none" />
-                Summer
-              </span>
-            )}
-            {story.oregonInsight && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
-                title="Oregon Insight"
-              >
-                <Landmark className="size-2.5 pointer-events-none" />
-                Insight
-              </span>
-            )}
+            {story.tags.map((t) => {
+              const Icon = TAG_ICON[t.tag]
+              return (
+                <span
+                  key={t.id}
+                  className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium", STORY_TAG_COLOR[t.tag])}
+                  title={STORY_TAG_LABELS[t.tag] ?? t.tag}
+                >
+                  {Icon && <Icon className="size-2.5 pointer-events-none" />}
+                  {STORY_TAG_ABBREV[t.tag] ?? t.tag}
+                </span>
+              )
+            })}
             {wordCount != null && (
               <span
                 className={cn(
@@ -320,6 +330,21 @@ export function StoryCard({
               >
                 <ExternalLink className="size-2.5" />
                 Post
+              </a>
+            )}
+            {story.workingDraftUrl &&
+              story.status !== "PUBLISHED_FINAL" &&
+              story.status !== "PUBLISHED_ITERATING" && (
+              <a
+                href={story.workingDraftUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+                title="Open working draft"
+              >
+                <FileText className="size-2.5" />
+                Draft
               </a>
             )}
           </div>

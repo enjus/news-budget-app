@@ -227,6 +227,61 @@ export function toVideoAssignmentRole(defaultRole: string): string {
   return "OTHER"
 }
 
+// ─── Story Indicators ──────────────────────────────────────────────────────────
+// Single source of truth for the chips shown on StoryCard, the toggle picker in
+// StoryForm, and the bulk-apply picker in the Daily view.
+//
+// "ENTERPRISE" and "AI_CONTRIBUTED" back real Story/Video boolean columns (they
+// drive budget routing / auto-save, so stay typed columns). The rest are
+// StoryTag rows (see prisma/schema.prisma) — editorial campaign labels that can
+// be added or retired without a migration. Keep in sync with StoryTagEnum in
+// src/lib/validations.ts.
+
+export interface IndicatorOption {
+  value: string
+  label: string
+  abbrev: string
+  /** Tailwind classes for the active/filled chip state */
+  color: string
+  /** True for indicators that only apply to Story (not Video) */
+  storyOnly: boolean
+}
+
+export const INDICATOR_OPTIONS: IndicatorOption[] = [
+  { value: "ENTERPRISE", label: "Enterprise", abbrev: "Enterprise", storyOnly: false,
+    color: "bg-secondary text-secondary-foreground" },
+  { value: "AI_CONTRIBUTED", label: "AI Contributed", abbrev: "AI", storyOnly: true,
+    color: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400" },
+  { value: "HERE_IS_OREGON", label: "Here is Oregon", abbrev: "HIO", storyOnly: true,
+    color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400" },
+  { value: "CONTENT_REMIX", label: "Content Remix", abbrev: "Remix", storyOnly: true,
+    color: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400" },
+  { value: "SUMMER_FOCUS", label: "Summer Focus", abbrev: "Summer", storyOnly: true,
+    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" },
+  { value: "OREGON_INSIGHT", label: "Oregon Insight", abbrev: "Insight", storyOnly: true,
+    color: "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400" },
+  { value: "VIDEO_POTENTIAL", label: "Video Potential", abbrev: "Vid Pot", storyOnly: true,
+    color: "bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400" },
+]
+
+/** The StoryTag values within INDICATOR_OPTIONS (excludes ENTERPRISE/AI_CONTRIBUTED, which are boolean columns). */
+export const STORY_TAG_VALUES = ["HERE_IS_OREGON", "CONTENT_REMIX", "SUMMER_FOCUS", "OREGON_INSIGHT", "VIDEO_POTENTIAL"] as const
+
+export const STORY_TAG_LABELS: Record<string, string> = Object.fromEntries(
+  INDICATOR_OPTIONS.filter((o) => STORY_TAG_VALUES.includes(o.value as typeof STORY_TAG_VALUES[number]))
+    .map((o) => [o.value, o.label])
+)
+
+export const STORY_TAG_ABBREV: Record<string, string> = Object.fromEntries(
+  INDICATOR_OPTIONS.filter((o) => STORY_TAG_VALUES.includes(o.value as typeof STORY_TAG_VALUES[number]))
+    .map((o) => [o.value, o.abbrev])
+)
+
+export const STORY_TAG_COLOR: Record<string, string> = Object.fromEntries(
+  INDICATOR_OPTIONS.filter((o) => STORY_TAG_VALUES.includes(o.value as typeof STORY_TAG_VALUES[number]))
+    .map((o) => [o.value, o.color])
+)
+
 export const STORY_STATUS_LABELS: Record<string, string> = {
   DRAFT: "In the works",
   SCHEDULED: "Scheduled",

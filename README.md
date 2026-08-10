@@ -94,9 +94,11 @@ See [`docs/azure-sso-setup.md`](docs/azure-sso-setup.md) for full Azure Portal s
 
 ## Deployment
 
-### Vercel (recommended)
+### Vercel (preview deployments)
 
 Set the environment variables (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, plus Azure AD vars if using SSO) in your Vercel project settings, then deploy.
+
+Vercel automatically runs the `vercel-build` script (`scripts/vercel-build-db-sync.js`) instead of the normal `build` script. On preview deployments (`VERCEL_ENV=preview`) it runs `prisma db push --accept-data-loss` before `next build`, so the preview database's schema stays in sync with `prisma/schema.prisma` automatically. It intentionally does **not** do this for production builds — production schema changes are applied deliberately (see below).
 
 ### AWS / Linux VPS
 
