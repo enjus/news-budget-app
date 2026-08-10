@@ -6,19 +6,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev              # Dev server at http://localhost:3000 (Turbopack)
-npm run build            # Production build (prisma generate + db push + next build)
+npm run build            # Production build (prisma generate + next build — does NOT push schema)
 npm run start            # Production server
 npm run lint             # ESLint
 
 npx prisma studio        # Database browser UI
 npx prisma db seed       # Re-seed (runs prisma/seed.ts via ts-node)
-npx prisma migrate dev   # Apply schema changes and regenerate client
+npx prisma db push       # Apply schema changes to the DB (the real workflow — see note below)
 npx prisma generate      # Regenerate Prisma client (runs automatically via postinstall)
 ```
 
 If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a package that *is* in `package.json` (e.g. `nodemailer`), `node_modules` has drifted — run `npm install` first.
 
 No test suite exists yet.
+
+**Schema changes are deployed via `prisma db push`, not migrations.** `prisma/migrations/migration_lock.toml` is still stamped `provider = "sqlite"` from before the project moved to Postgres, and no migration has been added since — `prisma migrate dev`/`deploy` are effectively dead here. Before a schema change that drops or renames a column with existing data, write a one-off SQL backfill script to run *before* `db push` (see `prisma/manual-backfill-story-tags.sql` for the pattern) — there's no migration history to roll back to otherwise.
 
 ## Architecture Overview
 
@@ -78,10 +80,11 @@ No test suite exists yet.
 |-------|-----------|
 | **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|LEADERSHIP\|MANAGING_PRODUCER\|SUPERVISOR\|PRODUCER\|VIEWER), `personId` (optional FK → Person) |
 | **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER) |
-| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed`, `hereIsOregon`, `contentRemix`, `summerFocus`, `oregonInsight` (boolean flags), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `createdByUserId` (FK → User), `version` (optimistic locking) |
+| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed` (compliance flag, stays boolean), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `createdByUserId` (FK → User), `version` (optimistic locking) |
+| **StoryTag** | `id`, `storyId`, `tag` (StoryTagEnum: HERE_IS_OREGON\|CONTENT_REMIX\|SUMMER_FOCUS\|OREGON_INSIGHT\|VIDEO_POTENTIAL — editorial indicators; add new ones by extending the enum + `INDICATOR_OPTIONS` in `src/lib/utils.ts`, no migration needed), unique on `(storyId, tag)` |
 | **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|OTHER) — composite unique on all three |
 | **Visual** | `storyId`, `type` (PHOTO\|GRAPHIC\|MAP), `description`, `personId` (optional) |
-| **Video** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status`, `storyId` (optional—standalone or linked), `onlinePubDate`, `onlinePubDateTBD`, `notes`, `notifyTeam`, `aiContributed`, `sortOrder`, `shelvedAt`, `version` (optimistic locking), `youtubeUrl`, `reelsUrl`, `tiktokUrl`, `otherUrl` |
+| **Video** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status`, `storyId` (optional—standalone or linked), `onlinePubDate`, `onlinePubDateTBD`, `notes`, `notifyTeam`, `sortOrder`, `shelvedAt`, `version` (optimistic locking), `youtubeUrl`, `reelsUrl`, `tiktokUrl`, `otherUrl` |
 | **VideoAssignment** | `videoId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER) — composite unique on all three |
 | **Team** | `id`, `name` (unique), `description` |
 | **TeamMember** | `teamId`, `personId`, `role` (EDITOR\|MEMBER) — unique on (teamId, personId) |
@@ -133,6 +136,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/stories` | GET/POST | List/create stories |
 | `/api/stories/[id]` | GET/PUT/DELETE | Story CRUD |
 | `/api/stories/[id]/assignments` | GET/POST | Story staff assignments |
+| `/api/stories/[id]/tags` | GET/POST/DELETE | Story editorial-tag indicators |
 | `/api/stories/[id]/visuals` | GET/POST | Story visuals |
 | `/api/videos` | GET/POST | List/create videos |
 | `/api/videos/[id]` | GET/PUT/DELETE | Video CRUD |

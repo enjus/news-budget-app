@@ -2,11 +2,20 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, type LucideIcon } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
+
+// Icons for StoryTag values — kept here (not in utils.ts) since they're components.
+const TAG_ICON: Record<string, LucideIcon> = {
+  HERE_IS_OREGON: MapPin,
+  CONTENT_REMIX: Repeat2,
+  SUMMER_FOCUS: Sun,
+  OREGON_INSIGHT: Landmark,
+  VIDEO_POTENTIAL: Clapperboard,
+}
 
 const WORD_COUNT_LIMIT = 1400
 
@@ -120,10 +129,11 @@ export function StoryCard({
       setTimeout(() => setCopied(false), 2000)
     })
   }
-  const photoCount  = showPhotoIndicator ? story.visuals.filter((v) => v.type === "PHOTO").length   : 0
-  const graphicCount = showPhotoIndicator ? story.visuals.filter((v) => v.type === "GRAPHIC").length : 0
-  const mapCount     = showPhotoIndicator ? story.visuals.filter((v) => v.type === "MAP").length     : 0
-  const hasVisuals   = photoCount > 0 || graphicCount > 0 || mapCount > 0 || (videoCount ?? 0) > 0
+  const hasPhoto    = showPhotoIndicator ? story.visuals.some((v) => v.type === "PHOTO")   : false
+  const hasGraphic  = showPhotoIndicator ? story.visuals.some((v) => v.type === "GRAPHIC") : false
+  const hasMap      = showPhotoIndicator ? story.visuals.some((v) => v.type === "MAP")     : false
+  const hasVisualVideo = showPhotoIndicator ? story.visuals.some((v) => v.type === "VIDEO") : false
+  const hasVisuals   = hasPhoto || hasGraphic || hasMap || hasVisualVideo || (videoCount ?? 0) > 0
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
@@ -197,28 +207,24 @@ export function StoryCard({
           {/* Visual indicators row — only when visuals or linked videos are present */}
           {hasVisuals && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              {photoCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-sky-600 dark:text-sky-400">
+              {hasPhoto && (
+                <span className="flex items-center text-sky-600 dark:text-sky-400" title="Photo">
                   <Camera className="size-3.5 shrink-0" />
-                  {photoCount}
                 </span>
               )}
-              {graphicCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-violet-600 dark:text-violet-400">
+              {hasGraphic && (
+                <span className="flex items-center text-violet-600 dark:text-violet-400" title="Graphic">
                   <BarChart2 className="size-3.5 shrink-0" />
-                  {graphicCount}
                 </span>
               )}
-              {mapCount > 0 && (
-                <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+              {hasMap && (
+                <span className="flex items-center text-emerald-600 dark:text-emerald-400" title="Map">
                   <Map className="size-3.5 shrink-0" />
-                  {mapCount}
                 </span>
               )}
-              {(videoCount ?? 0) > 0 && (
-                <span className="flex items-center gap-1 font-medium text-orange-600 dark:text-orange-400">
+              {(hasVisualVideo || (videoCount ?? 0) > 0) && (
+                <span className="flex items-center text-orange-600 dark:text-orange-400" title="Video">
                   <Video className="size-3.5 shrink-0" />
-                  {videoCount}
                 </span>
               )}
             </div>
@@ -255,42 +261,19 @@ export function StoryCard({
                 AI
               </span>
             )}
-            {story.hereIsOregon && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-400"
-                title="Here is Oregon"
-              >
-                <MapPin className="size-2.5 pointer-events-none" />
-                HIO
-              </span>
-            )}
-            {story.contentRemix && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700 dark:bg-orange-950/40 dark:text-orange-400"
-                title="Content Remix"
-              >
-                <Repeat2 className="size-2.5 pointer-events-none" />
-                Remix
-              </span>
-            )}
-            {story.summerFocus && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                title="Summer Focus"
-              >
-                <Sun className="size-2.5 pointer-events-none" />
-                Summer
-              </span>
-            )}
-            {story.oregonInsight && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
-                title="Oregon Insight"
-              >
-                <Landmark className="size-2.5 pointer-events-none" />
-                Insight
-              </span>
-            )}
+            {story.tags.map((t) => {
+              const Icon = TAG_ICON[t.tag]
+              return (
+                <span
+                  key={t.id}
+                  className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium", STORY_TAG_COLOR[t.tag])}
+                  title={STORY_TAG_LABELS[t.tag] ?? t.tag}
+                >
+                  {Icon && <Icon className="size-2.5 pointer-events-none" />}
+                  {STORY_TAG_ABBREV[t.tag] ?? t.tag}
+                </span>
+              )
+            })}
             {wordCount != null && (
               <span
                 className={cn(
