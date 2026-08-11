@@ -5,10 +5,21 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
 import { format } from "date-fns"
-import { FileText, Video, Send, Info } from "lucide-react"
+import { FileText, Video, Send, Info, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { useDrafts } from "@/lib/hooks/useDrafts"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
@@ -55,6 +66,7 @@ export function MeView() {
 function DraftsSection() {
   const { stories, videos, isLoading, mutate } = useDrafts()
   const [publishing, setPublishing] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState<Set<string>>(new Set())
 
   async function handlePublish(type: "story" | "video", id: string) {
     setPublishing((prev) => new Set(prev).add(id))
@@ -74,6 +86,27 @@ function DraftsSection() {
       toast.error("Failed to send to budget")
     } finally {
       setPublishing((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
+  async function handleDelete(type: "story" | "video", id: string) {
+    setDeleting((prev) => new Set(prev).add(id))
+    try {
+      const endpoint = type === "story"
+        ? apiPath(`/api/stories/${id}`)
+        : apiPath(`/api/videos/${id}`)
+      const res = await fetch(endpoint, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      toast.success(`${type === "story" ? "Story" : "Video"} deleted`)
+      mutate()
+    } catch {
+      toast.error("Failed to delete. Please try again.")
+    } finally {
+      setDeleting((prev) => {
         const next = new Set(prev)
         next.delete(id)
         return next
@@ -124,6 +157,8 @@ function DraftsSection() {
               dateTBD={story.onlinePubDateTBD}
               isPublishing={publishing.has(story.id)}
               onPublish={() => handlePublish("story", story.id)}
+              isDeleting={deleting.has(story.id)}
+              onDelete={() => handleDelete("story", story.id)}
             />
           ))}
           {VIDEOS_ENABLED && videos.map((video) => (
@@ -138,6 +173,8 @@ function DraftsSection() {
               dateTBD={video.onlinePubDateTBD}
               isPublishing={publishing.has(video.id)}
               onPublish={() => handlePublish("video", video.id)}
+              isDeleting={deleting.has(video.id)}
+              onDelete={() => handleDelete("video", video.id)}
             />
           ))}
         </div>
@@ -156,6 +193,8 @@ function DraftRow({
   dateTBD,
   isPublishing,
   onPublish,
+  isDeleting,
+  onDelete,
 }: {
   type: "story" | "video"
   id: string
@@ -166,6 +205,8 @@ function DraftRow({
   dateTBD: boolean
   isPublishing: boolean
   onPublish: () => void
+  isDeleting: boolean
+  onDelete: () => void
 }) {
   const href = type === "story" ? `/stories/${id}` : `/videos/${id}`
   const Icon = type === "story" ? FileText : Video
@@ -211,6 +252,37 @@ function DraftRow({
         <Send className="size-3" />
         {isPublishing ? "Sending..." : "Send to Budget"}
       </Button>
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+            disabled={isDeleting}
+            onClick={(e) => e.preventDefault()}
+          >
+            <Trash2 className="size-3" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete draft {type}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{slug}&rdquo; will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={onDelete}
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
