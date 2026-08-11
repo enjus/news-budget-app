@@ -60,7 +60,7 @@ No test suite exists yet.
 
 **Comment timestamps vs. pub dates**: `formatPubDate()` reads `getUTC*` because pub times are "newsroom time encoded as UTC". A `Comment.createdAt` is a *genuine* instant, so it must be formatted with `formatTimestampPacific()` (Intl + `America/Los_Angeles`) instead — using `formatPubDate()` on it would display the wrong time.
 
-**Comment notifications**: @-mentioned People are always emailed. "Post and Notify All" additionally emails everyone assigned to the item, minus anyone already emailed as a mention and minus the comment's author. Editing a comment sends nothing.
+**Comment notifications**: @-mentioned People are always emailed. "Post and Notify All" additionally emails the item's whole team — assignees plus, on stories, anyone credited on a visual element — minus anyone already emailed as a mention and minus the comment's author. This is the same recipient set `notifyStoryTeam()` uses, via the shared `collectEmails(assignments, visuals)`; keep the two in sync. Videos have no visuals relation, so `createComment()` selects `visuals` only on the story branch. Editing a comment sends nothing.
 
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 

@@ -69,8 +69,10 @@ export async function listComments(kind: Kind, parentId: string) {
  * fires notification emails without blocking the response:
  *
  *  - mentioned People are always emailed (plain "Post" included);
- *  - assignees are emailed only when notifyAll is true, minus anyone already
- *    emailed as a mention and minus the author, so nobody is double-notified.
+ *  - the item's team is emailed only when notifyAll is true, minus anyone
+ *    already emailed as a mention and minus the author, so nobody is
+ *    double-notified. "Team" means assignees plus, on stories, anyone credited
+ *    on a visual element — matching who notifyStoryTeam() reaches.
  */
 export async function createComment(
   kind: Kind,
@@ -107,10 +109,23 @@ export async function createComment(
     assignments: { select: { role: true, person: { select: { name: true, email: true } } } },
   } as const;
 
-  const parent =
+  // Fetched into separate consts rather than one union-typed `parent` so the
+  // story-only `visuals` relation stays visible to TypeScript below.
+  const storyParent =
     kind === "story"
-      ? await prisma.story.findUnique({ where: { id: parentId }, select: parentSelect })
-      : await prisma.video.findUnique({ where: { id: parentId }, select: parentSelect });
+      ? await prisma.story.findUnique({
+          where: { id: parentId },
+          select: {
+            ...parentSelect,
+            visuals: { select: { person: { select: { name: true, email: true } } } },
+          },
+        })
+      : null;
+  const videoParent =
+    kind === "video"
+      ? await prisma.video.findUnique({ where: { id: parentId }, select: parentSelect })
+      : null;
+  const parent = storyParent ?? videoParent;
 
   if (!parent) {
     return NextResponse.json(
@@ -173,9 +188,10 @@ export async function createComment(
   if (notifyAll) {
     const alreadyEmailed = new Set(mentionRecipients);
     if (session.user.email) alreadyEmailed.add(session.user.email);
-    const teamRecipients = collectEmails(parent.assignments).filter(
-      (email) => !alreadyEmailed.has(email)
-    );
+    const teamRecipients = collectEmails(
+      parent.assignments,
+      storyParent?.visuals ?? []
+    ).filter((email) => !alreadyEmailed.has(email));
     if (teamRecipients.length > 0) {
       notifyCommentTeam({ ...notification, recipients: teamRecipients }).catch((err) =>
         console.error("notifyCommentTeam failed:", err)
