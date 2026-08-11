@@ -10,14 +10,14 @@ const APP_URL =
   "https://ornews-advancelocal.msappproxy.net/news-budget";
 
 /** Minimal shape of an assigned person we need for notifications. */
+
 export interface AssignedPerson {
-  person: { name: string; email: string };
+  person: { name: string; email: string | null; isActive: boolean };
   role: string;
 }
-
 /** Minimal shape of a visual element's credited person. */
 interface CreditedVisual {
-  person: { name: string; email: string } | null;
+  person: { name: string; email: string | null; isActive: boolean } | null;
 }
 
 interface NotifiableStory {
@@ -182,10 +182,10 @@ export async function notifyCommentTeam(
 export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
   for (const a of assignments) {
-    if (a.person?.email) emails.add(a.person.email);
+    if (a.person?.email && a.person.isActive) emails.add(a.person.email);
   }
   for (const v of visuals) {
-    if (v.person?.email) emails.add(v.person.email);
+    if (v.person?.email && v.person.isActive) emails.add(v.person.email);
   }
   return Array.from(emails);
 }

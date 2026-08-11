@@ -62,7 +62,7 @@ export function SearchCommand() {
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const { people } = usePeople()
+  const { people } = usePeople({ activeOnly: false })
 
   const debouncedQuery = useDebounce(query, 200)
 

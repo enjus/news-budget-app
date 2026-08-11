@@ -7,7 +7,7 @@ import { Plus } from "lucide-react"
 import { usePeople } from "@/lib/hooks/usePeople"
 
 export function PersonListSection() {
-  const { mutate } = usePeople()
+  const { mutate } = usePeople({ activeOnly: false })
 
   return (
     <div className="space-y-6">

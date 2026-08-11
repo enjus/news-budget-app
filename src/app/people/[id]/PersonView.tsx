@@ -4,8 +4,10 @@ import { useState } from "react"
 import { apiPath } from "@/lib/api-path"
 import Link from "next/link"
 import useSWR from "swr"
+import { useSession } from "next-auth/react"
 import { format } from "date-fns"
-import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
+import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight, UserCheck, UserX } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAST_INITIAL_COUNT = 10
@@ -35,7 +37,7 @@ interface PersonViewProps {
 }
 
 interface PersonData {
-  person: { id: string; name: string; email: string; defaultRole: string }
+  person: { id: string; name: string; email: string | null; defaultRole: string; isActive: boolean }
   items: PersonContentItem[]
 }
 
@@ -58,6 +60,8 @@ function formatItemDate(item: PersonContentItem): string {
 }
 
 export function PersonView({ id }: PersonViewProps) {
+  const { data: session } = useSession()
+  const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
@@ -66,11 +70,34 @@ export function PersonView({ id }: PersonViewProps) {
   const [openUpcoming, setOpenUpcoming] = useState(true)
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
+  const [togglingActive, setTogglingActive] = useState(false)
 
-  const { data, isLoading, error } = useSWR<PersonData>(
+  const { data, isLoading, error, mutate } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
+
+  async function handleToggleActive() {
+    if (!data) return
+    setTogglingActive(true)
+    try {
+      const res = await fetch(apiPath(`/api/people/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !data.person.isActive }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? `Request failed (${res.status})`)
+      }
+      toast.success(data.person.isActive ? "Marked inactive" : "Marked active")
+      mutate()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status")
+    } finally {
+      setTogglingActive(false)
+    }
+  }
 
   if (error || (data && !data.items)) {
     return (
@@ -144,13 +171,47 @@ export function PersonView({ id }: PersonViewProps) {
       </Link>
 
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight">{person.name}</h1>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{person.email}</span>
-          <span>·</span>
-          <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight">{person.name}</h1>
+            {!person.isActive && (
+              <Badge variant="outline" className="text-muted-foreground">
+                Inactive
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            {person.email && (
+              <>
+                <span>{person.email}</span>
+                <span>·</span>
+              </>
+            )}
+            <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
+          </div>
         </div>
+
+        {isAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={togglingActive}
+            onClick={handleToggleActive}
+          >
+            {person.isActive ? (
+              <>
+                <UserX className="size-4" />
+                Mark inactive
+              </>
+            ) : (
+              <>
+                <UserCheck className="size-4" />
+                Mark active
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
