@@ -61,7 +61,7 @@ export const createStorySchema = z.object({
       /^[A-Z0-9 ]+$/,
       "Slug must be uppercase letters, numbers, and spaces only"
     ),
-  budgetLine: z.string().min(1, "Budget line is required").max(500),
+  budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
@@ -85,7 +85,7 @@ export const updateStorySchema = z.object({
     .max(60)
     .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
     .optional(),
-  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
   status: StoryStatusEnum.optional(),
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
@@ -137,7 +137,7 @@ export const createVideoSchema = z.object({
       /^[A-Z0-9 ]+$/,
       "Slug must be uppercase letters, numbers, and spaces only"
     ),
-  budgetLine: z.string().min(1, "Budget line is required").max(500),
+  budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
   storyId: z.string().cuid().nullable().optional(), // null = standalone
@@ -160,7 +160,7 @@ export const updateVideoSchema = z.object({
     .max(60)
     .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
     .optional(),
-  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
   status: StoryStatusEnum.optional(),
   storyId: z.string().cuid().nullable().optional(),
