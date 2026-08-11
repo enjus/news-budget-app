@@ -76,6 +76,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
 
+  // Set when a save loses the optimistic-locking race. Holds the version the
+  // server now has, so "Save anyway" can retry against it. Non-null means the
+  // conflict banner is showing and the user's unsaved text is still in the form.
+  const [conflict, setConflict] = useState<{ serverVersion: number } | null>(null)
+
   const {
     register,
     handleSubmit,
@@ -147,6 +152,9 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   const notifyRef = useRef(false)
   const draftRef = useRef(false)
+  // Set only by "Save anyway" — the version to send instead of the stale one in
+  // props, which is what the failed save already tried.
+  const overrideVersionRef = useRef<number | null>(null)
 
   // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
   // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
@@ -235,8 +243,14 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             : null,
       }
 
-      // Include version for optimistic locking on edits
-      if (isEdit && story?.version !== undefined) {
+      // Include version for optimistic locking on edits. After a conflict the
+      // version in props is stale — it's the one that just lost — so a retry
+      // sends the version the server reported back instead.
+      const retryVersion = overrideVersionRef.current
+      overrideVersionRef.current = null
+      if (isEdit && retryVersion !== null) {
+        payload.version = retryVersion
+      } else if (isEdit && story?.version !== undefined) {
         payload.version = story.version
       }
 
@@ -252,14 +266,18 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         if (res.status === 409 && json?.version !== undefined) {
-          toast.error("This story was modified by another user. Reloading…")
-          onSuccess?.(story!.id)
+          // Deliberately does NOT call onSuccess: that refetch remounts the form
+          // (StoryDetail keys it on updatedAt) and would discard everything the
+          // user typed. Show the banner and let them choose.
+          setConflict({ serverVersion: json.version })
+          toast.error("Someone else saved this story — see the notice at the top of the form")
           return
         }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
 
       const saved = await res.json()
+      setConflict(null)
 
       // Post pending assignments after story creation
       if (!isEdit && pendingAssignments.length > 0) {
@@ -332,6 +350,46 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   return (
     <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+      {/* Save conflict — the user's unsaved edits are still in the fields below */}
+      {conflict && (
+        <div className="space-y-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+          <p className="text-sm font-medium text-destructive">
+            Someone else saved this story while you were editing.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Your changes are still here and have not been saved. Saving anyway will
+            overwrite the other person&apos;s edits — if you&apos;re not sure what they
+            changed, copy your work somewhere safe and reload first.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isSubmitting}
+              onClick={() => {
+                overrideVersionRef.current = conflict.serverVersion
+                handleSubmit(onSubmit)()
+              }}
+            >
+              Save anyway
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => {
+                setConflict(null)
+                onSuccess?.(story!.id)
+              }}
+            >
+              Discard mine and reload
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Top action row — create mode only */}
       {!isEdit && (
