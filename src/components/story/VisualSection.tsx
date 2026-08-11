@@ -2,19 +2,17 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Plus, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { PersonBadge } from "@/components/people/PersonBadge"
-import { usePeople } from "@/lib/hooks/usePeople"
+import {
+  VisualDraftRow,
+  VISUAL_TYPE_LABELS,
+  visualDraftToBody,
+  type VisualDraft,
+  type VisualTypeValue,
+} from "./VisualDraftRow"
 import type { VisualWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -28,32 +26,20 @@ interface VisualSectionProps {
 
 export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSectionProps) {
   const [isAdding, setIsAdding] = useState(false)
-  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP" | "VIDEO">("PHOTO")
-  const [newDescription, setNewDescription] = useState("")
-  const [newPersonId, setNewPersonId] = useState<string>("")
 
-  const { people } = usePeople()
-
-  async function handleAdd() {
+  async function handleAdd(draft: VisualDraft) {
     setIsAdding(true)
     try {
-      const body: Record<string, unknown> = { type: newType }
-      if (newDescription.trim()) body.description = newDescription.trim()
-      if (newPersonId) body.personId = newPersonId
-
       const res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(visualDraftToBody(draft)),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Failed to add visual (${res.status})`)
       }
       toast.success("Visual added")
-      setNewDescription("")
-      setNewPersonId("")
-      setNewType("PHOTO")
       onUpdate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add visual")
@@ -94,7 +80,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
                 variant={visual.type === "PHOTO" ? "default" : "secondary"}
                 className="shrink-0"
               >
-                {visual.type === "PHOTO" ? "Photo" : visual.type === "MAP" ? "Map" : visual.type === "VIDEO" ? "Video" : "Graphic"}
+                {VISUAL_TYPE_LABELS[visual.type as VisualTypeValue] ?? visual.type}
               </Badge>
 
               {visual.description && (
@@ -129,53 +115,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       )}
 
       {/* Add new visual */}
-      {!readOnly && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
-        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP" | "VIDEO")}>
-          <SelectTrigger className="h-8 w-[110px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PHOTO">Photo</SelectItem>
-            <SelectItem value="GRAPHIC">Graphic</SelectItem>
-            <SelectItem value="MAP">Map</SelectItem>
-            <SelectItem value="VIDEO">Video</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Input
-          className="h-8 flex-1 min-w-[160px]"
-          placeholder="Description (optional)"
-          value={newDescription}
-          onChange={(e) => setNewDescription(e.target.value)}
-        />
-
-        <Select
-          value={newPersonId || "__none__"}
-          onValueChange={(v) => setNewPersonId(v === "__none__" ? "" : v)}
-        >
-          <SelectTrigger className="h-8 w-[180px]">
-            <SelectValue placeholder="Assign person (optional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">Unassigned</SelectItem>
-            {people.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleAdd}
-          disabled={isAdding}
-        >
-          <Plus className="size-4" />
-          {isAdding ? "Adding..." : "Add Visual"}
-        </Button>
-      </div>}
+      {!readOnly && <VisualDraftRow onAdd={handleAdd} busy={isAdding} />}
     </div>
   )
 }

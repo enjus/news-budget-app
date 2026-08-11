@@ -27,6 +27,12 @@ import { format } from "date-fns"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import {
+  VisualDraftRow,
+  VISUAL_TYPE_LABELS,
+  visualDraftToBody,
+  type VisualDraft,
+} from "./VisualDraftRow"
 import type { StoryWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -62,6 +68,27 @@ interface PendingAssignment {
   role: AssignmentRoleValue
 }
 
+/**
+ * POST a batch of child records after the story is created, returning how many
+ * failed. These run after the story already exists, so a failure can't be
+ * reported as "creation failed" — the caller has to name what didn't attach.
+ * Previously these were bare Promise.all calls that ignored res.ok entirely,
+ * so a rejected assignment vanished behind a "Story created" toast.
+ */
+async function postAll(url: string, bodies: unknown[]): Promise<number> {
+  const results = await Promise.allSettled(
+    bodies.map(async (body) => {
+      const res = await fetch(apiPath(url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    })
+  )
+  return results.filter((r) => r.status === "rejected").length
+}
+
 function toLocalDateValue(date: Date | string | null | undefined): string {
   if (!date) return ""
   const d = typeof date === "string" ? new Date(date) : date
@@ -75,6 +102,9 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   const router = useRouter()
 
   const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
+  // Visuals composed before the story exists. POSTed after create, alongside
+  // pendingAssignments — there's no storyId to attach them to until then.
+  const [pendingVisuals, setPendingVisuals] = useState<VisualDraft[]>([])
 
   // Set when a save loses the optimistic-locking race. Holds the version the
   // server now has, so "Save anyway" can retry against it. Non-null means the
@@ -279,30 +309,42 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       const saved = await res.json()
       setConflict(null)
 
-      // Post pending assignments after story creation
-      if (!isEdit && pendingAssignments.length > 0) {
-        await Promise.all(
-          pendingAssignments.map((a) =>
-            fetch(apiPath(`/api/stories/${saved.id}/assignments`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ personId: a.person.id, role: a.role }),
-            })
-          )
-        )
-      }
+      // Attach everything composed before the story had an id. Each batch
+      // reports its own failures — the story itself is already saved, so a
+      // partial failure has to be named rather than swallowed.
+      if (!isEdit) {
+        const failed: string[] = []
 
-      // Post pending tags after story creation
-      if (!isEdit && selectedTags.length > 0) {
-        await Promise.all(
-          selectedTags.map((tag) =>
-            fetch(apiPath(`/api/stories/${saved.id}/tags`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tag }),
-            })
+        if (pendingAssignments.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/assignments`,
+            pendingAssignments.map((a) => ({ personId: a.person.id, role: a.role }))
           )
-        )
+          if (n > 0) failed.push(`${n} of ${pendingAssignments.length} people`)
+        }
+
+        if (pendingVisuals.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/visuals`,
+            pendingVisuals.map(visualDraftToBody)
+          )
+          if (n > 0) failed.push(`${n} of ${pendingVisuals.length} visuals`)
+        }
+
+        if (selectedTags.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/tags`,
+            selectedTags.map((tag) => ({ tag }))
+          )
+          if (n > 0) failed.push(`${n} of ${selectedTags.length} tags`)
+        }
+
+        if (failed.length > 0) {
+          toast.warning(`Story saved, but ${failed.join(" and ")} could not be added`, {
+            description: "Open the story and add them again.",
+            duration: 10000,
+          })
+        }
       }
 
       if (isDraft && !isEdit) {
@@ -493,6 +535,40 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               </Button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Visuals — create mode inline; edit mode uses VisualSection on the detail page */}
+      {!isEdit && (
+        <div className="space-y-2">
+          <Label>Visuals</Label>
+          {pendingVisuals.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingVisuals.map((v, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
+                >
+                  {VISUAL_TYPE_LABELS[v.type]}
+                  {v.description && (
+                    <span className="text-muted-foreground/70">· {v.description}</span>
+                  )}
+                  {v.person && (
+                    <span className="text-muted-foreground/70">· {v.person.name}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPendingVisuals((prev) => prev.filter((_, j) => j !== i))}
+                    className="ml-0.5 rounded text-muted-foreground/60 hover:text-foreground"
+                    aria-label="Remove"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <VisualDraftRow onAdd={(draft) => setPendingVisuals((prev) => [...prev, draft])} />
         </div>
       )}
 
