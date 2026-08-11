@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, type LucideIcon } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, MessageSquare, type LucideIcon } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
@@ -155,6 +155,8 @@ export function StoryCard({
   const hasMap      = showPhotoIndicator ? story.visuals.some((v) => v.type === "MAP")     : false
   const hasVisualVideo = showPhotoIndicator ? story.visuals.some((v) => v.type === "VIDEO") : false
   const hasVisuals   = hasPhoto || hasGraphic || hasMap || hasVisualVideo || (videoCount ?? 0) > 0
+  // Optional chaining: a few list endpoints hand-roll their payload and cast.
+  const commentCount = story._count?.comments ?? 0
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
@@ -231,8 +233,8 @@ export function StoryCard({
             <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>{story.budgetLine}</p>
           )}
 
-          {/* Visual indicators row — only when visuals or linked videos are present */}
-          {hasVisuals && (
+          {/* Visual indicators row — only when visuals, linked videos or comments are present */}
+          {(hasVisuals || commentCount > 0) && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               {hasPhoto && (
                 <span className="flex items-center text-sky-600 dark:text-sky-400" title="Photo">
@@ -252,6 +254,15 @@ export function StoryCard({
               {(hasVisualVideo || (videoCount ?? 0) > 0) && (
                 <span className="flex items-center text-orange-600 dark:text-orange-400" title="Video">
                   <Video className="size-3.5 shrink-0" />
+                </span>
+              )}
+              {commentCount > 0 && (
+                <span
+                  className="flex items-center gap-0.5"
+                  title={`${commentCount} comment${commentCount === 1 ? "" : "s"}`}
+                >
+                  <MessageSquare className="size-3.5 shrink-0" />
+                  {commentCount}
                 </span>
               )}
             </div>

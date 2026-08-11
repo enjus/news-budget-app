@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
-import { ExternalLink, Send } from "lucide-react"
+import { ExternalLink, MessageSquare, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator"
 import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
+import { CommentSection } from "./CommentSection"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
@@ -33,6 +34,28 @@ interface StoryDetailProps {
   story: StoryWithRelations
   onUpdate: () => void
   readOnly?: boolean
+}
+
+/**
+ * Header shortcut down to the comment thread, which stays at the bottom of the
+ * page. Renders nothing when there are no comments — an empty thread is not
+ * worth a jump target, and the "Comments" heading is already down there.
+ */
+function CommentJumpLink({ count }: { count: number }) {
+  if (count === 0) return null
+  return (
+    <a
+      href="#comments"
+      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+      title={count === 1 ? "1 comment" : `${count} comments`}
+    >
+      <MessageSquare className="size-3.5 shrink-0" />
+      {count}
+      <span className="sr-only">
+        {count === 1 ? "comment — jump to thread" : "comments — jump to thread"}
+      </span>
+    </a>
+  )
 }
 
 export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
@@ -90,7 +113,10 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
               <Badge variant="secondary" className="mt-1">Enterprise</Badge>
             )}
           </div>
-          <Badge variant="outline">{STORY_STATUS_LABELS[story.status] ?? story.status}</Badge>
+          <div className="flex items-center gap-2">
+            <CommentJumpLink count={story.comments.length} />
+            <Badge variant="outline">{STORY_STATUS_LABELS[story.status] ?? story.status}</Badge>
+          </div>
         </div>
 
         <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
@@ -170,6 +196,15 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
 
         {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
 
+        <Separator />
+
+        <CommentSection
+          storyId={story.id}
+          comments={story.comments}
+          onUpdate={onUpdate}
+          readOnly
+        />
+
       </div>
     )
   }
@@ -181,6 +216,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         <h1 className="text-2xl font-bold tracking-tight">{story.slug}</h1>
 
         <div className="flex items-center gap-2">
+          <CommentJumpLink count={story.comments.length} />
           <Button
             type="button"
             size="sm"
@@ -290,6 +326,14 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
       {VIDEOS_ENABLED && <Separator />}
 
       {VIDEOS_ENABLED && <StoryVideoSection story={story} onUpdate={onUpdate} />}
+
+      <Separator />
+
+      <CommentSection
+        storyId={story.id}
+        comments={story.comments}
+        onUpdate={onUpdate}
+      />
 
       <Separator />
 

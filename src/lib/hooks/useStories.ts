@@ -1,5 +1,5 @@
 import useSWR from "swr"
-import type { StoryWithRelations } from "@/types/index"
+import type { StoryListRelations } from "@/types/index"
 
 interface UseStoriesParams {
   status?: string
@@ -17,7 +17,7 @@ export function useStories(params?: UseStoriesParams) {
   const query = searchParams.toString()
   const url = `/api/stories${query ? `?${query}` : ""}`
 
-  const { data, isLoading, error, mutate } = useSWR<StoryWithRelations[]>(url)
+  const { data, isLoading, error, mutate } = useSWR<StoryListRelations[]>(url)
 
   return {
     stories: data ?? [],

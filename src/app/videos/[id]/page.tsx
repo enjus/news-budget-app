@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { canCreateContent } from "@/lib/utils"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { commentInclude, commentOrderBy } from "@/lib/comments"
 import { VideoDetailWrapper } from "./VideoDetailWrapper"
 
 interface VideoPageProps {
@@ -21,6 +22,8 @@ export default async function VideoPage({ params }: VideoPageProps) {
     include: {
       assignments: { include: { person: true } },
       story: { select: { id: true, slug: true, budgetLine: true } },
+      _count: { select: { comments: true } },
+      comments: { include: commentInclude, orderBy: commentOrderBy },
     },
   })
 
