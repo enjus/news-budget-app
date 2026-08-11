@@ -260,6 +260,7 @@ function DraftRow({
             size="sm"
             className="shrink-0 h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
             disabled={isDeleting}
+            aria-label={`Delete draft ${type}`}
             onClick={(e) => e.preventDefault()}
           >
             <Trash2 className="size-3" />
