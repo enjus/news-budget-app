@@ -36,6 +36,7 @@ import {
 import type { StoryWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { postAll } from "@/lib/post-all"
 
 const STATUS_OPTIONS = [
   "DRAFT",
@@ -66,27 +67,6 @@ interface StoryFormProps {
 interface PendingAssignment {
   person: Person
   role: AssignmentRoleValue
-}
-
-/**
- * POST a batch of child records after the story is created, returning how many
- * failed. These run after the story already exists, so a failure can't be
- * reported as "creation failed" — the caller has to name what didn't attach.
- * Previously these were bare Promise.all calls that ignored res.ok entirely,
- * so a rejected assignment vanished behind a "Story created" toast.
- */
-async function postAll(url: string, bodies: unknown[]): Promise<number> {
-  const results = await Promise.allSettled(
-    bodies.map(async (body) => {
-      const res = await fetch(apiPath(url), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    })
-  )
-  return results.filter((r) => r.status === "rejected").length
 }
 
 /**

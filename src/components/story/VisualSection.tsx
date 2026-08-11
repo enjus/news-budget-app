@@ -53,6 +53,9 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       onUpdate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to save visual")
+      // Rethrow so VisualDraftRow's handleSubmit — which awaits this — knows
+      // the save failed instead of treating it as done.
+      throw err
     } finally {
       setIsSaving(false)
     }
@@ -74,6 +77,9 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       onUpdate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add visual")
+      // Rethrow so VisualDraftRow's handleSubmit doesn't clear the form as if
+      // the add had succeeded.
+      throw err
     } finally {
       setIsAdding(false)
     }

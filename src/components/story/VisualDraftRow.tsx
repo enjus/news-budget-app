@@ -72,14 +72,27 @@ export function VisualDraftRow({ onSubmit, busy, initial, onCancel }: VisualDraf
   const [description, setDescription] = useState(initial?.description ?? "")
   const [personId, setPersonId] = useState<string>(initial?.person?.id ?? "")
 
-  const { people } = usePeople()
+  const { people, isLoading: peopleLoading } = usePeople()
 
   async function handleSubmit() {
-    await onSubmit({
-      type,
-      description: description.trim(),
-      person: people.find((p) => p.id === personId) ?? null,
-    })
+    // usePeople() returns [] while its cache is cold, not just when there are
+    // no people — resolving against it then would silently drop whatever
+    // person was already assigned. personId can only differ from the initial
+    // value once `people` has loaded (the picker has no other options to
+    // choose from until then), so falling back to `initial.person` is safe.
+    const person = peopleLoading
+      ? personId === (initial?.person?.id ?? "")
+        ? (initial?.person ?? null)
+        : null
+      : people.find((p) => p.id === personId) ?? null
+
+    try {
+      await onSubmit({ type, description: description.trim(), person })
+    } catch {
+      // Already surfaced via toast by the caller — keep the user's input so
+      // they can retry instead of losing what they typed.
+      return
+    }
     if (isEdit) return
     setType("PHOTO")
     setDescription("")
