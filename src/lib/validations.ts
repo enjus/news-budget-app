@@ -110,15 +110,6 @@ export const createAssignmentSchema = z.object({
   role: AssignmentRoleEnum,
 });
 
-// Role is part of StoryAssignment's composite key, so "change a role" can't be a
-// field update — it's a delete of one row and a create of another. Both roles
-// have to come from the client to identify the row being replaced.
-export const updateAssignmentSchema = z.object({
-  personId: z.string().cuid(),
-  fromRole: AssignmentRoleEnum,
-  toRole: AssignmentRoleEnum,
-});
-
 // ─── Story Tag ────────────────────────────────────────────────────────────────
 
 export const createStoryTagSchema = z.object({
@@ -250,7 +241,6 @@ export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
-export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>;
 export type CreateStoryTagInput = z.infer<typeof createStoryTagSchema>;
 export type CreateVisualInput = z.infer<typeof createVisualSchema>;
 export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;

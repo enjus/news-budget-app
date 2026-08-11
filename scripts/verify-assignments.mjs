@@ -1,14 +1,10 @@
 #!/usr/bin/env node
 /**
- * Integration checks for the assignment/visual/version-conflict endpoints.
+ * Integration checks for the visual/version-conflict endpoints.
  *
  * There is no test runner in this repo, and these are the paths where a bug is
  * both easy to introduce and invisible in review:
  *
- *   - PATCH /api/stories/[id]/assignments and the video equivalent change a
- *     role by DELETEing one row and CREATEing another, because role is part of
- *     the composite key. If that stops being a transaction, a failure halfway
- *     through drops the person from the story with no error shown.
  *   - PATCH /api/visuals/[id] is a partial update, so clearing a description
  *     depends on the client sending explicit null rather than omitting it.
  *   - The 409 on a stale save has to return the server's version, or the
@@ -19,9 +15,9 @@
  *   npm run dev
  *   node scripts/verify-assignments.js
  *
- * It creates a story and a video, exercises them, and deletes both. Nothing
- * else in the database is touched, but see the guard below: this must never be
- * pointed at the live newsroom database.
+ * It creates a story, exercises it, and deletes it. Nothing else in the
+ * database is touched, but see the guard below: this must never be pointed at
+ * the live newsroom database.
  *
  * Caveat on that guard: it inspects the DATABASE_URL this script can see, which
  * is a proxy for the one the dev server is using, not proof. They are the same
@@ -141,10 +137,9 @@ async function main() {
 
   const people = (await json("/api/people")).body;
   const alice = people.find((p) => p.name.startsWith("Alice"));
-  const bob = people.find((p) => p.name.startsWith("Bob"));
-  if (!alice || !bob) fail("Expected seed people (Alice, Bob) not found — is the database seeded?");
+  if (!alice) fail("Expected seed person (Alice) not found — is the database seeded?");
 
-  let storyId, videoId;
+  let storyId;
   try {
     // ── Story create, and the child POSTs StoryForm sends after it ────────────
     const created = await api("/api/stories", "POST", {
@@ -207,55 +202,6 @@ async function main() {
     check("description cleared to null", cleared.body?.description === null);
     check("person unassigned to null", cleared.body?.personId === null);
 
-    // ── Role change: the delete + create transaction ──────────────────────────
-    const changed = await api(`/api/stories/${storyId}/assignments`, "PATCH", {
-      personId: alice.id,
-      fromRole: "REPORTER",
-      toRole: "EDITOR",
-    });
-    check("role change succeeds", changed.status === 200, `status ${changed.status}`);
-    check("role change returns the new role", changed.body?.role === "EDITOR");
-
-    let after = (await json(`/api/stories/${storyId}/assignments`)).body;
-    check(
-      "exactly one assignment survives the swap",
-      after.length === 1 && after[0].role === "EDITOR",
-      JSON.stringify(after.map((a) => a.role))
-    );
-
-    // Collision: person already holds the target role. Must roll back whole.
-    await api(`/api/stories/${storyId}/assignments`, "POST", { personId: alice.id, role: "REPORTER" });
-    const collision = await api(`/api/stories/${storyId}/assignments`, "PATCH", {
-      personId: alice.id,
-      fromRole: "REPORTER",
-      toRole: "EDITOR",
-    });
-    check("role collision returns 409", collision.status === 409, `status ${collision.status}`);
-
-    after = (await json(`/api/stories/${storyId}/assignments`)).body;
-    check(
-      "collision rolled back — both roles intact, person not dropped",
-      after.length === 2,
-      JSON.stringify(after.map((a) => a.role))
-    );
-
-    check(
-      "unknown assignment returns 404",
-      (await api(`/api/stories/${storyId}/assignments`, "PATCH", {
-        personId: bob.id,
-        fromRole: "REPORTER",
-        toRole: "EDITOR",
-      })).status === 404
-    );
-    check(
-      "unchanged role returns 400",
-      (await api(`/api/stories/${storyId}/assignments`, "PATCH", {
-        personId: alice.id,
-        fromRole: "EDITOR",
-        toRole: "EDITOR",
-      })).status === 400
-    );
-
     // ── Version conflict: the 409 must carry a version to retry against ───────
     const fresh = (await json(`/api/stories/${storyId}`)).body;
     check(
@@ -277,41 +223,9 @@ async function main() {
         version: stale.body?.version,
       })).status === 200
     );
-
-    // ── Video role change ─────────────────────────────────────────────────────
-    const video = await api("/api/videos", "POST", {
-      slug: "VERIFY VIDEO",
-      budgetLine: "Temporary video created by scripts/verify-assignments.js.",
-      status: "DRAFT",
-      onlinePubDateTBD: true,
-      isEnterprise: false,
-      notifyTeam: false,
-    });
-    videoId = video.body?.id;
-    check("video create", video.status === 201, `status ${video.status}`);
-
-    await api(`/api/videos/${videoId}/assignments`, "POST", {
-      personId: bob.id,
-      role: "VIDEOGRAPHER",
-    });
-    check(
-      "video role change succeeds",
-      (await api(`/api/videos/${videoId}/assignments`, "PATCH", {
-        personId: bob.id,
-        fromRole: "VIDEOGRAPHER",
-        toRole: "EDITOR",
-      })).status === 200
-    );
-    const vAfter = (await json(`/api/videos/${videoId}/assignments`)).body;
-    check(
-      "video assignment intact after swap",
-      vAfter.length === 1 && vAfter[0].role === "EDITOR",
-      JSON.stringify(vAfter.map((a) => a.role))
-    );
   } finally {
     // Always clean up, even if an assertion above threw.
     if (storyId) await api(`/api/stories/${storyId}`, "DELETE");
-    if (videoId) await api(`/api/videos/${videoId}`, "DELETE");
   }
 
   const failed = results.filter((r) => !r).length;

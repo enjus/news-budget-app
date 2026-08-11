@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createAssignmentSchema, updateAssignmentSchema } from "@/lib/validations";
+import { createAssignmentSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 
@@ -80,69 +80,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
     console.error("POST /api/stories/[id]/assignments error:", error);
     return NextResponse.json({ error: "Failed to create assignment" }, { status: 500 });
-  }
-}
-
-/**
- * Change an assignment's role. Role is part of the composite key
- * (storyId, personId, role), so this is a delete + create rather than an
- * update — done in one transaction so a failure can't drop the person from
- * the story entirely.
- */
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || !canCreateContent(session.user.appRole)) {
-      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    }
-
-    const limited = checkWriteLimit(session.user.id);
-    if (limited) return limited;
-
-    const { id: storyId } = await params;
-    const body = await request.json();
-    const result = updateAssignmentSchema.safeParse(body);
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: "Validation failed", fieldErrors: result.error.flatten().fieldErrors },
-        { status: 400 }
-      );
-    }
-
-    const { personId, fromRole, toRole } = result.data;
-
-    if (fromRole === toRole) {
-      return NextResponse.json({ error: "Role is unchanged" }, { status: 400 });
-    }
-
-    const [, assignment] = await prisma.$transaction([
-      prisma.storyAssignment.delete({
-        where: { storyId_personId_role: { storyId, personId, role: fromRole } },
-      }),
-      prisma.storyAssignment.create({
-        data: { storyId, personId, role: toRole },
-        include: { person: true },
-      }),
-    ]);
-
-    return NextResponse.json(assignment);
-  } catch (error: unknown) {
-    const code =
-      typeof error === "object" && error !== null && "code" in error
-        ? error.code
-        : undefined;
-    if (code === "P2025") {
-      return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
-    }
-    if (code === "P2002") {
-      return NextResponse.json(
-        { error: "This person already has that role on this story" },
-        { status: 409 }
-      );
-    }
-    console.error("PATCH /api/stories/[id]/assignments error:", error);
-    return NextResponse.json({ error: "Failed to update assignment" }, { status: 500 });
   }
 }
 
