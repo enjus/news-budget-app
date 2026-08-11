@@ -89,6 +89,25 @@ async function postAll(url: string, bodies: unknown[]): Promise<number> {
   return results.filter((r) => r.status === "rejected").length
 }
 
+/**
+ * A titled group of fields. Headings and spacing only — deliberately not
+ * collapsible, since StoryDetail remounts this form on every save
+ * (key={story.updatedAt}) and any open/closed state would reset under the user.
+ *
+ * The heading style matches AssignmentSection/VisualSection/CommentSection so
+ * the form reads as continuous with the sections below it on the detail page.
+ */
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      <div className="space-y-4">{children}</div>
+    </section>
+  )
+}
+
 function toLocalDateValue(date: Date | string | null | undefined): string {
   if (!date) return ""
   const d = typeof date === "string" ? new Date(date) : date
@@ -391,7 +410,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   ) : null
 
   return (
-    <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
       {/* Save conflict — the user's unsaved edits are still in the fields below */}
       {conflict && (
@@ -441,6 +460,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         </div>
       )}
 
+      <FormSection title="Identity">
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-slug">Slug</Label>
@@ -477,11 +497,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           <p className="text-xs text-destructive">{errors.budgetLine.message}</p>
         )}
       </div>
+      </FormSection>
 
       {/* Assignments — create mode inline */}
       {!isEdit && (
-        <div className="space-y-2">
-          <Label>People</Label>
+        <FormSection title="People">
           {pendingAssignments.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pendingAssignments.map((a, i) => (
@@ -535,13 +555,12 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               </Button>
             )}
           </div>
-        </div>
+        </FormSection>
       )}
 
       {/* Visuals — create mode inline; edit mode uses VisualSection on the detail page */}
       {!isEdit && (
-        <div className="space-y-2">
-          <Label>Visuals</Label>
+        <FormSection title="Visuals">
           {pendingVisuals.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pendingVisuals.map((v, i) => (
@@ -569,10 +588,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             </div>
           )}
           <VisualDraftRow onSubmit={(draft) => setPendingVisuals((prev) => [...prev, draft])} />
-        </div>
+        </FormSection>
       )}
 
-      {/* Status + Word Count + Enterprise */}
+      <FormSection title="Status & Schedule">
+      {/* Status + Word Count */}
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex-1 min-w-[160px] space-y-1.5">
           <Label htmlFor="sf-status">Status</Label>
@@ -709,20 +729,40 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           </p>
         </div>
       ) : null}
+      </FormSection>
 
-      {/* Working Draft URL */}
-      <div className="space-y-1.5">
-        <Label htmlFor="sf-working-draft-url">Working Draft URL</Label>
-        <Input
-          id="sf-working-draft-url"
-          {...register("workingDraftUrl")}
-          placeholder="https://"
-        />
-        {errors.workingDraftUrl && (
-          <p className="text-xs text-destructive">{errors.workingDraftUrl.message as string}</p>
+      {/* Links — the draft lives here before publication, the post URL after.
+          Kept adjacent so both are in one place rather than split by the form. */}
+      <FormSection title="Links">
+        <div className="space-y-1.5">
+          <Label htmlFor="sf-working-draft-url">Working Draft URL</Label>
+          <Input
+            id="sf-working-draft-url"
+            {...register("workingDraftUrl")}
+            placeholder="https://"
+          />
+          {errors.workingDraftUrl && (
+            <p className="text-xs text-destructive">{errors.workingDraftUrl.message as string}</p>
+          )}
+        </div>
+
+        {/* Post URL — edit mode only; a story has no published URL until it exists */}
+        {isEdit && (
+          <div className="space-y-1.5">
+            <Label htmlFor="sf-post-url">Post URL</Label>
+            <Input
+              id="sf-post-url"
+              {...register("postUrl")}
+              placeholder="https://"
+            />
+            {errors.postUrl && (
+              <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
+            )}
+          </div>
         )}
-      </div>
+      </FormSection>
 
+      <FormSection title="Context">
       {/* Notes */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-notes">Notes</Label>
@@ -764,21 +804,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           })}
         </div>
       </div>
-
-      {/* Post URL — edit mode only, last field (post-publication) */}
-      {isEdit && (
-        <div className="space-y-1.5">
-          <Label htmlFor="sf-post-url">Post URL</Label>
-          <Input
-            id="sf-post-url"
-            {...register("postUrl")}
-            placeholder="https://"
-          />
-          {errors.postUrl && (
-            <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
-          )}
-        </div>
-      )}
+      </FormSection>
 
       {/* Bottom actions — create mode only; edit mode buttons live in StoryDetail */}
       {!isEdit && (
