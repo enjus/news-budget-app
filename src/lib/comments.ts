@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession, type Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommentSchema } from "@/lib/validations";
@@ -26,6 +26,21 @@ type Kind = "story" | "video";
 const parentDraftSelect = { id: true, onBudget: true, createdByUserId: true } as const;
 
 /**
+ * Off-budget drafts are visible only to their creator (or admins) — same rule
+ * the parent story/video detail routes enforce. Shared here so listComments
+ * and createComment can't drift on it.
+ */
+function isBlockedFromOffBudget(
+  parent: { onBudget: boolean; createdByUserId: string | null },
+  session: Session | null
+): boolean {
+  return (
+    !parent.onBudget &&
+    (!session?.user || (parent.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)))
+  );
+}
+
+/**
  * GET handler shared by /api/stories/[id]/comments and /api/videos/[id]/comments.
  * Read access matches the other child collections (assignments, visuals): any
  * request that got past the auth middleware can read — except off-budget
@@ -47,7 +62,7 @@ export async function listComments(kind: Kind, parentId: string) {
 
   if (!parent.onBudget) {
     const session = await getServerSession(authOptions);
-    if (!session?.user || (parent.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
+    if (isBlockedFromOffBudget(parent, session)) {
       return NextResponse.json(
         { error: kind === "story" ? "Story not found" : "Video not found" },
         { status: 404 }
@@ -134,7 +149,7 @@ export async function createComment(
     );
   }
 
-  if (!parent.onBudget && parent.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+  if (isBlockedFromOffBudget(parent, session)) {
     return NextResponse.json(
       { error: kind === "story" ? "Story not found" : "Video not found" },
       { status: 404 }

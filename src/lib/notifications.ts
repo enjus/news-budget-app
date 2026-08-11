@@ -1,5 +1,5 @@
 import { sendEmail } from "@/lib/email";
-import { linkifyToHtml } from "@/lib/comment-text";
+import { linkifyToHtml, escapeHtml } from "@/lib/comment-text";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -188,12 +188,4 @@ export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVi
     if (v.person?.email) emails.add(v.person.email);
   }
   return Array.from(emails);
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }

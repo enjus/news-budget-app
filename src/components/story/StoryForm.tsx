@@ -27,9 +27,16 @@ import { format } from "date-fns"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import {
+  VisualDraftRow,
+  VISUAL_TYPE_LABELS,
+  visualDraftToBody,
+  type VisualDraft,
+} from "./VisualDraftRow"
 import type { StoryWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { postAll } from "@/lib/post-all"
 
 const STATUS_OPTIONS = [
   "DRAFT",
@@ -62,6 +69,25 @@ interface PendingAssignment {
   role: AssignmentRoleValue
 }
 
+/**
+ * A titled group of fields. Headings and spacing only — deliberately not
+ * collapsible, since StoryDetail remounts this form on every save
+ * (key={story.updatedAt}) and any open/closed state would reset under the user.
+ *
+ * The heading style matches AssignmentSection/VisualSection/CommentSection so
+ * the form reads as continuous with the sections below it on the detail page.
+ */
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+        {title}
+      </h3>
+      <div className="space-y-4">{children}</div>
+    </section>
+  )
+}
+
 function toLocalDateValue(date: Date | string | null | undefined): string {
   if (!date) return ""
   const d = typeof date === "string" ? new Date(date) : date
@@ -75,6 +101,14 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   const router = useRouter()
 
   const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
+  // Visuals composed before the story exists. POSTed after create, alongside
+  // pendingAssignments — there's no storyId to attach them to until then.
+  const [pendingVisuals, setPendingVisuals] = useState<VisualDraft[]>([])
+
+  // Set when a save loses the optimistic-locking race. Holds the version the
+  // server now has, so "Save anyway" can retry against it. Non-null means the
+  // conflict banner is showing and the user's unsaved text is still in the form.
+  const [conflict, setConflict] = useState<{ serverVersion: number } | null>(null)
 
   const {
     register,
@@ -147,6 +181,9 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
   const notifyRef = useRef(false)
   const draftRef = useRef(false)
+  // Set only by "Save anyway" — the version to send instead of the stale one in
+  // props, which is what the failed save already tried.
+  const overrideVersionRef = useRef<number | null>(null)
 
   // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
   // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
@@ -235,8 +272,14 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             : null,
       }
 
-      // Include version for optimistic locking on edits
-      if (isEdit && story?.version !== undefined) {
+      // Include version for optimistic locking on edits. After a conflict the
+      // version in props is stale — it's the one that just lost — so a retry
+      // sends the version the server reported back instead.
+      const retryVersion = overrideVersionRef.current
+      overrideVersionRef.current = null
+      if (isEdit && retryVersion !== null) {
+        payload.version = retryVersion
+      } else if (isEdit && story?.version !== undefined) {
         payload.version = story.version
       }
 
@@ -252,39 +295,55 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         if (res.status === 409 && json?.version !== undefined) {
-          toast.error("This story was modified by another user. Reloading…")
-          onSuccess?.(story!.id)
+          // Deliberately does NOT call onSuccess: that refetch remounts the form
+          // (StoryDetail keys it on updatedAt) and would discard everything the
+          // user typed. Show the banner and let them choose.
+          setConflict({ serverVersion: json.version })
+          toast.error("Someone else saved this story — see the notice at the top of the form")
           return
         }
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
 
       const saved = await res.json()
+      setConflict(null)
 
-      // Post pending assignments after story creation
-      if (!isEdit && pendingAssignments.length > 0) {
-        await Promise.all(
-          pendingAssignments.map((a) =>
-            fetch(apiPath(`/api/stories/${saved.id}/assignments`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ personId: a.person.id, role: a.role }),
-            })
-          )
-        )
-      }
+      // Attach everything composed before the story had an id. Each batch
+      // reports its own failures — the story itself is already saved, so a
+      // partial failure has to be named rather than swallowed.
+      if (!isEdit) {
+        const failed: string[] = []
 
-      // Post pending tags after story creation
-      if (!isEdit && selectedTags.length > 0) {
-        await Promise.all(
-          selectedTags.map((tag) =>
-            fetch(apiPath(`/api/stories/${saved.id}/tags`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tag }),
-            })
+        if (pendingAssignments.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/assignments`,
+            pendingAssignments.map((a) => ({ personId: a.person.id, role: a.role }))
           )
-        )
+          if (n > 0) failed.push(`${n} of ${pendingAssignments.length} people`)
+        }
+
+        if (pendingVisuals.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/visuals`,
+            pendingVisuals.map(visualDraftToBody)
+          )
+          if (n > 0) failed.push(`${n} of ${pendingVisuals.length} visuals`)
+        }
+
+        if (selectedTags.length > 0) {
+          const n = await postAll(
+            `/api/stories/${saved.id}/tags`,
+            selectedTags.map((tag) => ({ tag }))
+          )
+          if (n > 0) failed.push(`${n} of ${selectedTags.length} tags`)
+        }
+
+        if (failed.length > 0) {
+          toast.warning(`Story saved, but ${failed.join(" and ")} could not be added`, {
+            description: "Open the story and add them again.",
+            duration: 10000,
+          })
+        }
       }
 
       if (isDraft && !isEdit) {
@@ -331,7 +390,47 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   ) : null
 
   return (
-    <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form id="story-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+
+      {/* Save conflict — the user's unsaved edits are still in the fields below */}
+      {conflict && (
+        <div className="space-y-2 rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
+          <p className="text-sm font-medium text-destructive">
+            Someone else saved this story while you were editing.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Your changes are still here and have not been saved. Saving anyway will
+            overwrite the other person&apos;s edits — if you&apos;re not sure what they
+            changed, copy your work somewhere safe and reload first.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isSubmitting}
+              onClick={() => {
+                overrideVersionRef.current = conflict.serverVersion
+                handleSubmit(onSubmit)()
+              }}
+            >
+              Save anyway
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isSubmitting}
+              onClick={() => {
+                setConflict(null)
+                onSuccess?.(story!.id)
+              }}
+            >
+              Discard mine and reload
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Top action row — create mode only */}
       {!isEdit && (
@@ -341,6 +440,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
         </div>
       )}
 
+      <FormSection title="Identity">
       {/* Slug */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-slug">Slug</Label>
@@ -377,11 +477,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           <p className="text-xs text-destructive">{errors.budgetLine.message}</p>
         )}
       </div>
+      </FormSection>
 
       {/* Assignments — create mode inline */}
       {!isEdit && (
-        <div className="space-y-2">
-          <Label>People</Label>
+        <FormSection title="People">
           {pendingAssignments.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {pendingAssignments.map((a, i) => (
@@ -435,10 +535,44 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               </Button>
             )}
           </div>
-        </div>
+        </FormSection>
       )}
 
-      {/* Status + Word Count + Enterprise */}
+      {/* Visuals — create mode inline; edit mode uses VisualSection on the detail page */}
+      {!isEdit && (
+        <FormSection title="Visuals">
+          {pendingVisuals.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingVisuals.map((v, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
+                >
+                  {VISUAL_TYPE_LABELS[v.type]}
+                  {v.description && (
+                    <span className="text-muted-foreground/70">· {v.description}</span>
+                  )}
+                  {v.person && (
+                    <span className="text-muted-foreground/70">· {v.person.name}</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setPendingVisuals((prev) => prev.filter((_, j) => j !== i))}
+                    className="ml-0.5 rounded text-muted-foreground/60 hover:text-foreground"
+                    aria-label="Remove"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <VisualDraftRow onSubmit={(draft) => setPendingVisuals((prev) => [...prev, draft])} />
+        </FormSection>
+      )}
+
+      <FormSection title="Status & Schedule">
+      {/* Status + Word Count */}
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex-1 min-w-[160px] space-y-1.5">
           <Label htmlFor="sf-status">Status</Label>
@@ -575,20 +709,40 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           </p>
         </div>
       ) : null}
+      </FormSection>
 
-      {/* Working Draft URL */}
-      <div className="space-y-1.5">
-        <Label htmlFor="sf-working-draft-url">Working Draft URL</Label>
-        <Input
-          id="sf-working-draft-url"
-          {...register("workingDraftUrl")}
-          placeholder="https://"
-        />
-        {errors.workingDraftUrl && (
-          <p className="text-xs text-destructive">{errors.workingDraftUrl.message as string}</p>
+      {/* Links — the draft lives here before publication, the post URL after.
+          Kept adjacent so both are in one place rather than split by the form. */}
+      <FormSection title="Links">
+        <div className="space-y-1.5">
+          <Label htmlFor="sf-working-draft-url">Working Draft URL</Label>
+          <Input
+            id="sf-working-draft-url"
+            {...register("workingDraftUrl")}
+            placeholder="https://"
+          />
+          {errors.workingDraftUrl && (
+            <p className="text-xs text-destructive">{errors.workingDraftUrl.message as string}</p>
+          )}
+        </div>
+
+        {/* Post URL — edit mode only; a story has no published URL until it exists */}
+        {isEdit && (
+          <div className="space-y-1.5">
+            <Label htmlFor="sf-post-url">Post URL</Label>
+            <Input
+              id="sf-post-url"
+              {...register("postUrl")}
+              placeholder="https://"
+            />
+            {errors.postUrl && (
+              <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
+            )}
+          </div>
         )}
-      </div>
+      </FormSection>
 
+      <FormSection title="Context">
       {/* Notes */}
       <div className="space-y-1.5">
         <Label htmlFor="sf-notes">Notes</Label>
@@ -630,21 +784,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           })}
         </div>
       </div>
-
-      {/* Post URL — edit mode only, last field (post-publication) */}
-      {isEdit && (
-        <div className="space-y-1.5">
-          <Label htmlFor="sf-post-url">Post URL</Label>
-          <Input
-            id="sf-post-url"
-            {...register("postUrl")}
-            placeholder="https://"
-          />
-          {errors.postUrl && (
-            <p className="text-xs text-destructive">{errors.postUrl.message as string}</p>
-          )}
-        </div>
-      )}
+      </FormSection>
 
       {/* Bottom actions — create mode only; edit mode buttons live in StoryDetail */}
       {!isEdit && (

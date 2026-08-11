@@ -39,6 +39,7 @@ import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString, toVideoAssign
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { apiPath } from "@/lib/api-path"
+import { postAll } from "@/lib/post-all"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
@@ -260,17 +261,21 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
 
       const saved = await res.json()
 
-      // Post pending assignments after video creation
+      // Post pending assignments after video creation. The video is already
+      // saved at this point, so a failure can't be reported as "creation
+      // failed" — name it explicitly instead of letting it vanish behind the
+      // "Video created" toast below.
       if (!isEdit && pendingAssignments.length > 0) {
-        await Promise.all(
-          pendingAssignments.map((a) =>
-            fetch(apiPath(`/api/videos/${saved.id}/assignments`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ personId: a.person.id, role: a.role }),
-            })
-          )
+        const failedCount = await postAll(
+          `/api/videos/${saved.id}/assignments`,
+          pendingAssignments.map((a) => ({ personId: a.person.id, role: a.role }))
         )
+        if (failedCount > 0) {
+          toast.warning(
+            `Video saved, but ${failedCount} of ${pendingAssignments.length} people could not be added`,
+            { description: "Open the video and add them again.", duration: 10000 }
+          )
+        }
       }
 
       if (isDraft && !isEdit) {
