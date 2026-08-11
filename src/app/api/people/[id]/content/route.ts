@@ -23,7 +23,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const person = await prisma.person.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, defaultRole: true },
+      select: { id: true, name: true, email: true, defaultRole: true, isActive: true },
     });
 
     if (!person) {

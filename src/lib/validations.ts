@@ -44,11 +44,21 @@ const optionalUrl = z.preprocess(
 
 export const createPersonSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
-  email: z.string().email("Invalid email address"),
+  // Optional — freelancers and other no-login contributors may not have one.
+  // Blank string (from the form) becomes null, not undefined, so clearing an
+  // existing email on PATCH actually clears it instead of being dropped as
+  // "field not present" by JSON.stringify.
+  email: z.preprocess(
+    (val) => (typeof val === "string" && val.trim() === "" ? null : val),
+    z.string().email("Invalid email address").nullable().optional()
+  ),
   defaultRole: PersonRoleEnum.default("OTHER"),
 });
 
-export const updatePersonSchema = createPersonSchema.partial();
+export const updatePersonSchema = createPersonSchema.partial().extend({
+  // Not settable at creation — people start active. Gated to admins at the API layer.
+  isActive: z.boolean().optional(),
+});
 
 // ─── Story ────────────────────────────────────────────────────────────────────
 

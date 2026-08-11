@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, hasAdminAccess } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -56,6 +56,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         { error: "Validation failed", fieldErrors: result.error.flatten().fieldErrors },
         { status: 400 }
       );
+    }
+
+    if (result.data.isActive !== undefined && !hasAdminAccess(session.user.appRole)) {
+      return NextResponse.json({ error: "Only admins can change active status" }, { status: 403 });
     }
 
     const person = await prisma.person.update({

@@ -12,12 +12,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role");
+    const activeOnly = searchParams.get("activeOnly") === "true";
 
     const take = Math.min(parseInt(searchParams.get("take") ?? "200", 10) || 200, 500);
     const skip = parseInt(searchParams.get("skip") ?? "0", 10) || 0;
 
     const people = await prisma.person.findMany({
-      where: role ? { defaultRole: role } : undefined,
+      where: {
+        ...(role ? { defaultRole: role } : {}),
+        ...(activeOnly ? { isActive: true } : {}),
+      },
       include: {
         _count: {
           select: {

@@ -62,7 +62,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
     defaultValues: person
       ? {
           name: person.name,
-          email: person.email,
+          email: person.email ?? "",
           defaultRole: person.defaultRole as CreatePersonInput["defaultRole"],
         }
       : {
@@ -105,7 +105,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
         person
           ? {
               name: person.name,
-              email: person.email,
+              email: person.email ?? "",
               defaultRole: person.defaultRole as CreatePersonInput["defaultRole"],
             }
           : { name: "", email: "", defaultRole: "OTHER" }
@@ -138,7 +138,9 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
 
           {/* Email */}
           <div className="space-y-1.5">
-            <Label htmlFor="pf-email">Email</Label>
+            <Label htmlFor="pf-email">
+              Email <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <Input
               id="pf-email"
               type="email"
@@ -146,6 +148,10 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
               placeholder="email@example.com"
               aria-invalid={!!errors.email}
             />
+            <p className="text-xs text-muted-foreground">
+              Leave blank for freelancers or others without an account — they won&apos;t receive
+              @-mentions or notification emails.
+            </p>
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
             )}

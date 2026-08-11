@@ -33,9 +33,15 @@ model User {
 model Person {
   id          String   @id @default(cuid())
   name        String
-  email       String   @unique
+  // Optional — freelancers and other no-login contributors may not have one.
+  // A missing email just means the person is skipped for @-mentions and
+  // notification recipients (see collectEmails() in notifications.ts).
+  email       String?  @unique
   // PersonRole: REPORTER | EDITOR | PHOTOGRAPHER | GRAPHIC_DESIGNER | PUBLICATION_DESIGNER | OTHER
   defaultRole String   @default("OTHER")
+  // Inactive people are hidden from pickers for new assignments/stories but keep
+  // their historical assignments, visuals, and comment mentions intact.
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

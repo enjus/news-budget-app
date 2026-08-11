@@ -102,7 +102,7 @@ export function PersonSelect({
                   {availablePeople.map((person) => (
                     <CommandItem
                       key={person.id}
-                      value={`${person.name} ${person.email}`}
+                      value={`${person.name}${person.email ? ` ${person.email}` : ""}`}
                       onSelect={() => {
                         onChange(person.id)
                         setOpen(false)
@@ -116,7 +116,9 @@ export function PersonSelect({
                       />
                       <div className="flex flex-col">
                         <span className="text-sm font-medium">{person.name}</span>
-                        <span className="text-xs text-muted-foreground">{person.email}</span>
+                        {person.email && (
+                          <span className="text-xs text-muted-foreground">{person.email}</span>
+                        )}
                       </div>
                     </CommandItem>
                   ))}
