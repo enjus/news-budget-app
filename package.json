@@ -8,7 +8,8 @@
     "vercel-build": "prisma generate && node scripts/vercel-build-db-sync.js && next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "verify:assignments": "node scripts/verify-assignments.mjs"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
