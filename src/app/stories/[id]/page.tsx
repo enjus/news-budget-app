@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { canCreateContent } from "@/lib/utils"
+import { commentInclude, commentOrderBy } from "@/lib/comments"
 import { StoryDetailWrapper } from "./StoryDetailWrapper"
 
 interface StoryPageProps {
@@ -19,6 +20,7 @@ export default async function StoryPage({ params }: StoryPageProps) {
       visuals: { include: { person: true } },
       videos: true,
       tags: true,
+      comments: { include: commentInclude, orderBy: commentOrderBy },
     },
   })
 

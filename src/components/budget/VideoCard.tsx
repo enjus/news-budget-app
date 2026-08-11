@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Video as VideoIcon, Check } from "lucide-react"
+import { Video as VideoIcon, Check, MessageSquare } from "lucide-react"
 import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
@@ -70,6 +70,9 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
 }
 
 export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
+  // Optional chaining: a few list endpoints hand-roll their payload and cast.
+  const commentCount = video._count?.comments ?? 0
+
   return (
     <Link
       href={`/videos/${video.id}`}
@@ -113,6 +116,19 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
             <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>
               {video.budgetLine}
             </p>
+          )}
+
+          {/* Comment indicator — only when the video has comments */}
+          {commentCount > 0 && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span
+                className="flex items-center gap-0.5"
+                title={`${commentCount} comment${commentCount === 1 ? "" : "s"}`}
+              >
+                <MessageSquare className="size-3.5 shrink-0" />
+                {commentCount}
+              </span>
+            </div>
           )}
 
           {/* Bottom row: people chips + AI tag */}

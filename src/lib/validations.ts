@@ -71,7 +71,7 @@ export const createStorySchema = z.object({
       /^[A-Z0-9 ]+$/,
       "Slug must be uppercase letters, numbers, and spaces only"
     ),
-  budgetLine: z.string().min(1, "Budget line is required").max(500),
+  budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
@@ -95,7 +95,7 @@ export const updateStorySchema = z.object({
     .max(60)
     .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
     .optional(),
-  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
   status: StoryStatusEnum.optional(),
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
@@ -136,6 +136,22 @@ export const createVisualSchema = z.object({
 
 export const updateVisualSchema = createVisualSchema.partial();
 
+// ─── Comment ──────────────────────────────────────────────────────────────────
+
+export const createCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment can't be empty").max(5000),
+  // Person ids @-mentioned in the body. The body keeps the literal "@Name" text;
+  // these are the authoritative records used for notifications and highlighting.
+  mentionIds: z.array(z.string().cuid()).max(20).optional(),
+  // true = "Post and Notify All" (email everyone assigned to the story/video)
+  notifyAll: z.boolean().optional(),
+});
+
+export const updateCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment can't be empty").max(5000),
+  mentionIds: z.array(z.string().cuid()).max(20).optional(),
+});
+
 // ─── Video ────────────────────────────────────────────────────────────────────
 
 export const createVideoSchema = z.object({
@@ -147,7 +163,7 @@ export const createVideoSchema = z.object({
       /^[A-Z0-9 ]+$/,
       "Slug must be uppercase letters, numbers, and spaces only"
     ),
-  budgetLine: z.string().min(1, "Budget line is required").max(500),
+  budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
   storyId: z.string().cuid().nullable().optional(), // null = standalone
@@ -170,7 +186,7 @@ export const updateVideoSchema = z.object({
     .max(60)
     .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
     .optional(),
-  budgetLine: z.string().min(1, "Budget line is required").max(500).optional(),
+  budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
   status: StoryStatusEnum.optional(),
   storyId: z.string().cuid().nullable().optional(),
@@ -244,3 +260,5 @@ export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSch
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
+export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;

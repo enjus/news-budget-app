@@ -13,11 +13,13 @@ const storyInclude = {
   visuals: { select: { id: true, type: true, person: { select: { name: true } } } },
   videos: { select: { id: true } },
   tags: true,
+  _count: { select: { comments: true } },
 } as const;
 
 const videoInclude = {
   assignments: { include: { person: personSelect } },
   story: { select: { id: true, slug: true, budgetLine: true } },
+  _count: { select: { comments: true } },
 } as const;
 
 const TBD_CAP = 500;

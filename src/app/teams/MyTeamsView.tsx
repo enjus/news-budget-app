@@ -356,7 +356,7 @@ function ContentSection({ title, items }: { title: string; items: PersonContentI
       <h4 className="text-xs font-medium text-muted-foreground mb-1">{title}</h4>
       <div className="space-y-1">
         {items.map((item) => (
-          <ContentRow key={`${item.type}-${item.id}`} item={item} />
+          <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
         ))}
       </div>
     </div>
@@ -400,7 +400,7 @@ function CollapsibleContentSection({
       {expanded && (
         <div className="space-y-1">
           {items.map((item) => (
-            <ContentRow key={`${item.type}-${item.id}`} item={item} />
+            <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
           ))}
         </div>
       )}

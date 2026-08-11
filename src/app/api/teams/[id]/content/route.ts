@@ -2,14 +2,39 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasAdminAccess, todayString } from "@/lib/utils"
+import { hasAdminAccess, todayString, dedupeVisualCredits } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-// Safety cap on past items per member, across stories + videos combined.
+type VisualCredit = {
+  type: string
+  story: {
+    id: string
+    slug: string
+    budgetLine: string
+    status: string
+    onlinePubDate: Date | null
+    onlinePubDateTBD: boolean
+  }
+}
+
+function mapVisualToContentItem(v: VisualCredit): PersonContentItem {
+  return {
+    type: "story",
+    id: v.story.id,
+    slug: v.story.slug,
+    budgetLine: v.story.budgetLine,
+    status: v.story.status,
+    onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
+    onlinePubDateTBD: v.story.onlinePubDateTBD,
+    role: v.type,
+  }
+}
+
+// Safety cap on past items per member, across stories + visual credits + videos combined.
 const PAST_CAP = 10
 
 // Safety cap on TBD/upcoming items per member (matches /api/budget/daily,
@@ -69,7 +94,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     // accumulate unboundedly, matching /api/budget/daily and /api/budget/agenda.
     const memberContent = await Promise.all(
       team.members.map(async (member) => {
-        const [storyUpcoming, storyPast, videoUpcoming, videoPast] = await Promise.all([
+        const [storyUpcoming, storyPast, visualUpcoming, visualPast, videoUpcoming, videoPast] = await Promise.all([
           prisma.storyAssignment.findMany({
             where: {
               personId: member.personId,
@@ -118,6 +143,62 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             orderBy: { story: { onlinePubDate: "desc" } },
             // Fetch one extra past PAST_CAP so we can tell whether the
             // story+video combined past list was actually truncated below.
+            take: PAST_CAP + 1,
+          }),
+          prisma.visual.findMany({
+            where: {
+              personId: member.personId,
+              story: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
+              },
+            },
+            include: {
+              story: {
+                select: {
+                  id: true,
+                  slug: true,
+                  budgetLine: true,
+                  status: true,
+                  onlinePubDate: true,
+                  onlinePubDateTBD: true,
+                },
+              },
+            },
+            // A person can have multiple Visual rows for the same (story, type)
+            // — there's no unique constraint. Dedupe at the DB level (before
+            // `take` applies) so the cap counts distinct credits, matching
+            // dedupeVisualCredits()'s notion of a single credit.
+            distinct: ["storyId", "type"],
+            take: TBD_CAP,
+          }),
+          prisma.visual.findMany({
+            where: {
+              personId: member.personId,
+              story: {
+                onBudget: true,
+                status: { not: "SHELVED" },
+                onlinePubDateTBD: false,
+                onlinePubDate: { lt: todayStart },
+              },
+            },
+            include: {
+              story: {
+                select: {
+                  id: true,
+                  slug: true,
+                  budgetLine: true,
+                  status: true,
+                  onlinePubDate: true,
+                  onlinePubDateTBD: true,
+                },
+              },
+            },
+            orderBy: { story: { onlinePubDate: "desc" } },
+            // Same as above: dedupe distinct (story, type) credits at the DB
+            // level before `take` so the truncation math below stays correct.
+            distinct: ["storyId", "type"],
             take: PAST_CAP + 1,
           }),
           prisma.videoAssignment.findMany({
@@ -180,6 +261,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           onlinePubDateTBD: a.story.onlinePubDateTBD,
           role: a.role,
         }))
+        const visualUpcomingItems: PersonContentItem[] = dedupeVisualCredits(visualUpcoming).map(mapVisualToContentItem)
+        const visualPastItems: PersonContentItem[] = dedupeVisualCredits(visualPast).map(mapVisualToContentItem)
         const videoUpcomingItems: PersonContentItem[] = videoUpcoming.map((a) => ({
           type: "video" as const,
           id: a.video.id,
@@ -213,13 +296,13 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
         // Merge past stories + videos, sort reverse-chrono, then cap the
         // *combined* list at PAST_CAP (not each type independently).
-        const mergedPast = [...storyPastItems, ...videoPastItems].sort(
+        const mergedPast = [...storyPastItems, ...visualPastItems, ...videoPastItems].sort(
           (a, b) => new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime()
         )
         const pastTruncated = mergedPast.length > PAST_CAP
         const pastItems = mergedPast.slice(0, PAST_CAP)
 
-        const items: PersonContentItem[] = [...storyUpcomingItems, ...videoUpcomingItems, ...pastItems]
+        const items: PersonContentItem[] = [...storyUpcomingItems, ...visualUpcomingItems, ...videoUpcomingItems, ...pastItems]
 
         // TBD first (alpha), then reverse-chrono
         items.sort((a, b) => {
