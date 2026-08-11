@@ -3,16 +3,16 @@
 import useSWR from "swr"
 import { VideoDetail } from "@/components/story/VideoDetail"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { VideoWithRelations } from "@/types/index"
+import type { VideoWithComments } from "@/types/index"
 
 interface VideoDetailWrapperProps {
-  initialVideo: VideoWithRelations
+  initialVideo: VideoWithComments
   videoId: string
   readOnly?: boolean
 }
 
 export function VideoDetailWrapper({ initialVideo, videoId, readOnly }: VideoDetailWrapperProps) {
-  const { data: video, mutate } = useSWR<VideoWithRelations>(`/api/videos/${videoId}`)
+  const { data: video, mutate } = useSWR<VideoWithComments>(`/api/videos/${videoId}`)
 
   const current = video ?? initialVideo
 

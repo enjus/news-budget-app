@@ -11,6 +11,12 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
     visuals: { include: { person: true } };
     videos: true;
     tags: true;
+    comments: {
+      include: {
+        author: { select: { id: true; name: true; email: true } };
+        mentions: { include: { person: { select: { id: true; name: true } } } };
+      };
+    };
   };
 }>;
 
@@ -23,6 +29,7 @@ export type StoryListItem = Prisma.StoryGetPayload<{
     visuals: { select: { id: true; type: true; person: { select: { name: true } } } };
     videos: { select: { id: true } };
     tags: true;
+    _count: { select: { comments: true } };
   };
 }>;
 
@@ -35,6 +42,29 @@ export type VideoWithRelations = Prisma.VideoGetPayload<{
   include: {
     assignments: { include: { person: true } };
     story: { select: { id: true; slug: true; budgetLine: true } };
+    _count: { select: { comments: true } };
+  };
+}>;
+
+// Videos carry comments only on the detail page; list views get just the count.
+export type VideoWithComments = Prisma.VideoGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    story: { select: { id: true; slug: true; budgetLine: true } };
+    _count: { select: { comments: true } };
+    comments: {
+      include: {
+        author: { select: { id: true; name: true; email: true } };
+        mentions: { include: { person: { select: { id: true; name: true } } } };
+      };
+    };
+  };
+}>;
+
+export type CommentWithAuthor = Prisma.CommentGetPayload<{
+  include: {
+    author: { select: { id: true; name: true; email: true } };
+    mentions: { include: { person: { select: { id: true; name: true } } } };
   };
 }>;
 

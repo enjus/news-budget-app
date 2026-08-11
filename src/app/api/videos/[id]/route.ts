@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { updateVideoSchema } from "@/lib/validations";
 import { canCreateContent, hasAdminAccess } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
+import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ type RouteContext = { params: Promise<{ id: string }> };
 const videoInclude = {
   assignments: { include: { person: true } },
   story: { select: { id: true, slug: true, budgetLine: true } },
+  _count: { select: { comments: true } },
+  comments: { include: commentInclude, orderBy: commentOrderBy },
 } as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
