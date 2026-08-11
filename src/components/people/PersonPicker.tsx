@@ -29,9 +29,9 @@ import type { Person } from "@/types/index"
 
 export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "VIDEOGRAPHER" | "OTHER"
 
-const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]
+export const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]
 
-const ROLE_LABELS: Record<AssignmentRoleValue, string> = {
+export const ROLE_LABELS: Record<AssignmentRoleValue, string> = {
   REPORTER: "Reporter",
   EDITOR: "Editor",
   VIDEOGRAPHER: "Videographer",

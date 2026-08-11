@@ -49,28 +49,38 @@ export function visualDraftToBody(draft: VisualDraft): Record<string, unknown> {
 
 interface VisualDraftRowProps {
   /** Returning a promise keeps the row disabled until it settles. */
-  onAdd: (draft: VisualDraft) => void | Promise<void>
+  onSubmit: (draft: VisualDraft) => void | Promise<void>
   busy?: boolean
+  /** Prefill for editing an existing visual. Omit for the "add" row. */
+  initial?: VisualDraft
+  /** Shown when editing; the row is a cancellable form rather than an add row. */
+  onCancel?: () => void
 }
 
 /**
- * The "add a visual" controls, shared by the story detail page (where adding
- * POSTs immediately) and the create form (where visuals are held in state
- * until the story exists).
+ * The visual type/description/person controls, used three ways: adding on the
+ * story detail page (POSTs immediately), adding on the create form (held in
+ * state until the story exists), and editing an existing visual in place.
+ *
+ * In edit mode the fields keep whatever the user typed after submit, since the
+ * parent unmounts the row on success — clearing them would flash the empty
+ * state on the way out.
  */
-export function VisualDraftRow({ onAdd, busy }: VisualDraftRowProps) {
-  const [type, setType] = useState<VisualTypeValue>("PHOTO")
-  const [description, setDescription] = useState("")
-  const [personId, setPersonId] = useState<string>("")
+export function VisualDraftRow({ onSubmit, busy, initial, onCancel }: VisualDraftRowProps) {
+  const isEdit = !!initial
+  const [type, setType] = useState<VisualTypeValue>(initial?.type ?? "PHOTO")
+  const [description, setDescription] = useState(initial?.description ?? "")
+  const [personId, setPersonId] = useState<string>(initial?.person?.id ?? "")
 
   const { people } = usePeople()
 
-  async function handleAdd() {
-    await onAdd({
+  async function handleSubmit() {
+    await onSubmit({
       type,
       description: description.trim(),
       person: people.find((p) => p.id === personId) ?? null,
     })
+    if (isEdit) return
     setType("PHOTO")
     setDescription("")
     setPersonId("")
@@ -115,10 +125,16 @@ export function VisualDraftRow({ onAdd, busy }: VisualDraftRowProps) {
         </SelectContent>
       </Select>
 
-      <Button type="button" size="sm" onClick={handleAdd} disabled={busy}>
-        <Plus className="size-4" />
-        {busy ? "Adding..." : "Add Visual"}
+      <Button type="button" size="sm" onClick={handleSubmit} disabled={busy}>
+        {!isEdit && <Plus className="size-4" />}
+        {busy ? "Saving..." : isEdit ? "Save" : "Add Visual"}
       </Button>
+
+      {onCancel && (
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
+          Cancel
+        </Button>
+      )}
     </div>
   )
 }

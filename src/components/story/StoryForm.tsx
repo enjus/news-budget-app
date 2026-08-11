@@ -568,7 +568,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               ))}
             </div>
           )}
-          <VisualDraftRow onAdd={(draft) => setPendingVisuals((prev) => [...prev, draft])} />
+          <VisualDraftRow onSubmit={(draft) => setPendingVisuals((prev) => [...prev, draft])} />
         </div>
       )}
 
