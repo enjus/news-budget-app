@@ -123,7 +123,8 @@ export function CommentSection({
   const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
 
   return (
-    <div className="space-y-3">
+    // scroll-mt clears the sticky h-14 TopNav when jumped to via #comments.
+    <div id="comments" className="space-y-3 scroll-mt-20">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
         Comments
       </h3>
