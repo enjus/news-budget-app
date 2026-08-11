@@ -186,12 +186,15 @@ export async function createComment(
   }
 
   if (notifyAll) {
-    const alreadyEmailed = new Set(mentionRecipients);
-    if (session.user.email) alreadyEmailed.add(session.user.email);
+    // Compared case-insensitively: User.email and Person.email are independent
+    // columns, so the same human can be stored with different casing in each and
+    // would otherwise receive both the mention and the team email.
+    const alreadyEmailed = new Set(mentionRecipients.map((e) => e.toLowerCase()));
+    if (session.user.email) alreadyEmailed.add(session.user.email.toLowerCase());
     const teamRecipients = collectEmails(
       parent.assignments,
       storyParent?.visuals ?? []
-    ).filter((email) => !alreadyEmailed.has(email));
+    ).filter((email) => !alreadyEmailed.has(email.toLowerCase()));
     if (teamRecipients.length > 0) {
       notifyCommentTeam({ ...notification, recipients: teamRecipients }).catch((err) =>
         console.error("notifyCommentTeam failed:", err)

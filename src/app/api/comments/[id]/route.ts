@@ -74,8 +74,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     ]);
 
     return NextResponse.json(comment);
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {
       return NextResponse.json({ error: "Comment not found" }, { status: 404 });
     }
     console.error("PATCH /api/comments/[id] error:", error);
@@ -113,8 +113,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     await prisma.comment.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {
       return NextResponse.json({ error: "Comment not found" }, { status: 404 });
     }
     console.error("DELETE /api/comments/[id] error:", error);

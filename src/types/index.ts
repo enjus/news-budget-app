@@ -20,6 +20,18 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
   };
 }>;
 
+// What /api/stories (list) returns: full relations minus comments, which list
+// views never render and which would mean shipping every comment body. Keep in
+// sync with storyInclude in src/app/api/stories/route.ts.
+export type StoryListRelations = Prisma.StoryGetPayload<{
+  include: {
+    assignments: { include: { person: true } };
+    visuals: { include: { person: true } };
+    videos: true;
+    tags: true;
+  };
+}>;
+
 // Lightweight shape for budget list views (cards).
 // Omits visuals.person (cards only need visual.type for photo/graphic count).
 // Includes a minimal videos relation so cards can display a video count.

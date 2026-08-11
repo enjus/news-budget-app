@@ -27,7 +27,10 @@ interface MentionQuery {
 }
 
 // An @-token may span one space, so "@Alice Chen" keeps matching after the space.
-const MENTION_QUERY_RE = /(?:^|\s)@([^\s@]*(?: [^\s@]*)?)$/
+// The query must start with a non-space character (or be empty, right after the
+// "@"): otherwise "Ping me @ 3pm" reads as a mention of " 3pm", and a query of
+// just " " matches every staff name — every one contains a space.
+const MENTION_QUERY_RE = /(?:^|\s)@((?:[^\s@]+(?: [^\s@]*)?)?)$/
 
 function detectMentionQuery(value: string, caret: number): MentionQuery | null {
   const match = MENTION_QUERY_RE.exec(value.slice(0, caret))

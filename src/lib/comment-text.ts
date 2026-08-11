@@ -16,9 +16,12 @@ const TRAILING_PUNCTUATION = /[.,;:!?)\]}'"]+$/;
 /** Strip trailing punctuation that is almost certainly sentence text, not URL. */
 function trimUrl(match: string): string {
   let url = match.replace(TRAILING_PUNCTUATION, "");
-  // Keep a closing paren that has a matching opener inside the URL,
-  // e.g. Wikipedia-style /wiki/Foo_(bar)
-  if (match.endsWith(")") && countChar(url, "(") > countChar(url, ")")) {
+  // Keep a closing paren that has a matching opener inside the URL, e.g.
+  // Wikipedia-style /wiki/Foo_(bar). Test the punctuation we actually stripped
+  // rather than the original match, so a trailing sentence period —
+  // ".../Foo_(bar)." — doesn't hide the paren and leave a broken link.
+  const stripped = match.slice(url.length);
+  if (stripped.includes(")") && countChar(url, "(") > countChar(url, ")")) {
     url += ")";
   }
   return url;
