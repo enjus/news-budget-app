@@ -9,6 +9,31 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+type VisualCredit = {
+  type: string
+  story: {
+    id: string
+    slug: string
+    budgetLine: string
+    status: string
+    onlinePubDate: Date | null
+    onlinePubDateTBD: boolean
+  }
+}
+
+function mapVisualToContentItem(v: VisualCredit): PersonContentItem {
+  return {
+    type: "story",
+    id: v.story.id,
+    slug: v.story.slug,
+    budgetLine: v.story.budgetLine,
+    status: v.story.status,
+    onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
+    onlinePubDateTBD: v.story.onlinePubDateTBD,
+    role: v.type,
+  }
+}
+
 // Safety cap on past items per member, across stories + visual credits + videos combined.
 const PAST_CAP = 10
 
@@ -141,6 +166,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                 },
               },
             },
+            // A person can have multiple Visual rows for the same (story, type)
+            // — there's no unique constraint. Dedupe at the DB level (before
+            // `take` applies) so the cap counts distinct credits, matching
+            // dedupeVisualCredits()'s notion of a single credit.
+            distinct: ["storyId", "type"],
             take: TBD_CAP,
           }),
           prisma.visual.findMany({
@@ -166,6 +196,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
               },
             },
             orderBy: { story: { onlinePubDate: "desc" } },
+            // Same as above: dedupe distinct (story, type) credits at the DB
+            // level before `take` so the truncation math below stays correct.
+            distinct: ["storyId", "type"],
             take: PAST_CAP + 1,
           }),
           prisma.videoAssignment.findMany({
@@ -228,26 +261,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           onlinePubDateTBD: a.story.onlinePubDateTBD,
           role: a.role,
         }))
-        const visualUpcomingItems: PersonContentItem[] = dedupeVisualCredits(visualUpcoming).map((v) => ({
-          type: "story" as const,
-          id: v.story.id,
-          slug: v.story.slug,
-          budgetLine: v.story.budgetLine,
-          status: v.story.status,
-          onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
-          onlinePubDateTBD: v.story.onlinePubDateTBD,
-          role: v.type,
-        }))
-        const visualPastItems: PersonContentItem[] = dedupeVisualCredits(visualPast).map((v) => ({
-          type: "story" as const,
-          id: v.story.id,
-          slug: v.story.slug,
-          budgetLine: v.story.budgetLine,
-          status: v.story.status,
-          onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
-          onlinePubDateTBD: v.story.onlinePubDateTBD,
-          role: v.type,
-        }))
+        const visualUpcomingItems: PersonContentItem[] = dedupeVisualCredits(visualUpcoming).map(mapVisualToContentItem)
+        const visualPastItems: PersonContentItem[] = dedupeVisualCredits(visualPast).map(mapVisualToContentItem)
         const videoUpcomingItems: PersonContentItem[] = videoUpcoming.map((a) => ({
           type: "video" as const,
           id: a.video.id,
