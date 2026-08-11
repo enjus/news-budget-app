@@ -106,7 +106,7 @@ export async function createComment(
     budgetLine: true,
     onBudget: true,
     createdByUserId: true,
-    assignments: { select: { role: true, person: { select: { name: true, email: true } } } },
+    assignments: { select: { role: true, person: { select: { name: true, email: true, isActive: true } } } },
   } as const;
 
   // Fetched into separate consts rather than one union-typed `parent` so the
@@ -117,7 +117,7 @@ export async function createComment(
           where: { id: parentId },
           select: {
             ...parentSelect,
-            visuals: { select: { person: { select: { name: true, email: true } } } },
+            visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
           },
         })
       : null;
@@ -176,7 +176,7 @@ export async function createComment(
   const notification = { item, kind, authorName, body };
 
   const mentionRecipients = [
-    ...new Set(mentioned.map((p) => p.email).filter(Boolean)),
+    ...new Set(mentioned.map((p) => p.email).filter((e): e is string => Boolean(e))),
   ];
 
   if (mentionRecipients.length > 0) {
