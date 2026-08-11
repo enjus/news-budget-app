@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { canCreateContent } from "@/lib/utils"
+import { canCreateContent, hasAdminAccess } from "@/lib/utils"
 import { commentInclude, commentOrderBy } from "@/lib/comments"
 import { StoryDetailWrapper } from "./StoryDetailWrapper"
 
@@ -25,6 +25,14 @@ export default async function StoryPage({ params }: StoryPageProps) {
   })
 
   if (!story) {
+    notFound()
+  }
+
+  // Off-budget drafts are only visible to their creator (or admins)
+  if (
+    !story.onBudget &&
+    (!session?.user || (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)))
+  ) {
     notFound()
   }
 
