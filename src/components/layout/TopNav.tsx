@@ -8,7 +8,7 @@ import { Plus, Menu, X, LogOut, ShieldCheck, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
-import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
+import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -18,7 +18,6 @@ const baseNavLinks = [
   { label: "Enterprise", href: "/budget/enterprise" },
   { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
-  { label: "People", href: "/people" },
 ]
 
 function isActive(pathname: string, href: string) {
@@ -34,6 +33,7 @@ export function TopNav() {
   const canCreate = canCreateContent(appRole)
   const myPersonId = session?.user?.personId
   const showTeams = canViewMyTeams(appRole)
+  const showPeople = canViewPeople(appRole)
   const { teams } = useMyTeams()
   const teamsLabel = teams.length === 1 ? teams[0].name : "Team"
   const navLinks = baseNavLinks.filter((link) => {
@@ -73,6 +73,17 @@ export function TopNav() {
               )}
             >
               {teamsLabel}
+            </Link>
+          )}
+          {showPeople && (
+            <Link
+              href="/people"
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+              )}
+            >
+              People
             </Link>
           )}
           {(canCreate || myPersonId) && (
@@ -206,6 +217,18 @@ export function TopNav() {
                 )}
               >
                 {teamsLabel}
+              </Link>
+            )}
+            {showPeople && (
+              <Link
+                href="/people"
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                  isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                )}
+              >
+                People
               </Link>
             )}
             {(canCreate || myPersonId) && (

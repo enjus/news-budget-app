@@ -398,3 +398,8 @@ export function canViewMyTeams(role: string): boolean {
 export function canCreateContent(role: string): boolean {
   return (CONTENT_CREATOR_ROLES as readonly string[]).includes(role)
 }
+
+/** Whether the People directory (nav item + page) is visible for this role. Hidden from VIEWER and PRODUCER. */
+export function canViewPeople(role: string): boolean {
+  return hasElevatedAccess(role)
+}
