@@ -15,7 +15,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
-import { personIdsQueryParts } from "@/lib/budget-query"
+import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
 import { apiPath } from "@/lib/api-path"
@@ -32,6 +32,8 @@ export interface AgendaViewProps {
   refreshTrigger: number
   /** Scope to only stories/videos assigned to these person IDs (team-filtered views). */
   personIds?: string[]
+  /** Hide stories/videos whose only REPORTER assignees are in this list (Daily view team filter). */
+  excludeReporterIds?: string[]
   /** SWR cache-key namespace, so a filtered view's cache never collides with the unfiltered one. */
   cacheKeyPrefix?: string
 }
@@ -117,16 +119,17 @@ const BUCKET_NAMES: Record<string, string> = {
 
 export function AgendaView({
   date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger,
-  personIds, cacheKeyPrefix = "/api/budget/agenda",
+  personIds, excludeReporterIds, cacheKeyPrefix = "/api/budget/agenda",
 }: AgendaViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [tbdExpanded, setTbdExpanded] = useState(false)
 
   const { cacheKey: personIdsKey, querySuffix } = personIdsQueryParts(personIds)
-  const queryUrl = `/api/budget/agenda?start=${date}${querySuffix}`
+  const { cacheKey: excludeKey, querySuffix: excludeSuffix } = excludeReporterIdsQueryParts(excludeReporterIds)
+  const queryUrl = `/api/budget/agenda?start=${date}${querySuffix}${excludeSuffix}`
 
   const { data, isLoading, mutate } = useSWR<AgendaResponse>(
-    [cacheKeyPrefix, date, personIdsKey],
+    [cacheKeyPrefix, date, personIdsKey, excludeKey],
     () => fetcher(queryUrl),
     { refreshInterval: 30_000 }
   )

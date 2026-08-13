@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+// ─── Slug ──────────────────────────────────────────────────────────────────────
+// Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
+// No slash — slug values are never used as URL path segments (routing uses id),
+// but keeping it out avoids confusion with path-like strings.
+const SLUG_PATTERN = /^[A-Z0-9 '".,:&?!()$%-]+$/;
+const SLUG_MESSAGE =
+  "Slug must be uppercase letters, numbers, spaces, and punctuation (- ' \" . , : & ? ! ( ) $ %) only";
+
 // ─── Enum-like string literals (validated here; stored as String in SQLite) ──
 
 export const PersonRoleEnum = z.enum([
@@ -67,10 +75,7 @@ export const createStorySchema = z.object({
     .string()
     .min(1, "Slug is required")
     .max(60)
-    .regex(
-      /^[A-Z0-9 ]+$/,
-      "Slug must be uppercase letters, numbers, and spaces only"
-    ),
+    .regex(SLUG_PATTERN, SLUG_MESSAGE),
   budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
@@ -93,7 +98,7 @@ export const updateStorySchema = z.object({
     .string()
     .min(1, "Slug is required")
     .max(60)
-    .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
+    .regex(SLUG_PATTERN, SLUG_MESSAGE)
     .optional(),
   budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
@@ -159,10 +164,7 @@ export const createVideoSchema = z.object({
     .string()
     .min(1, "Slug is required")
     .max(60)
-    .regex(
-      /^[A-Z0-9 ]+$/,
-      "Slug must be uppercase letters, numbers, and spaces only"
-    ),
+    .regex(SLUG_PATTERN, SLUG_MESSAGE),
   budgetLine: z.string().min(1, "Budget line is required"),
   isEnterprise: z.boolean().default(false),
   status: StoryStatusEnum.default("DRAFT"),
@@ -184,7 +186,7 @@ export const updateVideoSchema = z.object({
     .string()
     .min(1, "Slug is required")
     .max(60)
-    .regex(/^[A-Z0-9 ]+$/, "Slug must be uppercase letters, numbers, and spaces only")
+    .regex(SLUG_PATTERN, SLUG_MESSAGE)
     .optional(),
   budgetLine: z.string().min(1, "Budget line is required").optional(),
   isEnterprise: z.boolean().optional(),
