@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
@@ -10,6 +10,7 @@ import {
 
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -20,12 +21,15 @@ import {
 
 import { ColumnsView } from "@/components/budget/ColumnsView"
 import { AgendaView } from "@/components/budget/AgendaView"
+import { TeamFilterControl } from "@/components/budget/TeamFilterControl"
 import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS, INDICATOR_OPTIONS } from "@/lib/utils"
 import { usePreferences } from "@/lib/hooks/usePreferences"
+import { useTeams } from "@/lib/hooks/useTeams"
+import { resolveExcludedReporterTeams } from "@/lib/team-filter"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -44,6 +48,50 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
   )
+
+  // Reporter-team filter (opt-out: unchecking a team hides its reporters' content)
+  const [excludedTeamIds, setExcludedTeamIds] = useState<string[]>(() => preferences.dailyExcludedTeamIds)
+  // Re-sync if the preference changes from outside this component — e.g. the
+  // same account has this page open in a second tab and excludes a team
+  // there; usePreferences' storage-event listener updates `preferences` here
+  // too, but without this effect the locally-held excludedTeamIds (and thus
+  // the actual filter applied) would keep silently reflecting whatever was
+  // on the page at mount. Safe against loops: setPreferences reuses the same
+  // array reference for fields it isn't touching, so this only re-fires when
+  // dailyExcludedTeamIds itself actually changes.
+  useEffect(() => {
+    setExcludedTeamIds(preferences.dailyExcludedTeamIds)
+  }, [preferences.dailyExcludedTeamIds])
+
+  const { teams, isLoading: teamsLoading, error: teamsError } = useTeams()
+  const { personIds: excludePersonIds } = useMemo(
+    () => resolveExcludedReporterTeams(excludedTeamIds, teams),
+    [excludedTeamIds, teams]
+  )
+  const excludeReporterIds = excludePersonIds.length > 0 ? excludePersonIds : undefined
+
+  // A saved exclusion can't be resolved to person IDs until the team list has
+  // loaded — until then, hold off rendering the board rather than firing an
+  // unfiltered fetch, which would flash a hidden team's content on every cold
+  // page load (the exclusion only "sticks" once /api/teams resolves).
+  const filterPending = teamsLoading && excludedTeamIds.length > 0
+
+  // If /api/teams itself fails (not just slow), the exclusion silently can't
+  // be resolved and the board would otherwise render unfiltered with no
+  // indication why. Surface it once per failure rather than staying quiet.
+  const warnedTeamsErrorRef = useRef(false)
+  useEffect(() => {
+    if (teamsError && excludedTeamIds.length > 0 && !warnedTeamsErrorRef.current) {
+      warnedTeamsErrorRef.current = true
+      toast.error("Couldn't load your team filter — showing every team until this reloads.")
+    }
+    if (!teamsError) warnedTeamsErrorRef.current = false
+  }, [teamsError, excludedTeamIds.length])
+
+  function handleTeamFilterChange(teamIds: string[]) {
+    setExcludedTeamIds(teamIds)
+    setPreferences({ dailyExcludedTeamIds: teamIds })
+  }
 
   // Bulk select state
   const [selectMode, setSelectMode] = useState(false)
@@ -231,6 +279,9 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             </div>
           )}
 
+          {/* Reporter-team filter */}
+          <TeamFilterControl excludedTeamIds={excludedTeamIds} onChange={handleTeamFilterChange} />
+
           {/* View mode toggle — hidden on mobile (always agenda) */}
           <div className="hidden md:flex divide-x overflow-hidden rounded-md border">
             <Button
@@ -282,7 +333,18 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
       </div>
 
       {/* Content */}
-      {viewMode === "columns"
+      {filterPending
+        ? (
+          <div className="grid grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+        )
+        : viewMode === "columns"
         ? <ColumnsView
             date={date}
             showStories={showStories}
@@ -291,6 +353,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
+            excludeReporterIds={excludeReporterIds}
           />
         : <AgendaView
             date={date}
@@ -300,6 +363,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
+            excludeReporterIds={excludeReporterIds}
           />
       }
 
