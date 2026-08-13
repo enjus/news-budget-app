@@ -363,9 +363,12 @@ export function EnterpriseView() {
       ...group.videos.map((v) => `video-${v.id}`),
     ]
     const count = group.stories.length + group.videos.length
-    const newStoryHref = group.date === "TBD"
+    const defaultPubDateStr = group.date === "TBD"
+      ? null
+      : format(addDays(parseISO(group.date), 2), "yyyy-MM-dd") // default new stories to Wednesday of the week
+    const newStoryHref = defaultPubDateStr === null
       ? "/stories/new?isEnterprise=true"
-      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&onlinePubDateTBD=false&printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
+      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&onlinePubDateTBD=false&printPubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&printPubDateTBD=false`
 
     return (
       <DroppableSection
