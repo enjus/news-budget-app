@@ -10,6 +10,7 @@ import {
 
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -28,6 +29,7 @@ import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS, INDICATOR_OPTIONS } from "@/lib/utils"
 import { usePreferences } from "@/lib/hooks/usePreferences"
 import { useTeams } from "@/lib/hooks/useTeams"
+import { resolveExcludedReporterTeams } from "@/lib/team-filter"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -49,17 +51,18 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
 
   // Reporter-team filter (opt-out: unchecking a team hides its reporters' content)
   const [excludedTeamIds, setExcludedTeamIds] = useState<string[]>(() => preferences.dailyExcludedTeamIds)
-  const { teams } = useTeams()
-  const excludeReporterIds = useMemo(() => {
-    const validTeamIds = excludedTeamIds.filter((id) => teams.some((t) => t.id === id))
-    if (validTeamIds.length === 0) return undefined
-    const ids = new Set<string>()
-    for (const team of teams) {
-      if (!validTeamIds.includes(team.id)) continue
-      for (const member of team.members) ids.add(member.personId)
-    }
-    return [...ids]
-  }, [excludedTeamIds, teams])
+  const { teams, isLoading: teamsLoading } = useTeams()
+  const { personIds: excludePersonIds } = useMemo(
+    () => resolveExcludedReporterTeams(excludedTeamIds, teams),
+    [excludedTeamIds, teams]
+  )
+  const excludeReporterIds = excludePersonIds.length > 0 ? excludePersonIds : undefined
+
+  // A saved exclusion can't be resolved to person IDs until the team list has
+  // loaded — until then, hold off rendering the board rather than firing an
+  // unfiltered fetch, which would flash a hidden team's content on every cold
+  // page load (the exclusion only "sticks" once /api/teams resolves).
+  const filterPending = teamsLoading && excludedTeamIds.length > 0
 
   function handleTeamFilterChange(teamIds: string[]) {
     setExcludedTeamIds(teamIds)
@@ -306,7 +309,18 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
       </div>
 
       {/* Content */}
-      {viewMode === "columns"
+      {filterPending
+        ? (
+          <div className="grid grid-cols-5 gap-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-8 w-full rounded-md" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+        )
+        : viewMode === "columns"
         ? <ColumnsView
             date={date}
             showStories={showStories}

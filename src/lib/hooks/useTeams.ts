@@ -16,9 +16,16 @@ export function useMyTeams() {
   }
 }
 
+/** Lean team shape returned by /api/teams — just enough for the reporter-team filter. */
+export interface TeamFilterOption {
+  id: string
+  name: string
+  members: { personId: string }[]
+}
+
 /** All teams org-wide, available to any authenticated user — used by the Daily view's reporter-team filter. */
 export function useTeams() {
-  const { data, isLoading, error, mutate } = useSWR<{ teams: TeamWithMembers[] }>("/api/teams")
+  const { data, isLoading, error, mutate } = useSWR<{ teams: TeamFilterOption[] }>("/api/teams")
 
   return {
     teams: data?.teams ?? [],

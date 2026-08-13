@@ -19,6 +19,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { useTeams } from "@/lib/hooks/useTeams"
+import { resolveExcludedReporterTeams } from "@/lib/team-filter"
 
 interface TeamFilterControlProps {
   /** Team IDs currently hidden from the Daily view. Empty = nothing hidden. */
@@ -32,13 +33,17 @@ interface TeamFilterControlProps {
  * whose only REPORTER assignees belong to it (see reporterTeamExclusionFilter).
  */
 export function TeamFilterControl({ excludedTeamIds, onChange }: TeamFilterControlProps) {
-  const { teams } = useTeams()
+  const { teams, isLoading: teamsLoading } = useTeams()
   const [open, setOpen] = useState(false)
 
   // Ignore stale IDs (a hidden team that's since been deleted) so the badge
-  // count and toggle state only ever reflect teams that still exist.
-  const validExcludedIds = excludedTeamIds.filter((id) => teams.some((t) => t.id === id))
-  const hiddenCount = validExcludedIds.length
+  // count and toggle state only ever reflect teams that still exist. Shared
+  // with DailyBudgetView's own resolution so the two can't drift apart.
+  const { validTeamIds: validExcludedIds } = resolveExcludedReporterTeams(excludedTeamIds, teams)
+  // While teams are still loading, `teams` is empty and validExcludedIds
+  // would read as 0 even if the user has hidden teams — fall back to the raw
+  // preference count so the badge doesn't flash "0 hidden" on cold load.
+  const hiddenCount = teamsLoading ? excludedTeamIds.length : validExcludedIds.length
 
   function toggleTeam(teamId: string) {
     const next = validExcludedIds.includes(teamId)
