@@ -144,7 +144,7 @@ export async function createComment(
   const mentioned = mentionIds.length
     ? await prisma.person.findMany({
         where: { id: { in: mentionIds } },
-        select: { id: true, name: true, email: true },
+        select: { id: true, name: true, email: true, isActive: true },
       })
     : [];
 
@@ -175,8 +175,17 @@ export async function createComment(
   };
   const notification = { item, kind, authorName, body };
 
+  // @-mentioning someone still works and is recorded (CommentMention below)
+  // even if they've since been deactivated — isActive only gates the email,
+  // matching collectEmails()'s team-notify path below so the two recipient
+  // sets stay consistent (see CLAUDE.md's "Inactive people" design decision).
   const mentionRecipients = [
-    ...new Set(mentioned.map((p) => p.email).filter((e): e is string => Boolean(e))),
+    ...new Set(
+      mentioned
+        .filter((p) => p.isActive)
+        .map((p) => p.email)
+        .filter((e): e is string => Boolean(e))
+    ),
   ];
 
   if (mentionRecipients.length > 0) {
