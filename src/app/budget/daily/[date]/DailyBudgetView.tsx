@@ -39,7 +39,7 @@ interface DailyBudgetViewProps {
 
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const { preferences, setPreferences } = usePreferences()
-  const [showStories, setShowStories] = useState(() => preferences.contentDefault !== "videos")
+  const [showStories, setShowStories] = useState(() => !VIDEOS_ENABLED || preferences.contentDefault !== "videos")
   const [showVideos, setShowVideos]   = useState(() => VIDEOS_ENABLED && preferences.contentDefault !== "stories")
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
