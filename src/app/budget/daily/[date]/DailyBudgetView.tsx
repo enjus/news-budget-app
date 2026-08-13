@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
@@ -51,7 +51,19 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
 
   // Reporter-team filter (opt-out: unchecking a team hides its reporters' content)
   const [excludedTeamIds, setExcludedTeamIds] = useState<string[]>(() => preferences.dailyExcludedTeamIds)
-  const { teams, isLoading: teamsLoading } = useTeams()
+  // Re-sync if the preference changes from outside this component — e.g. the
+  // same account has this page open in a second tab and excludes a team
+  // there; usePreferences' storage-event listener updates `preferences` here
+  // too, but without this effect the locally-held excludedTeamIds (and thus
+  // the actual filter applied) would keep silently reflecting whatever was
+  // on the page at mount. Safe against loops: setPreferences reuses the same
+  // array reference for fields it isn't touching, so this only re-fires when
+  // dailyExcludedTeamIds itself actually changes.
+  useEffect(() => {
+    setExcludedTeamIds(preferences.dailyExcludedTeamIds)
+  }, [preferences.dailyExcludedTeamIds])
+
+  const { teams, isLoading: teamsLoading, error: teamsError } = useTeams()
   const { personIds: excludePersonIds } = useMemo(
     () => resolveExcludedReporterTeams(excludedTeamIds, teams),
     [excludedTeamIds, teams]
@@ -63,6 +75,18 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   // unfiltered fetch, which would flash a hidden team's content on every cold
   // page load (the exclusion only "sticks" once /api/teams resolves).
   const filterPending = teamsLoading && excludedTeamIds.length > 0
+
+  // If /api/teams itself fails (not just slow), the exclusion silently can't
+  // be resolved and the board would otherwise render unfiltered with no
+  // indication why. Surface it once per failure rather than staying quiet.
+  const warnedTeamsErrorRef = useRef(false)
+  useEffect(() => {
+    if (teamsError && excludedTeamIds.length > 0 && !warnedTeamsErrorRef.current) {
+      warnedTeamsErrorRef.current = true
+      toast.error("Couldn't load your team filter — showing every team until this reloads.")
+    }
+    if (!teamsError) warnedTeamsErrorRef.current = false
+  }, [teamsError, excludedTeamIds.length])
 
   function handleTeamFilterChange(teamIds: string[]) {
     setExcludedTeamIds(teamIds)
