@@ -193,25 +193,35 @@ export function ColumnsView({
       if (!over) return
 
       const activeIdStr = String(active.id)
-      const targetSlot = String(over.id)
+      const overIdStr = String(over.id)
+      if (overIdStr === activeIdStr) return // dropped on itself — no-op
+
       const isStory = activeIdStr.startsWith("story-")
       const isVideo = activeIdStr.startsWith("video-")
       if (!isStory && !isVideo) return
 
-      const itemId = isStory ? activeIdStr.slice("story-".length) : activeIdStr.slice("video-".length)
+      const itemId = activeIdStr.slice(isStory ? "story-".length : "video-".length)
 
       let sourceSlot: string | null = null
       for (const s of visibleSlots) {
         if (isStory && s.stories.some((x) => x.id === itemId)) { sourceSlot = s.slot; break }
         if (isVideo && s.videos.some((x) => x.id === itemId)) { sourceSlot = s.slot; break }
       }
+      if (!sourceSlot) return
+      const sourceItem = visibleSlots.find((s) => s.slot === sourceSlot)
+      if (!sourceItem) return
 
-      let resolvedTargetSlot = targetSlot
-      if (!BUCKET_IDS.has(targetSlot)) {
+      // over.id is either a bucket/drop-zone id (dropped in empty space) or
+      // another card's composite id (dropped near a specific card — used to
+      // resolve both which bucket it landed in and where within it).
+      let resolvedTargetSlot = overIdStr
+      let beforeItemId: string | null = null
+      if (overIdStr !== "NEXT_MORNING" && !BUCKET_IDS.has(overIdStr)) {
+        beforeItemId = overIdStr
         for (const s of visibleSlots) {
           if (
-            s.stories.some((x) => `story-${x.id}` === targetSlot) ||
-            s.videos.some((x) => `video-${x.id}` === targetSlot)
+            s.stories.some((x) => `story-${x.id}` === overIdStr) ||
+            s.videos.some((x) => `video-${x.id}` === overIdStr)
           ) {
             resolvedTargetSlot = s.slot
             break
@@ -219,73 +229,36 @@ export function ColumnsView({
         }
       }
 
-      if (!sourceSlot || resolvedTargetSlot === sourceSlot) return
+      // ─── Move to the next-morning drop zone ──────────────────────────────
+      if (resolvedTargetSlot === "NEXT_MORNING") {
+        const newSlots: DailyBudgetSlot[] = visibleSlots.map((s) => {
+          if (s.slot !== sourceSlot) return s
+          return isStory
+            ? { ...s, stories: s.stories.filter((x) => x.id !== itemId) }
+            : { ...s, videos: s.videos.filter((x) => x.id !== itemId) }
+        })
+        setLocalSlots(newSlots)
 
-      const sourceItem = visibleSlots.find((s) => s.slot === sourceSlot)
-      const newSlots: DailyBudgetSlot[] = visibleSlots.map((s) => {
-        let stories = [...s.stories]
-        let videos = [...s.videos]
-        if (s.slot === sourceSlot) {
-          if (isStory) stories = stories.filter((x) => x.id !== itemId)
-          else videos = videos.filter((x) => x.id !== itemId)
-        }
-        if (s.slot === resolvedTargetSlot && sourceItem) {
-          if (isStory) {
-            const story = sourceItem.stories.find((x) => x.id === itemId)
-            if (story) stories = [...stories, story]
-          } else {
-            const video = sourceItem.videos.find((x) => x.id === itemId)
-            if (video) videos = [...videos, video]
-          }
-        }
-        return { slot: s.slot, stories, videos }
-      })
-
-      setLocalSlots(newSlots)
-
-      try {
-        let patchBody: Record<string, unknown>
-        let undoPayload: Record<string, unknown> | null = null
-        let nextMorningLabel = ""
-
-        if (resolvedTargetSlot === "NEXT_MORNING") {
-          const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
-          patchBody = { onlinePubDateTBD: false, onlinePubDate: `${nextDate}T06:00:00.000Z` }
-          nextMorningLabel = `Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`
-          const origItem = isStory
-            ? sourceItem?.stories.find((s) => s.id === itemId)
-            : sourceItem?.videos.find((v) => v.id === itemId)
-          undoPayload = {
-            onlinePubDateTBD: origItem?.onlinePubDateTBD ?? true,
-            onlinePubDate: origItem?.onlinePubDate
-              ? new Date(origItem.onlinePubDate).toISOString()
-              : null,
-          }
-        } else {
-          const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
-          if (!targetBucket || targetBucket.defaultHour === null) {
-            patchBody = { onlinePubDateTBD: true, onlinePubDate: null }
-          } else {
-            const h = String(targetBucket.defaultHour).padStart(2, "0")
-            const m = String(targetBucket.defaultMinute ?? 0).padStart(2, "0")
-            patchBody = {
-              onlinePubDateTBD: false,
-              onlinePubDate: `${date}T${h}:${m}:00.000Z`,
-            }
-          }
+        const nextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
+        const patchBody = { onlinePubDateTBD: false, onlinePubDate: `${nextDate}T06:00:00.000Z` }
+        const nextMorningLabel = `Moved to ${format(parseISO(nextDate), "EEE, MMM d")} at 6:00 AM`
+        const origItem = isStory
+          ? sourceItem.stories.find((s) => s.id === itemId)
+          : sourceItem.videos.find((v) => v.id === itemId)
+        const undoPayload = {
+          onlinePubDateTBD: origItem?.onlinePubDateTBD ?? true,
+          onlinePubDate: origItem?.onlinePubDate ? new Date(origItem.onlinePubDate).toISOString() : null,
         }
         const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
-        const res = await fetch(endpoint, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patchBody),
-        })
-        if (!res.ok) {
-          throw new Error(`PATCH ${endpoint} failed with ${res.status}`)
-        }
-        if (undoPayload) {
-          const frozenUndo = undoPayload
-          const frozenNextDate = format(addDays(parseISO(date), 1), "yyyy-MM-dd")
+
+        try {
+          const res = await fetch(endpoint, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(patchBody),
+          })
+          if (!res.ok) throw new Error(`PATCH ${endpoint} failed with ${res.status}`)
+
           toast.success(nextMorningLabel, {
             duration: 8000,
             action: {
@@ -294,19 +267,120 @@ export function ColumnsView({
                 await fetch(endpoint, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(frozenUndo),
+                  body: JSON.stringify(undoPayload),
                 })
                 await mutate()
               },
             },
             cancel: {
               label: "View",
-              onClick: () => router.push(`/budget/daily/${frozenNextDate}`),
+              onClick: () => router.push(`/budget/daily/${nextDate}`),
             },
           })
+        } catch (err) {
+          console.error("Failed to update item slot:", err)
+          setLocalSlots(null)
+          toast.error("Couldn't save — change reverted.")
+        } finally {
+          await mutate()
+          setLocalSlots(null)
+        }
+        return
+      }
+
+      // Unresolved drop target (shouldn't normally happen) — bail safely.
+      if (!BUCKET_IDS.has(resolvedTargetSlot)) return
+
+      // ─── Reorder within a bucket, or move into a different bucket ───────
+      const targetSlotData = visibleSlots.find((s) => s.slot === resolvedTargetSlot)
+      if (!targetSlotData) return
+
+      const sameBucket = resolvedTargetSlot === sourceSlot
+
+      // Reorders a same-type list: drop the moving item, reinsert it before
+      // `beforeCompositeId` (or at the end), and report which items' sortOrder
+      // actually moved via a dense 0..n-1 reindex.
+      function reorder<T extends { id: string; sortOrder: number }>(
+        list: T[],
+        movingItem: T,
+        prefix: "story" | "video"
+      ) {
+        const ordered = list.filter((x) => x.id !== movingItem.id)
+        let insertIndex = ordered.length // default: append at the end
+        if (beforeItemId) {
+          const idx = ordered.findIndex((x) => `${prefix}-${x.id}` === beforeItemId)
+          if (idx !== -1) insertIndex = idx
+        }
+        ordered.splice(insertIndex, 0, movingItem)
+        const unchanged =
+          sameBucket && list.length === ordered.length && list.every((x, i) => x.id === ordered[i].id)
+        const sortPatches = ordered
+          .map((item, index) => ({ id: item.id, sortOrder: index, changed: item.sortOrder !== index }))
+          .filter((p) => p.changed)
+        return { ordered, unchanged, sortPatches }
+      }
+
+      let newSlots: DailyBudgetSlot[]
+      let sortPatches: { id: string; sortOrder: number }[]
+
+      if (isStory) {
+        const movingItem = sourceItem.stories.find((x) => x.id === itemId)
+        if (!movingItem) return
+        const { ordered, unchanged, sortPatches: patches } = reorder(targetSlotData.stories, movingItem, "story")
+        if (unchanged) return // dropped back where it started
+        sortPatches = patches
+        newSlots = visibleSlots.map((s) => {
+          if (s.slot === resolvedTargetSlot) return { ...s, stories: ordered }
+          if (s.slot === sourceSlot && !sameBucket) return { ...s, stories: s.stories.filter((x) => x.id !== itemId) }
+          return s
+        })
+      } else {
+        const movingItem = sourceItem.videos.find((x) => x.id === itemId)
+        if (!movingItem) return
+        const { ordered, unchanged, sortPatches: patches } = reorder(targetSlotData.videos, movingItem, "video")
+        if (unchanged) return // dropped back where it started
+        sortPatches = patches
+        newSlots = visibleSlots.map((s) => {
+          if (s.slot === resolvedTargetSlot) return { ...s, videos: ordered }
+          if (s.slot === sourceSlot && !sameBucket) return { ...s, videos: s.videos.filter((x) => x.id !== itemId) }
+          return s
+        })
+      }
+      setLocalSlots(newSlots)
+
+      try {
+        const requests: Promise<Response>[] = sortPatches.map((p) =>
+          fetch(apiPath(isStory ? `/api/stories/${p.id}` : `/api/videos/${p.id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: p.sortOrder }),
+          })
+        )
+
+        if (!sameBucket) {
+          const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
+          const patchBody =
+            !targetBucket || targetBucket.defaultHour === null
+              ? { onlinePubDateTBD: true, onlinePubDate: null }
+              : {
+                  onlinePubDateTBD: false,
+                  onlinePubDate: `${date}T${String(targetBucket.defaultHour).padStart(2, "0")}:${String(targetBucket.defaultMinute ?? 0).padStart(2, "0")}:00.000Z`,
+                }
+          requests.push(
+            fetch(apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`), {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(patchBody),
+            })
+          )
+        }
+
+        const results = await Promise.all(requests)
+        if (results.some((r) => !r.ok)) {
+          throw new Error("One or more PATCH requests failed")
         }
       } catch (err) {
-        console.error("Failed to update item slot:", err)
+        console.error("Failed to update item order:", err)
         setLocalSlots(null)
         toast.error("Couldn't save — change reverted.")
       } finally {

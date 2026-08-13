@@ -121,18 +121,25 @@ export async function GET(request: NextRequest) {
       bucket.videos.push(video);
     }
 
-    // Sort within each bucket by onlinePubDate ascending (TBD items last)
+    // Sort within each bucket: dated items first (by sortOrder — the manual
+    // drag order — then pub time as a tiebreak for items sharing a bucket's
+    // default time), TBD items last in their already-fetched createdAt-desc
+    // order. Comparator returns 0 for TBD/TBD pairs so Array.sort's stability
+    // preserves that order instead of the non-total-order `1` this replaced.
+    const bySortOrderThenPubDate = (
+      a: { onlinePubDate: Date | string | null; sortOrder: number },
+      b: { onlinePubDate: Date | string | null; sortOrder: number }
+    ) => {
+      const aDated = !!a.onlinePubDate;
+      const bDated = !!b.onlinePubDate;
+      if (aDated !== bDated) return aDated ? -1 : 1;
+      if (!aDated) return 0;
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return new Date(a.onlinePubDate!).getTime() - new Date(b.onlinePubDate!).getTime();
+    };
     for (const slot of bucketMap.values()) {
-      slot.stories.sort((a, b) => {
-        if (!a.onlinePubDate) return 1;
-        if (!b.onlinePubDate) return -1;
-        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
-      });
-      slot.videos.sort((a, b) => {
-        if (!a.onlinePubDate) return 1;
-        if (!b.onlinePubDate) return -1;
-        return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
-      });
+      slot.stories.sort(bySortOrderThenPubDate);
+      slot.videos.sort(bySortOrderThenPubDate);
     }
 
     // Return all buckets in definition order
