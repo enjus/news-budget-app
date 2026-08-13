@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent, hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -151,11 +151,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     return NextResponse.json(story);
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
-    if (error?.code === "P2002") {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "A story with that slug already exists" }, { status: 409 });
     }
     console.error("PATCH /api/stories/[id] error:", error);
@@ -184,8 +184,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     await prisma.story.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
     console.error("DELETE /api/stories/[id] error:", error);

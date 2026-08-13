@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createPersonSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(person, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "A person with that email already exists" }, { status: 409 });
     }
     console.error("POST /api/people error:", error);

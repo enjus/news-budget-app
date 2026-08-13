@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -71,8 +71,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(assignment, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json(
         { error: "This person already has that role assigned to this story" },
         { status: 409 }
@@ -110,8 +110,8 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
     console.error("DELETE /api/stories/[id]/assignments error:", error);

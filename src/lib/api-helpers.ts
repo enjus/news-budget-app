@@ -51,6 +51,16 @@ export function userUniqueConstraintMessage(error: unknown): string {
     : "A user with that email already exists"
 }
 
+/**
+ * Extract a Prisma error code (e.g. "P2025" not found, "P2002" unique
+ * constraint) from a caught `unknown` error, or undefined if it isn't one.
+ * Route handlers catch as `unknown` (not `any`) and use this to branch on
+ * known Prisma failure modes without losing type safety on other errors.
+ */
+export function prismaErrorCode(error: unknown): string | undefined {
+  return (error as { code?: string } | null)?.code
+}
+
 export function checkReadLimit(userId: string): NextResponse | null {
   const { success, remaining } = readLimiter.check(READ_LIMIT, userId)
   if (!success) {
