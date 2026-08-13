@@ -16,6 +16,7 @@ import { VIDEOS_ENABLED } from "@/lib/features"
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
   { label: "Enterprise", href: "/budget/enterprise" },
+  { label: "Pitches", href: "/budget/pitches" },
   { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
 ]

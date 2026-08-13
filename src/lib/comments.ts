@@ -29,6 +29,8 @@ const parentDraftSelect = {
   createdByUserId: true,
   assignments: { select: { personId: true } },
 } as const;
+// Story-only — Video has no pitchedAt column.
+const storyDraftSelect = { ...parentDraftSelect, pitchedAt: true } as const;
 
 /**
  * GET handler shared by /api/stories/[id]/comments and /api/videos/[id]/comments.
@@ -40,7 +42,7 @@ const parentDraftSelect = {
 export async function listComments(kind: Kind, parentId: string) {
   const parent =
     kind === "story"
-      ? await prisma.story.findUnique({ where: { id: parentId }, select: parentDraftSelect })
+      ? await prisma.story.findUnique({ where: { id: parentId }, select: storyDraftSelect })
       : await prisma.video.findUnique({ where: { id: parentId }, select: parentDraftSelect });
 
   if (!parent) {
@@ -50,6 +52,7 @@ export async function listComments(kind: Kind, parentId: string) {
     );
   }
 
+  // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can read its comments.
   const session = await getServerSession(authOptions);
   if (blockedFromDraft(parent, session?.user)) {
     return NextResponse.json(
@@ -120,6 +123,7 @@ export async function createComment(
           where: { id: parentId },
           select: {
             ...parentSelect,
+            pitchedAt: true,
             visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
           },
         })
@@ -137,6 +141,7 @@ export async function createComment(
     );
   }
 
+  // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can comment/mention on it.
   if (blockedFromDraft(parent, session.user)) {
     return NextResponse.json(
       { error: kind === "story" ? "Story not found" : "Video not found" },

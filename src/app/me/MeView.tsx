@@ -21,6 +21,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useDrafts } from "@/lib/hooks/useDrafts"
+import { usePitches } from "@/lib/hooks/usePitches"
+import { PitchRow } from "@/components/budget/PitchRow"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
@@ -48,6 +50,8 @@ export function MeView() {
       <h1 className="text-xl font-semibold">Me</h1>
 
       {canCreate && <DraftsSection />}
+
+      {canCreate && <MyPitchesSections />}
 
       {myPersonId && <MyContentSection personId={myPersonId} />}
 
@@ -282,6 +286,57 @@ function DraftRow({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function MyPitchesSections() {
+  const { data: session } = useSession()
+  const currentUserId = session?.user?.id
+  const myPersonId = session?.user?.personId
+  const { pitches, isLoading, mutate } = usePitches()
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">My Pitches</h2>
+        <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    )
+  }
+
+  const myPitches = pitches.filter((p) => p.createdByUser?.id === currentUserId)
+  const myClaimed = pitches.filter((p) => myPersonId && p.assignments.some((a) => a.personId === myPersonId))
+
+  if (myPitches.length === 0 && myClaimed.length === 0) return null
+
+  return (
+    <div className="space-y-6">
+      {myPitches.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            My Pitches <span className="ml-1 text-xs font-normal">({myPitches.length})</span>
+          </h2>
+          <div className="space-y-1">
+            {myPitches.map((pitch) => (
+              <PitchRow key={pitch.id} pitch={pitch} onUpdate={mutate} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {myClaimed.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            My Claimed Pitches <span className="ml-1 text-xs font-normal">({myClaimed.length})</span>
+          </h2>
+          <div className="space-y-1">
+            {myClaimed.map((pitch) => (
+              <PitchRow key={pitch.id} pitch={pitch} onUpdate={mutate} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

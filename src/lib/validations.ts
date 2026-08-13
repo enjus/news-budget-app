@@ -132,6 +132,7 @@ export const createStorySchema = z.object({
   postUrl: optionalUrl,
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().default(true),
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 }).superRefine(requirePubDatesWhenNotTBD);
 
 const updateStorySchemaBase = z.object({
@@ -157,6 +158,17 @@ const updateStorySchemaBase = z.object({
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+  // pitchText is deliberately absent — write-once at filing, never client-editable after.
+});
+
+// ─── Pitch ────────────────────────────────────────────────────────────────────
+
+export const createPitchSchema = z.object({
+  text: z.string().trim().min(1, "Pitch text is required").max(500),
+  notes: z.string().max(5000).nullable().optional(),
+  evergreen: z.boolean().default(false),
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const updateStorySchema = updateStorySchemaBase.superRefine(requirePubDatesWhenNotTBD);
@@ -309,3 +321,4 @@ export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;
+export type CreatePitchInput = z.infer<typeof createPitchSchema>;

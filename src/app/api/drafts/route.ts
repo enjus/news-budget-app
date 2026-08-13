@@ -41,7 +41,9 @@ export async function GET() {
 
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
-        where: { onBudget: false, ...ownerOrAssignee },
+        // pitchedAt: null excludes pitches — they get their own "My pitches"
+        // section on /me, where the "private to you" framing here would be wrong.
+        where: { onBudget: false, pitchedAt: null, ...ownerOrAssignee },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
       }),

@@ -23,6 +23,7 @@ import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { CommentSection } from "./CommentSection"
+import { PitchBanner } from "./PitchBanner"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
@@ -216,6 +217,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           storyId={story.id}
           comments={story.comments}
           onUpdate={onUpdate}
+          hasAssignments={story.assignments.length > 0}
           readOnly
         />
 
@@ -278,8 +280,8 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         </div>
       </div>
 
-      {/* Draft banner */}
-      {!story.onBudget && (
+      {/* Draft banner — a pitch is visible to everyone, so it gets its own banner (§4/§6) */}
+      {!story.onBudget && story.pitchedAt === null && (
         <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
             This draft was created by {story.createdByUser?.name ?? "an unknown user"}. Only the
@@ -327,6 +329,10 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
             </Button>
           </div>
         </div>
+      )}
+
+      {!story.onBudget && story.pitchedAt !== null && (
+        <PitchBanner story={story} onUpdate={onUpdate} />
       )}
 
       {/* Shelved countdown banner */}
@@ -380,6 +386,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
+        hasAssignments={story.assignments.length > 0}
       />
 
       <Separator />

@@ -8,6 +8,7 @@ const tabs = [
   { label: "Daily", href: `/budget/daily/${todayString()}`, matchPrefix: "/budget/daily" },
   { label: "Daily Edition", href: "/budget/edition", matchPrefix: "/budget/edition" },
   { label: "Enterprise", href: "/budget/enterprise", matchPrefix: "/budget/enterprise" },
+  { label: "Pitches", href: "/budget/pitches", matchPrefix: "/budget/pitches" },
   { label: "Shelved", href: "/budget/shelved", matchPrefix: "/budget/shelved" },
 ]
 

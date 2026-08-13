@@ -1,0 +1,81 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { updateStorySchema } from "@/lib/validations";
+import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
+
+export const dynamic = 'force-dynamic'
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+const sendToBudgetSchema = updateStorySchema.pick({ slug: true, budgetLine: true }).required();
+
+/** Send to budget — the heavier action r2/r3 originally called "claim" (issue
+ *  #24 §4, r6). Requires an existing claim (assignment); rewrites the derived
+ *  placeholder slug/budgetLine into real ones and flips onBudget. pitchText
+ *  is untouched — it persists as provenance. */
+export async function POST(request: NextRequest, { params }: RouteContext) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !canCreateContent(session.user.appRole)) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    }
+
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
+
+    const invalidType = requireJSON(request);
+    if (invalidType) return invalidType;
+
+    const { id: storyId } = await params;
+    const body = await request.json();
+    const result = sendToBudgetSchema.safeParse(body);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { error: "Validation failed", fieldErrors: result.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      select: { onBudget: true, pitchedAt: true, _count: { select: { assignments: true } } },
+    });
+    if (!story) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+    if (story.onBudget || story.pitchedAt === null) {
+      return NextResponse.json({ error: "Only a pitch can be sent to budget" }, { status: 400 });
+    }
+    if (story._count.assignments === 0) {
+      return NextResponse.json(
+        { error: "Claim this pitch before sending it to budget" },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.story.update({
+      where: { id: storyId },
+      data: {
+        slug: result.data.slug,
+        budgetLine: result.data.budgetLine,
+        onBudget: true,
+        pitchedAt: null,
+        expiresAt: null,
+        version: { increment: 1 },
+      },
+      include: { assignments: { include: { person: true } } },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    if (error?.code === "P2025") {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+    console.error("POST /api/stories/[id]/send-to-budget error:", error);
+    return NextResponse.json({ error: "Failed to send pitch to budget" }, { status: 500 });
+  }
+}

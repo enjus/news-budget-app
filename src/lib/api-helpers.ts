@@ -17,12 +17,19 @@ import { hasAdminAccess } from "./utils"
  * Visual credits are deliberately NOT consulted here (unlike
  * `collectEmails()`'s notification recipients) — the simplest rule for draft
  * access is assignment-based only.
+ *
+ * A Story with `pitchedAt` set is a Pitches pool item (issue #24), not a
+ * private draft — it's public even though `onBudget` is also false, so it
+ * short-circuits the same way `onBudget` does. Callers that don't select
+ * `pitchedAt` (e.g. Video, which has no pitch concept) pass `undefined` and
+ * fall through to the normal draft check.
  */
 export function blockedFromDraft(
-  parent: { onBudget: boolean; createdByUserId: string | null; assignments: { personId: string }[] },
+  parent: { onBudget: boolean; createdByUserId: string | null; assignments: { personId: string }[]; pitchedAt?: Date | string | null },
   sessionUser: { id: string; appRole: string; personId?: string | null } | null | undefined
 ): boolean {
   if (parent.onBudget) return false
+  if (parent.pitchedAt) return false
   if (!sessionUser) return true
   if (sessionUser.id === parent.createdByUserId) return false
   if (hasAdminAccess(sessionUser.appRole)) return false
