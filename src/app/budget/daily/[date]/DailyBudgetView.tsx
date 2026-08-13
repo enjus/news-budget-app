@@ -39,7 +39,7 @@ interface DailyBudgetViewProps {
 
 export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const { preferences, setPreferences } = usePreferences()
-  const [showStories, setShowStories] = useState(() => preferences.contentDefault !== "videos")
+  const [showStories, setShowStories] = useState(() => !VIDEOS_ENABLED || preferences.contentDefault !== "videos")
   const [showVideos, setShowVideos]   = useState(() => VIDEOS_ENABLED && preferences.contentDefault !== "stories")
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
@@ -208,17 +208,17 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
         {/* Right controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Content type filters */}
-          <div className="flex divide-x overflow-hidden rounded-md border">
-            <Button
-              size="sm"
-              variant="ghost"
-              className={cn("rounded-none gap-1.5 text-xs", showStories && "bg-muted font-medium")}
-              onClick={() => setShowStories((v) => !v)}
-            >
-              <FileText className="size-3.5" />
-              Stories
-            </Button>
-            {VIDEOS_ENABLED && (
+          {VIDEOS_ENABLED && (
+            <div className="flex divide-x overflow-hidden rounded-md border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn("rounded-none gap-1.5 text-xs", showStories && "bg-muted font-medium")}
+                onClick={() => setShowStories((v) => !v)}
+              >
+                <FileText className="size-3.5" />
+                Stories
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -228,8 +228,8 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
                 <Video className="size-3.5" />
                 Videos
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* View mode toggle — hidden on mobile (always agenda) */}
           <div className="hidden md:flex divide-x overflow-hidden rounded-md border">

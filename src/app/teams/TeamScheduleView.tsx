@@ -78,17 +78,17 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex divide-x overflow-hidden rounded-md border">
-            <Button
-              size="sm"
-              variant="ghost"
-              className={cn("rounded-none gap-1.5 text-xs", showStories && "bg-muted font-medium")}
-              onClick={() => setShowStories((v) => !v)}
-            >
-              <FileText className="size-3.5" />
-              Stories
-            </Button>
-            {VIDEOS_ENABLED && (
+          {VIDEOS_ENABLED && (
+            <div className="flex divide-x overflow-hidden rounded-md border">
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn("rounded-none gap-1.5 text-xs", showStories && "bg-muted font-medium")}
+                onClick={() => setShowStories((v) => !v)}
+              >
+                <FileText className="size-3.5" />
+                Stories
+              </Button>
               <Button
                 size="sm"
                 variant="ghost"
@@ -98,8 +98,8 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
                 <Video className="size-3.5" />
                 Videos
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           <Button asChild size="sm">
             <Link href="/stories/new">New Story</Link>
