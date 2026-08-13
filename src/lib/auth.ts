@@ -158,9 +158,19 @@ export const authOptions: NextAuthOptions = {
             token.appRole = dbUser.appRole
             token.personId = dbUser.personId
             token.personDefaultRole = dbUser.person?.defaultRole ?? null
+          } else {
+            // The query succeeded but found no row — the User was deleted
+            // (e.g. an admin removed a departed/compromised account) rather
+            // than the DB being unreachable. Mark the token revoked so
+            // middleware's `authorized` callback cuts off access on the next
+            // request instead of quietly keeping the last-known appRole
+            // (possibly ADMIN) alive for the rest of the session's 30-day
+            // JWT lifetime.
+            token.revoked = true
           }
         } catch {
-          // If DB is unreachable, keep the stale token values
+          // DB unreachable — keep the stale token values rather than locking
+          // everyone out during a transient outage.
         }
         token.roleRefreshedAt = Date.now()
       }
