@@ -18,7 +18,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, cn } from "@/lib/utils"
-import { personIdsQueryParts } from "@/lib/budget-query"
+import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { DailyBudgetSlot } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -35,6 +35,8 @@ export interface ColumnsViewProps {
   refreshTrigger: number
   /** Scope to only stories/videos assigned to these person IDs (team-filtered views). */
   personIds?: string[]
+  /** Hide stories/videos whose only REPORTER assignees are in this list (Daily view team filter). */
+  excludeReporterIds?: string[]
   /** Whether to show the per-bucket "+ Story / + Video" quick-add buttons. Defaults to true. */
   showNewButtons?: boolean
   /** SWR cache-key namespace, so a filtered view's cache never collides with the unfiltered one. */
@@ -152,16 +154,17 @@ const BUCKET_IDS = new Set(TIME_BUCKETS.map((b) => b.id))
 
 export function ColumnsView({
   date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger,
-  personIds, showNewButtons = true, cacheKeyPrefix = "/api/budget/daily",
+  personIds, excludeReporterIds, showNewButtons = true, cacheKeyPrefix = "/api/budget/daily",
 }: ColumnsViewProps) {
   const router = useRouter()
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const { cacheKey: personIdsKey, querySuffix } = personIdsQueryParts(personIds)
-  const queryUrl = `/api/budget/daily?date=${date}${querySuffix}`
+  const { cacheKey: excludeKey, querySuffix: excludeSuffix } = excludeReporterIdsQueryParts(excludeReporterIds)
+  const queryUrl = `/api/budget/daily?date=${date}${querySuffix}${excludeSuffix}`
 
   const { data, isLoading, mutate } = useSWR<DailyBudgetResponse>(
-    [cacheKeyPrefix, date, personIdsKey],
+    [cacheKeyPrefix, date, personIdsKey, excludeKey],
     () => fetcher(queryUrl),
     { refreshInterval: 30_000 }
   )

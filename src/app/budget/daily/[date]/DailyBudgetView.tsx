@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
@@ -20,12 +20,14 @@ import {
 
 import { ColumnsView } from "@/components/budget/ColumnsView"
 import { AgendaView } from "@/components/budget/AgendaView"
+import { TeamFilterControl } from "@/components/budget/TeamFilterControl"
 import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { TIME_BUCKETS, dateToBucket, todayString, cn, STORY_STATUS_LABELS, INDICATOR_OPTIONS } from "@/lib/utils"
 import { usePreferences } from "@/lib/hooks/usePreferences"
+import { useTeams } from "@/lib/hooks/useTeams"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -44,6 +46,25 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   const [viewMode, setViewMode] = useState<"columns" | "agenda">(() =>
     preferences.defaultView === "daily-agenda" ? "agenda" : "columns"
   )
+
+  // Reporter-team filter (opt-out: unchecking a team hides its reporters' content)
+  const [excludedTeamIds, setExcludedTeamIds] = useState<string[]>(() => preferences.dailyExcludedTeamIds)
+  const { teams } = useTeams()
+  const excludeReporterIds = useMemo(() => {
+    const validTeamIds = excludedTeamIds.filter((id) => teams.some((t) => t.id === id))
+    if (validTeamIds.length === 0) return undefined
+    const ids = new Set<string>()
+    for (const team of teams) {
+      if (!validTeamIds.includes(team.id)) continue
+      for (const member of team.members) ids.add(member.personId)
+    }
+    return [...ids]
+  }, [excludedTeamIds, teams])
+
+  function handleTeamFilterChange(teamIds: string[]) {
+    setExcludedTeamIds(teamIds)
+    setPreferences({ dailyExcludedTeamIds: teamIds })
+  }
 
   // Bulk select state
   const [selectMode, setSelectMode] = useState(false)
@@ -231,6 +252,9 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             )}
           </div>
 
+          {/* Reporter-team filter */}
+          <TeamFilterControl excludedTeamIds={excludedTeamIds} onChange={handleTeamFilterChange} />
+
           {/* View mode toggle — hidden on mobile (always agenda) */}
           <div className="hidden md:flex divide-x overflow-hidden rounded-md border">
             <Button
@@ -291,6 +315,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
+            excludeReporterIds={excludeReporterIds}
           />
         : <AgendaView
             date={date}
@@ -300,6 +325,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             selectedIds={new Set(selectedItems.keys())}
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
+            excludeReporterIds={excludeReporterIds}
           />
       }
 

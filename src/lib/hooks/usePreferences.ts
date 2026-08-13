@@ -10,6 +10,8 @@ export interface UserPreferences {
   defaultView: DefaultView
   contentDefault: ContentDefault
   teamsView: TeamsView
+  /** Team IDs hidden from the Daily view's reporter-team filter. Empty = nothing hidden. */
+  dailyExcludedTeamIds: string[]
 }
 
 const STORAGE_KEY = "news-budget-prefs"
@@ -19,6 +21,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   contentDefault: "all",
   // "members" preserves the pre-redesign default landing view on /teams.
   teamsView: "members",
+  dailyExcludedTeamIds: [],
 }
 
 function readPreferences(): UserPreferences {
