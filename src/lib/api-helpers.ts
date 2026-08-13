@@ -1,5 +1,23 @@
 import { NextRequest, NextResponse } from "next/server"
 import { writeLimiter, WRITE_LIMIT, readLimiter, READ_LIMIT } from "./rate-limit"
+import { hasAdminAccess } from "./utils"
+
+/**
+ * Off-budget draft privacy check, shared by every route that touches a
+ * Story/Video or one of its child resources (comments, visuals,
+ * assignments, tags). Per CLAUDE.md this is deliberately per-route rather
+ * than centralized middleware — callers still 404 on a missing parent
+ * themselves; this only covers the onBudget/createdByUserId gate itself,
+ * so the same rule can't drift between routes the way it previously did.
+ */
+export function blockedFromDraft(
+  parent: { onBudget: boolean; createdByUserId: string | null },
+  sessionUser: { id: string; appRole: string } | null | undefined
+): boolean {
+  if (parent.onBudget) return false
+  if (!sessionUser) return true
+  return parent.createdByUserId !== sessionUser.id && !hasAdminAccess(sessionUser.appRole)
+}
 
 /**
  * Apply rate limiting for a mutation (POST/PATCH/DELETE).

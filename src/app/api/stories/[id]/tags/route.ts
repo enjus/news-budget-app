@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createStoryTagSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -14,8 +14,16 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id: storyId } = await params;
 
-    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      select: { onBudget: true, createdByUserId: true },
+    });
     if (!story) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+
+    const session = await getServerSession(authOptions);
+    if (blockedFromDraft(story, session?.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -54,8 +62,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const { tag } = result.data;
 
-    const story = await prisma.story.findUnique({ where: { id: storyId } });
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      select: { onBudget: true, createdByUserId: true },
+    });
     if (!story) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+    if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -89,6 +103,17 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     if (!tag) {
       return NextResponse.json({ error: "Query param tag is required" }, { status: 400 });
+    }
+
+    const story = await prisma.story.findUnique({
+      where: { id: storyId },
+      select: { onBudget: true, createdByUserId: true },
+    });
+    if (!story) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+    if (blockedFromDraft(story, session.user)) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
     await prisma.storyTag.delete({
