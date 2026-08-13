@@ -29,7 +29,12 @@ export async function GET() {
     }
 
     const pitches = await prisma.story.findMany({
-      where: { onBudget: false, pitchedAt: { not: null } },
+      // Excludes SHELVED: the purge-shelved cron auto-shelves expired pitches
+      // but deliberately leaves pitchedAt set (so they're recoverable via the
+      // story detail page's unarchive flow) rather than clearing it. Without
+      // this filter those archived pitches would keep showing here as if
+      // still active and claimable.
+      where: { onBudget: false, pitchedAt: { not: null }, status: { not: "SHELVED" } },
       select: pitchSelect,
       orderBy: { pitchedAt: "desc" },
     });

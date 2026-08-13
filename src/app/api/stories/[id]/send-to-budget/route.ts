@@ -65,6 +65,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         onBudget: true,
         pitchedAt: null,
         expiresAt: null,
+        // A pitch claimed just before its expiresAt can get auto-shelved by
+        // the purge-shelved cron while still sitting in the pool (pitchedAt
+        // is deliberately kept — see that route's comment). Force it back to
+        // DRAFT here so it doesn't go live as a permanently-invisible SHELVED
+        // "story"; every pitch is created as DRAFT (see /api/pitches) and
+        // nothing else can change a pool item's status.
+        status: "DRAFT",
+        shelvedAt: null,
         version: { increment: 1 },
       },
       include: { assignments: { include: { person: true } } },

@@ -27,7 +27,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, status: true, _count: { select: { assignments: true } } },
+      select: { onBudget: true, status: true, pitchText: true, budgetLine: true, _count: { select: { assignments: true } } },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
@@ -48,6 +48,11 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         expiresAt: addDays(now, 30),
         onlinePubDate: null,
         onlinePubDateTBD: true,
+        // A story created outside the pitch flow never has pitchText set, but
+        // the pool UI (PitchRow, PitchBanner) renders pitchText as the item's
+        // title with no fallback — fall back to budgetLine so a released
+        // story doesn't show up blank.
+        pitchText: story.pitchText ?? story.budgetLine,
         version: { increment: 1 },
       },
       select: { id: true },

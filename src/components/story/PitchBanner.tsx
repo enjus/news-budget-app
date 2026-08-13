@@ -134,18 +134,38 @@ export function PitchBanner({ story, onUpdate }: PitchBannerProps) {
             </Button>
           )}
 
-          {hasClaimant && (claimedByMe || isElevated) && (
+          {hasClaimant && claimedByMe && (
             <Button
               size="sm"
               variant="outline"
               className="gap-1"
               disabled={working}
-              onClick={() => unclaim(claimedByMe ? undefined : story.assignments[0]?.personId)}
+              onClick={() => unclaim()}
             >
               <UserMinus className="size-3" />
               Unclaim
             </Button>
           )}
+
+          {/* Elevated users removing someone else's claim: one button per
+              claimant, since with multiple claimants a single generic button
+              can't say which one it would remove. */}
+          {isElevated &&
+            story.assignments
+              .filter((a) => a.personId !== myPersonId)
+              .map((a) => (
+                <Button
+                  key={a.personId}
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={working}
+                  onClick={() => unclaim(a.personId)}
+                >
+                  <UserMinus className="size-3" />
+                  Unclaim {a.person.name}
+                </Button>
+              ))}
 
           {hasClaimant && (
             <Dialog open={sendOpen} onOpenChange={setSendOpen}>
