@@ -62,6 +62,8 @@ No test suite exists yet.
 
 **Comment notifications**: @-mentioned People are always emailed. "Post and Notify All" additionally emails the item's whole team — assignees plus, on stories, anyone credited on a visual element — minus anyone already emailed as a mention and minus the comment's author. This is the same recipient set `notifyStoryTeam()` uses, via the shared `collectEmails(assignments, visuals)`; keep the two in sync. Videos have no visuals relation, so `createComment()` selects `visuals` only on the story branch. Editing a comment sends nothing.
 
+**Inactive people (`Person.isActive`)**: Deactivating a Person hides them from pickers for new assignments/stories but keeps their historical assignments, visuals, and comment mentions intact — nothing is deleted or reassigned. Less obvious: `collectEmails()` (`src/lib/notifications.ts`) and `listComments()`/`createComment()` (`src/lib/comments.ts`) both select `isActive` and filter inactive people out of notification recipient sets, even if they're still assigned/credited/mentioned on the item. So an inactive person can remain visible on a story's team list while silently receiving no emails about it.
+
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 
 **Database schema sync is deliberate, not automatic**: `npm run build` only runs `prisma generate` (regenerate client types) — it does **not** push or migrate the database schema. Production (VPS) applies schema changes explicitly via `npx prisma db push` as a manual deploy step (see `docs/aws-vps-deployment.md` §7). Vercel deployments use a separate `vercel-build` script (`scripts/vercel-build-db-sync.js`) that runs `prisma db push --accept-data-loss` automatically, but **only when `VERCEL_ENV === 'preview'`** — production-on-Vercel and anything else skips it. This exists because Vercel preview databases have no other way to pick up schema changes; if story/video saves start failing on a preview deploy with a generic 500, check whether the preview DB is missing recently added columns first.
@@ -88,10 +90,10 @@ No test suite exists yet.
 | Model | Key Fields |
 |-------|-----------|
 | **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|LEADERSHIP\|MANAGING_PRODUCER\|SUPERVISOR\|PRODUCER\|VIEWER), `personId` (optional FK → Person) |
-| **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER) |
-| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed` (compliance flag, stays boolean), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `createdByUserId` (FK → User), `version` (optimistic locking) |
+| **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|VIDEOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER), `isActive` (default true — see "Inactive people" design decision above) |
+| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed` (compliance flag, stays boolean), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `workingDraftUrl` (link to in-progress draft doc; hidden from cards once the story is published), `createdByUserId` (FK → User), `version` (optimistic locking) |
 | **StoryTag** | `id`, `storyId`, `tag` (StoryTagEnum: HERE_IS_OREGON\|CONTENT_REMIX\|SUMMER_FOCUS\|OREGON_INSIGHT\|VIDEO_POTENTIAL — editorial indicators; add new ones by extending the enum + `INDICATOR_OPTIONS` in `src/lib/utils.ts`, no migration needed), unique on `(storyId, tag)` |
-| **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|OTHER) — composite unique on all three |
+| **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER — same shared `AssignmentRoleEnum` as VideoAssignment) — composite unique on all three |
 | **Visual** | `storyId`, `type` (PHOTO\|GRAPHIC\|MAP), `description`, `personId` (optional) |
 | **Video** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status`, `storyId` (optional—standalone or linked), `onlinePubDate`, `onlinePubDateTBD`, `notes`, `notifyTeam`, `sortOrder`, `shelvedAt`, `version` (optimistic locking), `youtubeUrl`, `reelsUrl`, `tiktokUrl`, `otherUrl` |
 | **VideoAssignment** | `videoId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER) — composite unique on all three |
@@ -131,8 +133,7 @@ No test suite exists yet.
 | Field | Valid values |
 |-------|-------------|
 | `PersonRole` / `defaultRole` | REPORTER, EDITOR, PHOTOGRAPHER, VIDEOGRAPHER, GRAPHIC_DESIGNER, PUBLICATION_DESIGNER, OTHER |
-| `AssignmentRole` (story) | REPORTER, EDITOR, OTHER |
-| `VideoAssignmentRole` | REPORTER, EDITOR, VIDEOGRAPHER, OTHER |
+| `AssignmentRole` (`AssignmentRoleEnum` — shared by Story and Video assignments) | REPORTER, EDITOR, VIDEOGRAPHER, OTHER |
 | `VisualType` | PHOTO, GRAPHIC, MAP, VIDEO |
 | `StoryStatus` / `VideoStatus` | DRAFT, SCHEDULED, PUBLISHED_ITERATING, PUBLISHED_FINAL, SHELVED |
 | `AppRole` (User) | ADMIN, LEADERSHIP, MANAGING_PRODUCER, SUPERVISOR, PRODUCER, VIEWER |
@@ -155,9 +156,11 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/stories/[id]/assignments` | GET/POST | Story staff assignments |
 | `/api/stories/[id]/tags` | GET/POST/DELETE | Story editorial-tag indicators |
 | `/api/stories/[id]/visuals` | GET/POST | Story visuals |
+| `/api/stories/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator or admin only |
 | `/api/videos` | GET/POST | List/create videos |
 | `/api/videos/[id]` | GET/PUT/DELETE | Video CRUD |
 | `/api/videos/[id]/assignments` | GET/POST | Video staff assignments |
+| `/api/videos/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator or admin only |
 | `/api/visuals/[id]` | PUT/DELETE | Update/delete individual visual |
 | `/api/stories/[id]/comments` | GET/POST | Story comments; POST body `{ body, mentionIds?, notifyAll? }` |
 | `/api/videos/[id]/comments` | GET/POST | Video comments (same shape) |
@@ -168,7 +171,10 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/admin/users` | GET/POST | List/create app users (admin only) |
 | `/api/admin/users/[id]` | GET/PUT/DELETE | User CRUD (admin only) |
 | `/api/drafts` | GET | Current user's draft stories + videos |
-| `/api/teams/[id]` | GET/PUT/DELETE | Team CRUD |
+| `/api/admin/teams` | GET/POST | List/create teams (admin only) |
+| `/api/admin/teams/[id]` | GET/PUT/DELETE | Team CRUD (admin only) |
+| `/api/admin/teams/[id]/members` | GET/POST | List/add team members (admin only) |
+| `/api/admin/teams/[id]/members/[memberId]` | PUT/DELETE | Update/remove a team member (admin only) |
 | `/api/teams/[id]/content` | GET | Content assigned to a team |
 | `/api/teams/my` | GET | Teams the current user belongs to |
 | `/api/cron/purge-shelved` | GET | Purge stories/videos shelved 90+ days (requires `Authorization: Bearer CRON_SECRET`) |
@@ -209,6 +215,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/teams` | Teams view — Columns/Agenda (team-filtered Daily/Agenda) + Members tabs |
 | `/settings` | User preferences (view/layout defaults) |
 | `/admin/users` | Admin: manage app users |
+| `/admin/teams` | Admin: manage teams and team membership |
 
 ### Component Structure (`src/components/`)
 
