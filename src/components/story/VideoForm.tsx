@@ -104,7 +104,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     if (!storyPickerOpen) return
     setQuery("")
     fetchStories("")
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [storyPickerOpen])
 
   // Debounced search while picker is open and query is non-empty
@@ -112,7 +112,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     if (!storyPickerOpen || query === "") return
     const timer = setTimeout(() => fetchStories(query), 300)
     return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [query, storyPickerOpen])
 
   const {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import useSWR from "swr"
 import { format, parseISO } from "date-fns"
 import { ChevronDown } from "lucide-react"
@@ -138,12 +138,12 @@ export function AgendaView({
     if (refreshTrigger > 0) mutate()
   }, [refreshTrigger, mutate])
 
-  const safeDays: AgendaDay[] = currentData?.days ?? []
+  const safeDays: AgendaDay[] = useMemo(() => currentData?.days ?? [], [currentData])
 
-  const allDateKeys = new Set([
-    ...safeDays.map((d) => d.date),
-    "TBD",
-  ])
+  const allDateKeys = useMemo(
+    () => new Set([...safeDays.map((d) => d.date), "TBD"]),
+    [safeDays]
+  )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id))

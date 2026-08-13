@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -52,8 +52,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(visual);
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Visual not found" }, { status: 404 });
     }
     console.error("PATCH /api/visuals/[id] error:", error);
@@ -76,8 +76,8 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     await prisma.visual.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Visual not found" }, { status: 404 });
     }
     console.error("DELETE /api/visuals/[id] error:", error);

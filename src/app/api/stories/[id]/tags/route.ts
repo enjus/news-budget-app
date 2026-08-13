@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createStoryTagSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -64,8 +64,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(storyTag, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "This tag is already applied to this story" }, { status: 409 });
     }
     console.error("POST /api/stories/[id]/tags error:", error);
@@ -96,8 +96,8 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Tag not found" }, { status: 404 });
     }
     console.error("DELETE /api/stories/[id]/tags error:", error);

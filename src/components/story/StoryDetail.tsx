@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import Link from "next/link"
 import { ExternalLink, MessageSquare, Send } from "lucide-react"
@@ -60,7 +59,6 @@ function CommentJumpLink({ count }: { count: number }) {
 
 export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
   const formRef = useRef<StoryFormHandle>(null)
-  const router = useRouter()
   const [sendingToBudget, setSendingToBudget] = useState(false)
 
   async function handleSendToBudget() {

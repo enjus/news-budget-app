@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO, addDays } from "date-fns"
@@ -132,8 +132,11 @@ export function EditionView() {
   )
 
   const [localGroups, setLocalGroups] = useState<EditionDateGroup[] | null>(null)
-  const groups: EditionDateGroup[] = localGroups ?? data?.groups ?? []
-  const groupDateSet = new Set(groups.map((g) => g.date))
+  const groups: EditionDateGroup[] = useMemo(
+    () => localGroups ?? data?.groups ?? [],
+    [localGroups, data?.groups]
+  )
+  const groupDateSet = useMemo(() => new Set(groups.map((g) => g.date)), [groups])
 
   // ── Add date ───────────────────────────────────────────────────────────────
 

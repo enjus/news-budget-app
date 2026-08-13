@@ -17,7 +17,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn } from "@/lib/utils"
-import type { EnterpriseDateGroup, VideoWithRelations } from "@/types/index"
+import type { EnterpriseDateGroup } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -165,7 +165,10 @@ export function EnterpriseView() {
   // Local state for optimistic DnD moves
   const [localGroups, setLocalGroups] = useState<EnterpriseDateGroup[] | null>(null)
 
-  const groups: EnterpriseDateGroup[] = localGroups ?? data?.groups ?? []
+  const groups: EnterpriseDateGroup[] = useMemo(
+    () => localGroups ?? data?.groups ?? [],
+    [localGroups, data?.groups]
+  )
 
   // Merge API groups with a full year of empty week buckets
   const displayGroups = useMemo(() => {
@@ -187,7 +190,7 @@ export function EnterpriseView() {
   }, [groups])
 
   // The set of known group date keys (for resolving over.id)
-  const groupDateSet = new Set(displayGroups.map((g) => g.date))
+  const groupDateSet = useMemo(() => new Set(displayGroups.map((g) => g.date)), [displayGroups])
 
   // Split display groups into past (collapsed) and upcoming (main list).
   // currentMondayStr is generateYearOfWeeks()[0] — the first generated week.
@@ -427,6 +430,7 @@ export function EnterpriseView() {
       ) : (
         <DndProvider
           onDragEnd={handleDragEnd}
+          onDragStart={handleDragStart}
           overlayContent={
             <ActiveItemOverlay activeId={activeId} groups={groups} />
           }

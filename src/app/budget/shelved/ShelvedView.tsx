@@ -167,7 +167,7 @@ export function ShelvedView() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Unarchive story?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              &ldquo;{story.slug}&rdquo; will be returned to "In the works" status.
+                              &ldquo;{story.slug}&rdquo; will be returned to &ldquo;In the works&rdquo; status.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -256,7 +256,7 @@ export function ShelvedView() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Unarchive video?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              &ldquo;{video.slug}&rdquo; will be returned to "In the works" status.
+                              &ldquo;{video.slug}&rdquo; will be returned to &ldquo;In the works&rdquo; status.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
