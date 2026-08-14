@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { hasAdminAccess } from "@/lib/utils"
 import { updateUserSchema } from "@/lib/validations"
-import { checkWriteLimit, userUniqueConstraintMessage } from "@/lib/api-helpers"
+import { checkWriteLimit, userUniqueConstraintMessage, prismaErrorCode } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
 
@@ -42,11 +42,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })
 
     return Response.json({ user })
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return Response.json({ error: "User not found" }, { status: 404 })
     }
-    if (error?.code === "P2002") {
+    if (prismaErrorCode(error) === "P2002") {
       return Response.json({ error: userUniqueConstraintMessage(error) }, { status: 409 })
     }
     console.error("PATCH /api/admin/users/[id] error:", error)
@@ -73,8 +73,8 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     await prisma.user.delete({ where: { id } })
     return new Response(null, { status: 204 })
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return Response.json({ error: "User not found" }, { status: 404 })
     }
     console.error("DELETE /api/admin/users/[id] error:", error)

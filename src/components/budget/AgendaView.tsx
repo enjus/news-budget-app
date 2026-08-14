@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
 import useSWR from "swr"
 import { format, parseISO } from "date-fns"
 import { ChevronDown } from "lucide-react"
@@ -141,12 +141,12 @@ export function AgendaView({
     if (refreshTrigger > 0) mutate()
   }, [refreshTrigger, mutate])
 
-  const safeDays: AgendaDay[] = currentData?.days ?? []
+  const safeDays: AgendaDay[] = useMemo(() => currentData?.days ?? [], [currentData])
 
-  const allDateKeys = new Set([
-    ...safeDays.map((d) => d.date),
-    "TBD",
-  ])
+  const allDateKeys = useMemo(
+    () => new Set([...safeDays.map((d) => d.date), "TBD"]),
+    [safeDays]
+  )
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(String(event.active.id))
@@ -160,6 +160,8 @@ export function AgendaView({
 
       const activeIdStr = String(active.id)
       const rawTarget = String(over.id)
+      if (rawTarget === activeIdStr) return // dropped on itself — no-op
+
       const isStory = activeIdStr.startsWith("story-")
       const isVideo = activeIdStr.startsWith("video-")
       if (!isStory && !isVideo) return
@@ -187,6 +189,10 @@ export function AgendaView({
 
       let targetDate: string = sourceDate
       let targetBucketId: string | null = null
+      // Set only when `rawTarget` is a specific card's composite id — used
+      // below to insert the moved item at that card's position rather than
+      // always appending at the end of its bucket.
+      let beforeCompositeId: string | null = null
 
       if (allDateKeys.has(rawTarget)) {
         targetDate = rawTarget
@@ -195,19 +201,18 @@ export function AgendaView({
         targetDate = dateStr
         targetBucketId = bucketId
       } else {
+        beforeCompositeId = rawTarget
         for (const group of allGroups) {
-          if (
-            group.stories.some((s) => `story-${s.id}` === rawTarget) ||
-            group.videos.some((v) => `video-${v.id}` === rawTarget)
-          ) {
+          const tgt =
+            group.stories.find((s) => `story-${s.id}` === rawTarget) ??
+            group.videos.find((v) => `video-${v.id}` === rawTarget)
+          if (tgt) {
             targetDate = group.date
             if (group.date === sourceDate) {
-              const tgt =
-                group.stories.find((s) => `story-${s.id}` === rawTarget) ??
-                group.videos.find((v) => `video-${v.id}` === rawTarget)
-              if (tgt && !tgt.onlinePubDateTBD && tgt.onlinePubDate) {
-                targetBucketId = dateToBucket(new Date(tgt.onlinePubDate))
-              }
+              targetBucketId =
+                !tgt.onlinePubDateTBD && tgt.onlinePubDate
+                  ? dateToBucket(new Date(tgt.onlinePubDate))
+                  : group.date === "TBD" ? "TBD" : null
             }
             break
           }
@@ -239,53 +244,128 @@ export function AgendaView({
         newPubDate = `${targetDate}T00:00:00.000Z`
       }
 
-      const updatedItem = {
-        ...sourceItem,
-        onlinePubDate: newPubDate as unknown as Date | null,
-        onlinePubDateTBD: newTBD,
-      }
+      const sameDay = targetDate === sourceDate
+      const dateChanged =
+        newTBD !== sourceItem.onlinePubDateTBD ||
+        (!newTBD &&
+          (!sourceItem.onlinePubDate ||
+            new Date(sourceItem.onlinePubDate).toISOString() !== new Date(newPubDate!).toISOString()))
 
-      const drop = <T extends { id: string }>(arr: T[]) => arr.filter((x) => x.id !== itemId)
+      // The bucket the moved item actually lands in ("TBD" or a TIME_BUCKETS
+      // id) — reordering and sortOrder reindexing are scoped to just this
+      // bucket's items within the target day (or the flat TBD list).
+      // beforeCompositeId is only trustworthy as an insertion point when it
+      // was resolved from a same-bucket neighbor (targetBucketId set) —
+      // otherwise (e.g. a cross-day drop that preserves the item's own
+      // time-of-day) we can't be sure it lands in that neighbor's bucket.
+      const effectiveBucketKey = newTBD ? "TBD" : dateToBucket(new Date(newPubDate!))
+      const positionHint = targetBucketId ? beforeCompositeId : null
 
-      const updatedDays = currentDays.map((day) => ({
-        ...day,
-        stories: isStory ? drop(day.stories) : day.stories,
-        videos: isVideo ? drop(day.videos) : day.videos,
-      }))
+      const bucketKeyFor = (i: { onlinePubDate: Date | string | null }) =>
+        i.onlinePubDate ? dateToBucket(new Date(i.onlinePubDate)) : "TBD"
 
-      const updatedTbd: AgendaDay = {
-        ...currentTbd,
-        stories: isStory ? drop(currentTbd.stories) : currentTbd.stories,
-        videos: isVideo ? drop(currentTbd.videos) : currentTbd.videos,
-      }
-
-      if (targetDate === "TBD") {
-        if (isStory) updatedTbd.stories.push(updatedItem as StoryListItem)
-        else updatedTbd.videos.push(updatedItem as VideoWithRelations)
-      } else {
-        const idx = updatedDays.findIndex((d) => d.date === targetDate)
-        if (idx >= 0) {
-          if (isStory) updatedDays[idx].stories.push(updatedItem as StoryListItem)
-          else updatedDays[idx].videos.push(updatedItem as VideoWithRelations)
+      function reorder<T extends { id: string; sortOrder: number; onlinePubDate: Date | string | null }>(
+        list: T[],
+        moving: T,
+        prefix: "story" | "video"
+      ) {
+        const rest = list.filter((x) => x.id !== moving.id)
+        const inBucket = rest.filter((x) => bucketKeyFor(x) === effectiveBucketKey)
+        const outsideBucket = rest.filter((x) => bucketKeyFor(x) !== effectiveBucketKey)
+        let insertIndex = inBucket.length
+        if (positionHint) {
+          const idx = inBucket.findIndex((x) => `${prefix}-${x.id}` === positionHint)
+          if (idx !== -1) insertIndex = idx
         }
+        inBucket.splice(insertIndex, 0, moving)
+        const sortPatches = inBucket
+          .map((item, index) => ({ id: item.id, sortOrder: index, changed: item.sortOrder !== index }))
+          .filter((p) => p.changed)
+          .map(({ id, sortOrder }) => ({ id, sortOrder }))
+        // Bucket membership among `outsideBucket` items doesn't matter here —
+        // render always regroups by bucket — only relative order within a
+        // bucket (preserved above) does.
+        return { rebuilt: [...outsideBucket, ...inBucket], sortPatches }
       }
+
+      const findGroup = (d: string): AgendaDay =>
+        d === "TBD" ? currentTbd : currentDays.find((g) => g.date === d) ?? { date: d, stories: [], videos: [] }
+
+      let updatedDays: AgendaDay[]
+      let updatedTbd: AgendaDay
+      let sortPatches: { id: string; sortOrder: number }[]
+
+      if (isStory) {
+        const movingItem: StoryListItem = {
+          ...(sourceItem as StoryListItem),
+          onlinePubDate: newPubDate as unknown as Date | null,
+          onlinePubDateTBD: newTBD,
+        }
+        const { rebuilt, sortPatches: patches } = reorder(findGroup(targetDate).stories, movingItem, "story")
+        sortPatches = patches
+
+        updatedDays = currentDays.map((day) => {
+          if (day.date === targetDate) return { ...day, stories: rebuilt }
+          if (day.date === sourceDate && !sameDay) return { ...day, stories: day.stories.filter((x) => x.id !== itemId) }
+          return day
+        })
+        updatedTbd =
+          targetDate === "TBD"
+            ? { ...currentTbd, stories: rebuilt }
+            : sourceDate === "TBD" && !sameDay
+              ? { ...currentTbd, stories: currentTbd.stories.filter((x) => x.id !== itemId) }
+              : currentTbd
+      } else {
+        const movingItem: VideoWithRelations = {
+          ...(sourceItem as VideoWithRelations),
+          onlinePubDate: newPubDate as unknown as Date | null,
+          onlinePubDateTBD: newTBD,
+        }
+        const { rebuilt, sortPatches: patches } = reorder(findGroup(targetDate).videos, movingItem, "video")
+        sortPatches = patches
+
+        updatedDays = currentDays.map((day) => {
+          if (day.date === targetDate) return { ...day, videos: rebuilt }
+          if (day.date === sourceDate && !sameDay) return { ...day, videos: day.videos.filter((x) => x.id !== itemId) }
+          return day
+        })
+        updatedTbd =
+          targetDate === "TBD"
+            ? { ...currentTbd, videos: rebuilt }
+            : sourceDate === "TBD" && !sameDay
+              ? { ...currentTbd, videos: currentTbd.videos.filter((x) => x.id !== itemId) }
+              : currentTbd
+      }
+
+      if (!dateChanged && sortPatches.length === 0) return // dropped back where it started
 
       setLocalData({ ...currentData, days: updatedDays, tbd: updatedTbd })
 
       try {
-        const patchBody: Record<string, unknown> = newTBD
-          ? { onlinePubDateTBD: true, onlinePubDate: null }
-          : { onlinePubDateTBD: false, onlinePubDate: newPubDate }
+        const requests: Promise<Response>[] = sortPatches.map((p) =>
+          fetch(apiPath(isStory ? `/api/stories/${p.id}` : `/api/videos/${p.id}`), {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: p.sortOrder }),
+          })
+        )
 
-        const endpoint = apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`)
+        if (dateChanged) {
+          const patchBody: Record<string, unknown> = newTBD
+            ? { onlinePubDateTBD: true, onlinePubDate: null }
+            : { onlinePubDateTBD: false, onlinePubDate: newPubDate }
+          requests.push(
+            fetch(apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`), {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(patchBody),
+            })
+          )
+        }
 
-        const res = await fetch(endpoint, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patchBody),
-        })
-        if (!res.ok) {
-          throw new Error(`PATCH ${endpoint} failed with ${res.status}`)
+        const results = await Promise.all(requests)
+        if (results.some((r) => !r.ok)) {
+          throw new Error("One or more PATCH requests failed")
         }
       } catch (err) {
         console.error("Failed to update agenda item:", err)
@@ -421,17 +501,23 @@ export function AgendaView({
           const stories = showStories ? group.stories : []
           const videos = showVideos ? group.videos : []
 
+          // Group by bucket only (stable sort) rather than exact time — the
+          // stories/videos arrays already arrive sortOrder-ordered within
+          // each bucket from the API, and a millisecond-precision sort here
+          // would discard that manual drag order whenever items in the same
+          // bucket share a pub time (the common case: dropping into a bucket
+          // stamps every item in it with that bucket's default time).
+          const bucketOrdinal = (item: { onlinePubDate: Date | string | null }) =>
+            item.onlinePubDate
+              ? TIME_BUCKETS.findIndex((b) => b.id === dateToBucket(new Date(item.onlinePubDate!)))
+              : Infinity
           const merged: Array<
             | { kind: "story"; item: StoryListItem }
             | { kind: "video"; item: VideoWithRelations }
           > = [
             ...stories.map((item) => ({ kind: "story" as const, item })),
             ...videos.map((item) => ({ kind: "video" as const, item })),
-          ].sort((a, b) => {
-            const ta = a.item.onlinePubDate ? new Date(a.item.onlinePubDate).getTime() : Infinity
-            const tb = b.item.onlinePubDate ? new Date(b.item.onlinePubDate).getTime() : Infinity
-            return ta - tb
-          })
+          ].sort((a, b) => bucketOrdinal(a.item) - bucketOrdinal(b.item))
 
           const itemIds = merged.map((m) => `${m.kind}-${m.item.id}`)
           const count = merged.length

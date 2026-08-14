@@ -23,7 +23,6 @@ import {
 import { useDrafts } from "@/lib/hooks/useDrafts"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
-import type { StoryListItem, VideoWithRelations } from "@/types"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"

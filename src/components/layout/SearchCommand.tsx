@@ -78,40 +78,63 @@ export function SearchCommand() {
     return () => window.removeEventListener("keydown", onKey)
   }, [])
 
-  // Focus input when dialog opens
+  // Focus input when dialog opens. Query/results are cleared on close via
+  // handleOpenChange instead of here, so this effect only ever talks to the
+  // DOM (an external system) rather than calling setState synchronously.
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 50)
-    } else {
-      setQuery("")
-      setResults([])
     }
   }, [open])
 
-  // Fetch results
-  useEffect(() => {
-    if (!debouncedQuery && !authorId) {
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next)
+    if (!next) {
+      setQuery("")
       setResults([])
-      return
     }
-    setLoading(true)
-    const params = new URLSearchParams()
-    if (debouncedQuery) params.set("q", debouncedQuery)
-    if (authorId) params.set("authorId", authorId)
+  }, [])
 
-    fetch(apiPath(`/api/search?${params}`))
-      .then((r) => r.json())
-      .then((data) => setResults(data.results ?? []))
-      .catch(() => setResults([]))
-      .finally(() => setLoading(false))
-  }, [debouncedQuery, authorId])
+  const shouldSearch = Boolean(debouncedQuery || authorId)
+
+  // Fetch results. When there's nothing to search for, skip the fetch
+  // entirely rather than setState-ing an empty array — `displayResults`
+  // below derives the empty state instead. The fetch itself runs inside a
+  // nested async function (rather than as direct statements in the effect
+  // body) so a stale response can't clobber a newer one, and so setState
+  // calls happen inside a callback rather than synchronously in the effect.
+  useEffect(() => {
+    if (!shouldSearch) return
+    let cancelled = false
+
+    async function run() {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (debouncedQuery) params.set("q", debouncedQuery)
+      if (authorId) params.set("authorId", authorId)
+      try {
+        const r = await fetch(apiPath(`/api/search?${params}`))
+        const data = await r.json()
+        if (!cancelled) setResults(data.results ?? [])
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    run()
+
+    return () => { cancelled = true }
+  }, [debouncedQuery, authorId, shouldSearch])
+
+  const displayResults = shouldSearch ? results : []
 
   const navigate = useCallback(
     (result: SearchResult) => {
-      setOpen(false)
+      handleOpenChange(false)
       router.push(result.type === "story" ? `/stories/${result.id}` : `/videos/${result.id}`)
     },
-    [router]
+    [router, handleOpenChange]
   )
 
   const selectedAuthor = people.find((p) => p.id === authorId)
@@ -144,7 +167,7 @@ export function SearchCommand() {
         </kbd>
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="p-0 gap-0 max-w-lg overflow-hidden" aria-describedby={undefined}>
           {/* Search input row */}
           <div className="flex items-center gap-2 border-b px-3 py-2">
@@ -214,19 +237,19 @@ export function SearchCommand() {
               <p className="py-6 text-center text-sm text-muted-foreground">Searching…</p>
             )}
 
-            {!loading && (query || authorId) && results.length === 0 && (
+            {!loading && (query || authorId) && displayResults.length === 0 && (
               <p className="py-6 text-center text-sm text-muted-foreground">No results found.</p>
             )}
 
-            {!loading && results.length === 0 && !query && !authorId && (
+            {!loading && displayResults.length === 0 && !query && !authorId && (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 Type to search, or filter by author.
               </p>
             )}
 
-            {!loading && results.length > 0 && (
+            {!loading && displayResults.length > 0 && (
               <ul className="py-1">
-                {results.filter((r) => VIDEOS_ENABLED || r.type !== "video").map((result) => (
+                {displayResults.filter((r) => VIDEOS_ENABLED || r.type !== "video").map((result) => (
                   <li key={`${result.type}-${result.id}`}>
                     <button
                       onClick={() => navigate(result)}

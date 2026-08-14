@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ExternalLink, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -35,7 +34,6 @@ interface VideoDetailProps {
 
 export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
   const formRef = useRef<VideoFormHandle>(null)
-  const router = useRouter()
   const [sendingToBudget, setSendingToBudget] = useState(false)
 
   async function handleSendToBudget() {

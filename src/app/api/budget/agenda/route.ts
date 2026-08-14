@@ -132,17 +132,26 @@ export async function GET(request: NextRequest) {
       tbd.videos.push(video);
     }
 
-    // Sort items within each day bucket by onlinePubDate ascending (null at end)
-    const byTime = (a: { onlinePubDate: Date | null }, b: { onlinePubDate: Date | null }) => {
+    // Sort items by sortOrder (the manual drag order) first, falling back to
+    // onlinePubDate as a tiebreak for dated items and to the already-fetched
+    // order (createdAt desc) for TBD items, which share no meaningful
+    // sortOrder tiebreak of their own until reordered.
+    const bySortOrderThenTime = (
+      a: { onlinePubDate: Date | null; sortOrder: number },
+      b: { onlinePubDate: Date | null; sortOrder: number }
+    ) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
       if (!a.onlinePubDate && !b.onlinePubDate) return 0;
       if (!a.onlinePubDate) return 1;
       if (!b.onlinePubDate) return -1;
       return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
     };
     for (const day of days) {
-      day.stories.sort(byTime);
-      day.videos.sort(byTime);
+      day.stories.sort(bySortOrderThenTime);
+      day.videos.sort(bySortOrderThenTime);
     }
+    tbd.stories.sort(bySortOrderThenTime);
+    tbd.videos.sort(bySortOrderThenTime);
 
     return NextResponse.json({ start, days, tbd });
   } catch (error) {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { format, parseISO, addDays, subDays, isValid } from "date-fns"
 import { ChevronLeft, ChevronRight, FileText, Video } from "lucide-react"
@@ -25,12 +25,6 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
   const [showStories, setShowStories] = useState(true)
   const [showVideos, setShowVideos] = useState(VIDEOS_ENABLED)
   const [date, setDate] = useState(() => todayString())
-
-  // Reset the type toggle if the video flag changes mid-session (shouldn't
-  // happen without a rebuild, but keeps state consistent).
-  useEffect(() => {
-    if (!VIDEOS_ENABLED) setShowVideos(false)
-  }, [])
 
   const personIds = useMemo(
     () => team.members.map((m) => m.person.id),

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createStorySchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -105,8 +105,8 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json(story, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "A story with that slug already exists" }, { status: 409 });
     }
     console.error("POST /api/stories error:", error);

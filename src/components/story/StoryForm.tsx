@@ -101,7 +101,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             : null,
           printPubDateTBD: story.printPubDateTBD,
           notes: story.notes ?? "",
-          wordCount: (story as any).wordCount ?? null,
+          wordCount: story.wordCount ?? null,
           notifyTeam: story.notifyTeam,
           aiContributed: story.aiContributed,
           postUrl: story.postUrl ?? "",

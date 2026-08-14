@@ -22,6 +22,7 @@
  * Vercel, if that's ever used — so we gate on VERCEL_ENV rather than
  * assuming every build here is a preview.
  */
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- plain CommonJS script run directly via `node`, not bundled
 const { execSync } = require("child_process");
 
 const vercelEnv = process.env.VERCEL_ENV;
