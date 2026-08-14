@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    // A Visual's own id doesn't reveal its parent story, so this has to look
+    // the story up via the relation to apply the same off-budget draft
+    // privacy check every other Story child-resource route enforces.
+    const existingVisual = await prisma.visual.findUnique({
+      where: { id },
+      select: { story: { select: { onBudget: true, createdByUserId: true } } },
+    });
+    if (!existingVisual) {
+      return NextResponse.json({ error: "Visual not found" }, { status: 404 });
+    }
+    if (blockedFromDraft(existingVisual.story, session.user)) {
+      return NextResponse.json({ error: "Visual not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const result = updateVisualSchema.safeParse(body);
 
@@ -72,6 +87,17 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
+
+    const existingVisual = await prisma.visual.findUnique({
+      where: { id },
+      select: { story: { select: { onBudget: true, createdByUserId: true } } },
+    });
+    if (!existingVisual) {
+      return NextResponse.json({ error: "Visual not found" }, { status: 404 });
+    }
+    if (blockedFromDraft(existingVisual.story, session.user)) {
+      return NextResponse.json({ error: "Visual not found" }, { status: 404 });
+    }
 
     await prisma.visual.delete({ where: { id } });
 

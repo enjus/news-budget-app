@@ -52,7 +52,7 @@ No test suite exists yet.
 
 **Optimistic drag-and-drop**: dnd-kit updates local SWR cache immediately on drop; server PATCH confirms persistence. `sortOrder` field on Story/Video drives ordering.
 
-**Off-budget draft privacy is per-route, not centralized**: Story/Video routes gate access with `if (!parent.onBudget && parent.createdByUserId !== session.user.id && !hasAdminAccess(...))` → 404. There's no shared middleware/helper enforcing this — any new route touching a Story/Video or its child resources (comments, visuals, assignments) must replicate the check explicitly, including selecting `onBudget`/`createdByUserId` in the query.
+**Off-budget draft privacy is per-route, not centralized**: Story/Video routes gate access with `blockedFromDraft(parent, session?.user)` (`src/lib/api-helpers.ts`) → 404 if true. There's no shared middleware enforcing this — `blockedFromDraft()` only covers the boolean gate itself; every route touching a Story/Video or its child resources (comments, visuals, assignments, tags) must still replicate its own `findUnique` selecting `onBudget`/`createdByUserId` and call the helper explicitly. This drifted across 5 routes before `blockedFromDraft()` existed (all fixed in one pass), so don't assume a new route has it just because sibling routes do — check.
 
 **TBD content**: Items without a publication time have `onlinePubDateTBD: true` and float in a TBD bucket. A `TBD_CAP` (500) prevents unbounded queries.
 
