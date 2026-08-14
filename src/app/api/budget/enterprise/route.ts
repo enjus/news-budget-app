@@ -25,15 +25,22 @@ const TBD_CAP = 500;
 /**
  * Return the Monday of the week containing `date` as a YYYY-MM-DD string.
  * Weeks are Monday–Sunday.
+ *
+ * Uses UTC fields deliberately: pub dates are stored as "newsroom time
+ * encoded as UTC" (see CLAUDE.md), so reading local-timezone Date methods
+ * here would compute the wrong weekday — and therefore the wrong Monday —
+ * for any story near a day boundary whenever the server process isn't
+ * itself running in UTC. dateToBucket() in src/lib/utils.ts follows the
+ * same convention for the same reason.
  */
 function getMondayOfWeek(date: Date): string {
   const d = new Date(date);
-  const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const day = d.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
   const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const dayStr = String(d.getDate()).padStart(2, "0");
+  d.setUTCDate(d.getUTCDate() + diff);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dayStr = String(d.getUTCDate()).padStart(2, "0");
   return `${year}-${month}-${dayStr}`;
 }
 
