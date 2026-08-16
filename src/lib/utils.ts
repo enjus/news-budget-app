@@ -34,7 +34,9 @@ export const TIME_BUCKETS: TimeBucket[] = [
     description: "Morning newsletter deadline",
     defaultHour: 7,
     defaultMinute: 30,
-    startMinutes: 4 * 60,
+    // Starts at local midnight (not 4 AM) so midnight–4 AM pub times — rare
+    // but real — silently classify here instead of falling through to TBD.
+    startMinutes: 0,
     endMinutes: 7 * 60 + 30,
   },
   {

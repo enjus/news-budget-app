@@ -241,7 +241,13 @@ export function AgendaView({
         const m = String(existing.getUTCMinutes()).padStart(2, "0")
         newPubDate = `${targetDate}T${h}:${m}:00.000Z`
       } else {
-        newPubDate = `${targetDate}T00:00:00.000Z`
+        // TBD item dropped on a day with no specific bucket target — assign
+        // a plausible default time (Morning) rather than midnight, matching
+        // how the explicit-bucket branch above assigns a bucket's default time.
+        const morning = TIME_BUCKETS.find((b) => b.id === "MORNING")!
+        const h = String(morning.defaultHour).padStart(2, "0")
+        const m = String(morning.defaultMinute).padStart(2, "0")
+        newPubDate = `${targetDate}T${h}:${m}:00.000Z`
       }
 
       const sameDay = targetDate === sourceDate
