@@ -16,7 +16,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { cn, TIME_BUCKETS } from "@/lib/utils"
+import { cn, bucketToUtcStamp } from "@/lib/utils"
 import type { EnterpriseDateGroup } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -327,10 +327,7 @@ export function EnterpriseView() {
           // app's "newsroom time encoded as UTC" convention — no timezone math,
           // so the calendar day is always exactly `targetDate` regardless of the
           // browser's local timezone.
-          const morning = TIME_BUCKETS.find((b) => b.id === "MORNING")!
-          const h = String(morning.defaultHour).padStart(2, "0")
-          const m = String(morning.defaultMinute).padStart(2, "0")
-          const stamp = `${targetDate}T${h}:${m}:00.000Z`
+          const stamp = bucketToUtcStamp(targetDate, "MORNING")!
           patchBody = {
             onlinePubDateTBD: false,
             onlinePubDate: stamp,

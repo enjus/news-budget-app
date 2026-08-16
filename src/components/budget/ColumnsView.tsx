@@ -17,7 +17,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, cn } from "@/lib/utils"
+import { TIME_BUCKETS, bucketToUtcStamp, cn } from "@/lib/utils"
 import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { DailyBudgetSlot } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -358,14 +358,10 @@ export function ColumnsView({
         )
 
         if (!sameBucket) {
-          const targetBucket = TIME_BUCKETS.find((b) => b.id === resolvedTargetSlot)
-          const patchBody =
-            !targetBucket || targetBucket.defaultHour === null
-              ? { onlinePubDateTBD: true, onlinePubDate: null }
-              : {
-                  onlinePubDateTBD: false,
-                  onlinePubDate: `${date}T${String(targetBucket.defaultHour).padStart(2, "0")}:${String(targetBucket.defaultMinute ?? 0).padStart(2, "0")}:00.000Z`,
-                }
+          const stamp = bucketToUtcStamp(date, resolvedTargetSlot)
+          const patchBody = !stamp
+            ? { onlinePubDateTBD: true, onlinePubDate: null }
+            : { onlinePubDateTBD: false, onlinePubDate: stamp }
           requests.push(
             fetch(apiPath(isStory ? `/api/stories/${itemId}` : `/api/videos/${itemId}`), {
               method: "PATCH",
@@ -442,11 +438,9 @@ export function ColumnsView({
           const bucketDef = TIME_BUCKETS.find((b) => b.id === slotData.slot)
 
           const buildItemUrl = (type: "stories" | "videos") => {
-            if (!bucketDef || bucketDef.defaultHour === null) return `/${type}/new?onlinePubDateTBD=true`
-            const h = String(bucketDef.defaultHour).padStart(2, "0")
-            const m = String(bucketDef.defaultMinute ?? 0).padStart(2, "0")
-            const iso = encodeURIComponent(`${date}T${h}:${m}:00.000Z`)
-            return `/${type}/new?onlinePubDate=${iso}&onlinePubDateTBD=false`
+            const stamp = bucketToUtcStamp(date, slotData.slot)
+            if (!stamp) return `/${type}/new?onlinePubDateTBD=true`
+            return `/${type}/new?onlinePubDate=${encodeURIComponent(stamp)}&onlinePubDateTBD=false`
           }
 
           const stories = showStories ? slotData.stories : []

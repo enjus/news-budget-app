@@ -85,6 +85,18 @@ export function dateToBucket(date: Date): string {
   return "TBD";
 }
 
+/** Build the UTC ISO stamp for a bucket's default time on a given date
+ *  (e.g. "2026-08-16" + "MORNING" -> "2026-08-16T07:30:00.000Z"), for
+ *  assigning a plausible pub time when an item is dropped into a bucket
+ *  without an exact time. Returns null for TBD or an unknown bucket id. */
+export function bucketToUtcStamp(dateStr: string, bucketId: string): string | null {
+  const bucket = TIME_BUCKETS.find((b) => b.id === bucketId);
+  if (!bucket || bucket.defaultHour === null) return null;
+  const h = String(bucket.defaultHour).padStart(2, "0");
+  const m = String(bucket.defaultMinute ?? 0).padStart(2, "0");
+  return `${dateStr}T${h}:${m}:00.000Z`;
+}
+
 /** Format a UTC-as-local ISO date as a short time string.
  *  Omits ":00" for on-the-hour times (e.g. "9 AM" not "9:00 AM"). */
 export function formatTime(date: Date | string | null | undefined): string | null {

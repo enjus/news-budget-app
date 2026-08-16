@@ -14,7 +14,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, bucketToUtcStamp, todayString, cn } from "@/lib/utils"
 import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
@@ -227,11 +227,9 @@ export function AgendaView({
       if (targetDate === "TBD") {
         newTBD = true
       } else if (targetBucketId) {
-        const bucket = TIME_BUCKETS.find((b) => b.id === targetBucketId)
-        if (bucket && bucket.defaultHour !== null) {
-          const h = String(bucket.defaultHour).padStart(2, "0")
-          const m = String(bucket.defaultMinute ?? 0).padStart(2, "0")
-          newPubDate = `${targetDate}T${h}:${m}:00.000Z`
+        const stamp = bucketToUtcStamp(targetDate, targetBucketId)
+        if (stamp) {
+          newPubDate = stamp
         } else {
           newTBD = true
         }
@@ -244,10 +242,7 @@ export function AgendaView({
         // TBD item dropped on a day with no specific bucket target — assign
         // a plausible default time (Morning) rather than midnight, matching
         // how the explicit-bucket branch above assigns a bucket's default time.
-        const morning = TIME_BUCKETS.find((b) => b.id === "MORNING")!
-        const h = String(morning.defaultHour).padStart(2, "0")
-        const m = String(morning.defaultMinute).padStart(2, "0")
-        newPubDate = `${targetDate}T${h}:${m}:00.000Z`
+        newPubDate = bucketToUtcStamp(targetDate, "MORNING")
       }
 
       const sameDay = targetDate === sourceDate
