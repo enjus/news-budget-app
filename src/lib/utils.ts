@@ -182,21 +182,22 @@ export function initials(name: string): string {
     .slice(0, 2);
 }
 
-/** Return the last word of a full name as the surname.
- *  A compound surname (e.g. "De Dios") is stored as a single underscore-joined
- *  token ("De_Dios") so it survives the whitespace split as one word; the
- *  underscore is converted back to a space before returning. */
-export function surname(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return parts[parts.length - 1].replace(/_/g, " ");
-}
-
 /** Render a full name for display, converting the underscore used to join a
- *  compound surname (see `surname()`) back into a space. Use this anywhere a
- *  Person's raw `name` field is rendered — the underscore should never reach
- *  the screen. */
+ *  multipart surname back into a space. A multipart surname (e.g. "Van Der
+ *  Berg") is stored as a single underscore-joined token ("Van_Der_Berg") so
+ *  it survives a whitespace split as one word; use this anywhere a Person's
+ *  raw `name` field is rendered — the underscore should never reach the
+ *  screen. */
 export function displayName(name: string): string {
   return name.replace(/_/g, " ");
+}
+
+/** Return the last word of a full name as the surname, with any
+ *  underscore-joined multipart surname (see `displayName()`) converted back
+ *  to spaces. */
+export function surname(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return displayName(parts[parts.length - 1]);
 }
 
 /** Build a copy-paste budget line string for a story card.
