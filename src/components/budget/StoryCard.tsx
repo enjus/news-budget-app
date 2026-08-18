@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, MessageSquare, type LucideIcon } from "lucide-react"
 import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
 
 // Icons for StoryTag values — kept here (not in utils.ts) since they're components.
@@ -284,7 +284,7 @@ export function StoryCard({
                 <span
                   key={`${a.personId}-${a.role}`}
                   className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                  title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+                  title={`${displayName(a.person.name)} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
                 >
                   {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
                 </span>

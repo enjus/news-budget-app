@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select"
 import { PersonBadge } from "@/components/people/PersonBadge"
 import { usePeople } from "@/lib/hooks/usePeople"
+import { displayName } from "@/lib/utils"
 import type { VisualWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -160,7 +161,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
             <SelectItem value="__none__">Unassigned</SelectItem>
             {people.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.name}
+                {displayName(p.name)}
               </SelectItem>
             ))}
           </SelectContent>

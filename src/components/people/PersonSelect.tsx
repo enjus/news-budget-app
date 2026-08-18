@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, displayName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -56,7 +56,8 @@ export function PersonSelect({
   )
   // selectedPerson can be null even when a link exists, if that person
   // falls outside usePeople()'s loaded page — fall back to the known name.
-  const triggerLabel = selectedPerson?.name ?? (value ? fallbackLabel : null) ?? placeholder
+  const triggerLabel =
+    (selectedPerson ? displayName(selectedPerson.name) : null) ?? (value ? fallbackLabel : null) ?? placeholder
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -102,7 +103,7 @@ export function PersonSelect({
                   {availablePeople.map((person) => (
                     <CommandItem
                       key={person.id}
-                      value={`${person.name}${person.email ? ` ${person.email}` : ""}`}
+                      value={`${displayName(person.name)}${person.email ? ` ${person.email}` : ""}`}
                       onSelect={() => {
                         onChange(person.id)
                         setOpen(false)
@@ -115,7 +116,7 @@ export function PersonSelect({
                         )}
                       />
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">{person.name}</span>
+                        <span className="text-sm font-medium">{displayName(person.name)}</span>
                         {person.email && (
                           <span className="text-xs text-muted-foreground">{person.email}</span>
                         )}

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Check, ChevronsUpDown, Plus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, displayName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -80,7 +80,7 @@ export function PersonPicker({
             aria-expanded={open}
             className="min-w-[200px] justify-between"
           >
-            {selectedPerson ? selectedPerson.name : label}
+            {selectedPerson ? displayName(selectedPerson.name) : label}
             <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -97,7 +97,7 @@ export function PersonPicker({
                   {filteredPeople.map((person) => (
                     <CommandItem
                       key={person.id}
-                      value={`${person.name}${person.email ? ` ${person.email}` : ""}`}
+                      value={`${displayName(person.name)}${person.email ? ` ${person.email}` : ""}`}
                       onSelect={() => {
                         setSelectedPerson(person)
                         setOpen(false)
@@ -110,7 +110,7 @@ export function PersonPicker({
                         )}
                       />
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium">{person.name}</span>
+                        <span className="text-sm font-medium">{displayName(person.name)}</span>
                         {person.email && (
                           <span className="text-xs text-muted-foreground">{person.email}</span>
                         )}
