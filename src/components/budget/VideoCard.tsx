@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Video as VideoIcon, Check, MessageSquare } from "lucide-react"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
 interface VideoCardProps {
@@ -139,7 +139,7 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
                 <span
                   key={`${a.personId}-${a.role}`}
                   className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                  title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
+                  title={`${displayName(a.person.name)} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
                 >
                   {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
                 </span>

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { MentionTextarea } from "./MentionTextarea"
 import { apiPath } from "@/lib/api-path"
 import {
+  displayName,
   formatTimestampPacific,
   formatTimestampPacificLong,
   hasAdminAccess,
@@ -267,7 +268,7 @@ export function CommentSection({
 function CommentBody({ comment }: { comment: CommentWithAuthor }) {
   const tokens = tokenizeCommentBody(
     comment.body,
-    comment.mentions.map((m) => m.person.name)
+    comment.mentions.map((m) => displayName(m.person.name))
   )
 
   return (

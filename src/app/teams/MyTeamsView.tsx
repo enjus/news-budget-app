@@ -17,7 +17,7 @@ import {
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
 import { usePreferences, type TeamsView } from "@/lib/hooks/usePreferences"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, todayString } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, displayName, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { TeamScheduleView } from "@/app/teams/TeamScheduleView"
@@ -297,7 +297,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
                     onClick={(e) => e.stopPropagation()}
                     className="font-medium text-sm hover:underline"
                   >
-                    {mc.person.name}
+                    {displayName(mc.person.name)}
                   </Link>
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                     {TEAM_MEMBER_ROLE_LABELS[mc.teamRole] ?? mc.teamRole}
