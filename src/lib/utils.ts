@@ -110,6 +110,19 @@ export function formatPubDate(
   return `${format(local, "MMM d, yyyy")} ${timePart}`;
 }
 
+/** Format a nullable pub date for display in the compact "Online:" row used by
+ *  edition/enterprise budget cards — weekday + month/day, no year, ` · ` separator.
+ *  Same "newsroom time encoded as UTC" convention as formatPubDate/formatTime. */
+export function formatOnlinePubShort(
+  date: Date | string | null | undefined,
+  isTBD: boolean
+): string {
+  if (isTBD || !date) return "TBD";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+  return `${format(local, "EEE, MMM d")} · ${formatTime(date)}`;
+}
+
 /** Format a nullable print date (date only) for display. */
 export function formatPrintDate(
   date: Date | string | null | undefined,

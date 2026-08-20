@@ -360,6 +360,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             onToggleSelect={toggleSelect}
             refreshTrigger={refreshTrigger}
             excludeReporterIds={excludeReporterIds}
+            size="lg"
           />
       }
 
