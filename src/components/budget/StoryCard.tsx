@@ -3,9 +3,8 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, MessageSquare, type LucideIcon } from "lucide-react"
-import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
 
 // Icons for StoryTag values — kept here (not in utils.ts) since they're components.
@@ -160,13 +159,6 @@ export function StoryCard({
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
-  function formatOnlinePub(): string {
-    if (story.onlinePubDateTBD || !story.onlinePubDate) return "TBD"
-    const d = new Date(story.onlinePubDate)
-    const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
-    return `${format(fakeLocal, "EEE, MMM d")} · ${formatTime(story.onlinePubDate)}`
-  }
-
   return (
     <Link
       href={`/stories/${story.id}`}
@@ -272,7 +264,7 @@ export function StoryCard({
           {showOnlinePubDate && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
               <span className="font-medium text-foreground/60">Online:</span>
-              <span>{formatOnlinePub()}</span>
+              <span>{formatOnlinePubShort(story.onlinePubDate, story.onlinePubDateTBD)}</span>
             </div>
           )}
 

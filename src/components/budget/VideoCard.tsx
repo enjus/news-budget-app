@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { Video as VideoIcon, Check, MessageSquare } from "lucide-react"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
+import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort } from "@/lib/utils"
 import type { VideoWithRelations } from "@/types/index"
 
 interface VideoCardProps {
   video: VideoWithRelations
   isDragging?: boolean
+  showOnlinePubDate?: boolean
   budgetLineClamp?: 1 | 3
   selectMode?: boolean
   isSelected?: boolean
@@ -26,9 +27,10 @@ function isPastDue(onlinePubDate: Date | string): boolean {
   return new Date(onlinePubDate) < nowFake
 }
 
-function VideoStatusChip({ video }: { video: VideoWithRelations }) {
+// hideTime is true when a full date+time row is shown separately (edition/enterprise).
+function VideoStatusChip({ video, hideTime }: { video: VideoWithRelations; hideTime?: boolean }) {
   const hasTime = !video.onlinePubDateTBD && video.onlinePubDate
-  const time = hasTime ? formatTime(video.onlinePubDate) : null
+  const time = hasTime && !hideTime ? formatTime(video.onlinePubDate) : null
 
   switch (video.status) {
     case "SCHEDULED": {
@@ -69,7 +71,7 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
   }
 }
 
-export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
+export function VideoCard({ video, isDragging, showOnlinePubDate, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
   // Optional chaining: a few list endpoints hand-roll their payload and cast.
   const commentCount = video._count?.comments ?? 0
 
@@ -108,7 +110,7 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
               <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
               <span className="font-semibold leading-none">{video.slug}</span>
             </div>
-            <VideoStatusChip video={video} />
+            <VideoStatusChip video={video} hideTime={showOnlinePubDate} />
           </div>
 
           {/* Budget line */}
@@ -128,6 +130,14 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
                 <MessageSquare className="size-3.5 shrink-0" />
                 {commentCount}
               </span>
+            </div>
+          )}
+
+          {/* Online pub date row — edition / enterprise views */}
+          {showOnlinePubDate && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="font-medium text-foreground/60">Online:</span>
+              <span>{formatOnlinePubShort(video.onlinePubDate, video.onlinePubDateTBD)}</span>
             </div>
           )}
 

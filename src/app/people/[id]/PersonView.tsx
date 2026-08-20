@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAST_INITIAL_COUNT = 10
@@ -129,7 +129,7 @@ export function PersonView({ id }: PersonViewProps) {
   const storyCount = items.filter((i) => i.type === "story").length
   const videoCount = items.filter((i) => i.type === "video").length
 
-  const today = format(new Date(), "yyyy-MM-dd")
+  const today = todayString()
 
   // Type and status filters apply globally
   const globalFiltered = items.filter((item) => {

@@ -137,12 +137,12 @@ function ActiveItemOverlay({ activeId, groups }: ActiveItemOverlayProps) {
     if (activeId.startsWith("story-")) {
       const id = activeId.slice("story-".length)
       const story = group.stories.find((s) => s.id === id)
-      if (story) return <StoryCard story={story} isDragging hideEnterpriseTag />
+      if (story) return <StoryCard story={story} isDragging hideEnterpriseTag showOnlinePubDate />
     }
     if (VIDEOS_ENABLED && activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
       const video = group.videos.find((v) => v.id === id)
-      if (video) return <VideoCard video={video} isDragging />
+      if (video) return <VideoCard video={video} isDragging showOnlinePubDate />
     }
   }
   return null
@@ -384,12 +384,12 @@ export function EnterpriseView() {
       >
         {group.stories.map((story) => (
           <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
-            <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
+            <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount showOnlinePubDate videoCount={story.videos.length} budgetLineClamp={3} />
           </SortableCard>
         ))}
         {VIDEOS_ENABLED && group.videos.map((video) => (
           <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
-            <VideoCard video={video} budgetLineClamp={3} />
+            <VideoCard video={video} showOnlinePubDate budgetLineClamp={3} />
           </SortableCard>
         ))}
       </DroppableSection>
