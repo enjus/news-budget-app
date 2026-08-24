@@ -299,10 +299,12 @@ export const INDICATOR_OPTIONS: IndicatorOption[] = [
     color: "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400" },
   { value: "VIDEO_POTENTIAL", label: "Video Potential", abbrev: "Vid Pot", storyOnly: true,
     color: "bg-pink-100 text-pink-700 dark:bg-pink-950/40 dark:text-pink-400" },
+  { value: "PUSHED", label: "Pushed", abbrev: "Pushed", storyOnly: true,
+    color: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400" },
 ]
 
 /** The StoryTag values within INDICATOR_OPTIONS (excludes ENTERPRISE/AI_CONTRIBUTED, which are boolean columns). */
-export const STORY_TAG_VALUES = ["HERE_IS_OREGON", "CONTENT_REMIX", "SUMMER_FOCUS", "OREGON_INSIGHT", "VIDEO_POTENTIAL"] as const
+export const STORY_TAG_VALUES = ["HERE_IS_OREGON", "CONTENT_REMIX", "SUMMER_FOCUS", "OREGON_INSIGHT", "VIDEO_POTENTIAL", "PUSHED"] as const
 
 export const STORY_TAG_LABELS: Record<string, string> = Object.fromEntries(
   INDICATOR_OPTIONS.filter((o) => STORY_TAG_VALUES.includes(o.value as typeof STORY_TAG_VALUES[number]))
