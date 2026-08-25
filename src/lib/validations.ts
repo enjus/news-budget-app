@@ -40,6 +40,7 @@ export const StoryTagEnum = z.enum([
   "SUMMER_FOCUS",
   "OREGON_INSIGHT",
   "VIDEO_POTENTIAL",
+  "PUSHED",
 ]);
 
 // Empty string → null before URL validation so blank inputs don't error

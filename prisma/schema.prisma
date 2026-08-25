@@ -139,7 +139,7 @@ model StoryTag {
   id        String   @id @default(cuid())
   story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   storyId   String
-  // StoryTagType: HERE_IS_OREGON | CONTENT_REMIX | SUMMER_FOCUS | OREGON_INSIGHT
+  // StoryTagType: HERE_IS_OREGON | CONTENT_REMIX | SUMMER_FOCUS | OREGON_INSIGHT | VIDEO_POTENTIAL | PUSHED
   tag       String
   createdAt DateTime @default(now())
 
