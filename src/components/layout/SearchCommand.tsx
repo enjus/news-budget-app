@@ -20,7 +20,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import { cn, STORY_STATUS_LABELS } from "@/lib/utils"
+import { cn, displayName, STORY_STATUS_LABELS } from "@/lib/utils"
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { SearchResult } from "@/app/api/search/route"
 import { apiPath } from "@/lib/api-path"
@@ -188,7 +188,7 @@ export function SearchCommand() {
                   className={cn("gap-1 h-7 px-2 text-xs shrink-0", !authorId && "text-muted-foreground")}
                 >
                   <User className="size-3" />
-                  {selectedAuthor ? selectedAuthor.name.split(" ")[0] : "Author"}
+                  {selectedAuthor ? displayName(selectedAuthor.name).split(" ")[0] : "Author"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-56 p-0" align="end">
@@ -206,11 +206,11 @@ export function SearchCommand() {
                       {people.map((p) => (
                         <CommandItem
                           key={p.id}
-                          value={p.name}
+                          value={displayName(p.name)}
                           onSelect={() => { setAuthorId(p.id); setAuthorPickerOpen(false) }}
                         >
                           <span className={cn("size-4 mr-2 rounded-full flex items-center justify-center text-[10px] bg-secondary", authorId === p.id && "ring-2 ring-primary")} />
-                          {p.name}
+                          {displayName(p.name)}
                         </CommandItem>
                       ))}
                     </CommandGroup>

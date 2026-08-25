@@ -24,7 +24,7 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, displayName, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -389,7 +389,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
                   key={i}
                   className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
                 >
-                  {a.person.name}
+                  {displayName(a.person.name)}
                   <span className="text-muted-foreground/70">
                     · {PERSON_ROLE_LABELS[a.role] ?? a.role}
                   </span>

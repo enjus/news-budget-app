@@ -134,6 +134,12 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
             {errors.name && (
               <p className="text-xs text-destructive">{errors.name.message}</p>
             )}
+            <p className="text-xs text-muted-foreground">
+              For a multipart surname (e.g. &ldquo;Van Der Berg&rdquo;), join it
+              with underscores &mdash; &ldquo;Alex Van_Der_Berg&rdquo; &mdash; so it
+              stays together on budget cards. It still displays with spaces
+              everywhere.
+            </p>
           </div>
 
           {/* Email */}

@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, todayString } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, displayName } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAST_INITIAL_COUNT = 10
@@ -174,7 +174,7 @@ export function PersonView({ id }: PersonViewProps) {
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{person.name}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{displayName(person.name)}</h1>
             {!person.isActive && (
               <Badge variant="outline" className="text-muted-foreground">
                 Inactive

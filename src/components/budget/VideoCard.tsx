@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Video as VideoIcon, Check, MessageSquare } from "lucide-react"
-import { cn, surname, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort } from "@/lib/utils"
 import { CARD_SIZE } from "@/components/budget/card-size"
 import type { VideoWithRelations } from "@/types/index"
 
@@ -162,8 +162,7 @@ export function VideoCard({ video, isDragging, showOnlinePubDate, budgetLineClam
                     "inline-flex items-center gap-0.5 rounded-md bg-secondary font-medium text-secondary-foreground",
                     s.chip,
                   )}
-                  title={`${a.person.name} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
-                >
+                  title={`${displayName(a.person.name)} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}                >
                   {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
                 </span>
               )
