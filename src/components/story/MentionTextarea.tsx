@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+import { cn, displayName } from "@/lib/utils"
 import { usePeople } from "@/lib/hooks/usePeople"
 import type { Person } from "@/types/index"
 
@@ -73,7 +73,7 @@ export function MentionTextarea({
 
   const suggestions: Person[] = query
     ? people
-        .filter((p) => p.name.toLowerCase().includes(query.text.toLowerCase()))
+        .filter((p) => displayName(p.name).toLowerCase().includes(query.text.toLowerCase()))
         .slice(0, MAX_SUGGESTIONS)
     : []
 
@@ -87,7 +87,7 @@ export function MentionTextarea({
     if (peopleLoading) return ids
     return ids.filter((id) => {
       const person = people.find((p) => p.id === id)
-      return person ? text.includes(`@${person.name}`) : false
+      return person ? text.includes(`@${displayName(person.name)}`) : false
     })
   }
 
@@ -109,7 +109,7 @@ export function MentionTextarea({
     if (!el || !query) return
 
     const caret = el.selectionStart
-    const inserted = `@${person.name} `
+    const inserted = `@${displayName(person.name)} `
     const next = value.slice(0, query.start) + inserted + value.slice(caret)
 
     pendingCaret.current = query.start + inserted.length
@@ -185,7 +185,7 @@ export function MentionTextarea({
                   i === highlighted && "bg-accent text-accent-foreground"
                 )}
               >
-                <span className="text-sm">{person.name}</span>
+                <span className="text-sm">{displayName(person.name)}</span>
                 <span className="text-xs text-muted-foreground">{person.email}</span>
               </button>
             </li>

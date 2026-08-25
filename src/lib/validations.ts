@@ -69,6 +69,46 @@ export const updatePersonSchema = createPersonSchema.partial().extend({
   isActive: z.boolean().optional(),
 });
 
+// ─── Pub date / TBD cross-field validation ────────────────────────────────────
+// Shared by create/update Story and Video schemas: if a *PubDateTBD flag is
+// explicitly false, the matching *PubDate must be present. Without this, the
+// date-time picker UI lets a user uncheck TBD, never pick a date, and have the
+// story/video silently revert to TBD on save with no feedback.
+// On update schemas, both fields are independently optional (partial PATCH) —
+// this only fires when TBD is explicitly sent as false in the same payload; a
+// PATCH that omits the TBD field entirely is untouched. No route in this repo
+// currently sends TBD:false without also sending the date, so this is safe today,
+// but keep that pairing intact if a future partial-PATCH path is added.
+function requirePubDateField(
+  data: Record<string, unknown>,
+  ctx: z.RefinementCtx,
+  tbdField: string,
+  dateField: string
+) {
+  if (data[tbdField] === false && !data[dateField]) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [dateField],
+      message: "Please choose time and date",
+    });
+  }
+}
+
+function requirePubDatesWhenNotTBD(
+  data: Record<string, unknown>,
+  ctx: z.RefinementCtx
+) {
+  requirePubDateField(data, ctx, "onlinePubDateTBD", "onlinePubDate");
+  requirePubDateField(data, ctx, "printPubDateTBD", "printPubDate");
+}
+
+function requireOnlinePubDateWhenNotTBD(
+  data: Record<string, unknown>,
+  ctx: z.RefinementCtx
+) {
+  requirePubDateField(data, ctx, "onlinePubDateTBD", "onlinePubDate");
+}
+
 // ─── Story ────────────────────────────────────────────────────────────────────
 
 export const createStorySchema = z.object({
@@ -92,9 +132,9 @@ export const createStorySchema = z.object({
   postUrl: optionalUrl,
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().default(true),
-});
+}).superRefine(requirePubDatesWhenNotTBD);
 
-export const updateStorySchema = z.object({
+const updateStorySchemaBase = z.object({
   slug: z
     .string()
     .min(1, "Slug is required")
@@ -118,6 +158,8 @@ export const updateStorySchema = z.object({
   onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
 });
+
+export const updateStorySchema = updateStorySchemaBase.superRefine(requirePubDatesWhenNotTBD);
 
 // ─── Assignment ───────────────────────────────────────────────────────────────
 
@@ -180,9 +222,9 @@ export const createVideoSchema = z.object({
   tiktokUrl: optionalUrl,
   otherUrl: optionalUrl,
   onBudget: z.boolean().default(true),
-});
+}).superRefine(requireOnlinePubDateWhenNotTBD);
 
-export const updateVideoSchema = z.object({
+const updateVideoSchemaBase = z.object({
   slug: z
     .string()
     .min(1, "Slug is required")
@@ -205,6 +247,8 @@ export const updateVideoSchema = z.object({
   onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
 });
+
+export const updateVideoSchema = updateVideoSchemaBase.superRefine(requireOnlinePubDateWhenNotTBD);
 
 export const createVideoAssignmentSchema = z.object({
   personId: z.string().cuid(),

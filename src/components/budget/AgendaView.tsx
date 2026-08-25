@@ -14,7 +14,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, todayString, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, bucketToUtcStamp, todayString, cn } from "@/lib/utils"
 import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
@@ -36,6 +36,8 @@ export interface AgendaViewProps {
   excludeReporterIds?: string[]
   /** SWR cache-key namespace, so a filtered view's cache never collides with the unfiltered one. */
   cacheKeyPrefix?: string
+  /** "lg" bumps type/icon/spacing scale for meeting-room readability (Daily Agenda). Default unchanged. */
+  size?: "default" | "lg"
 }
 
 // ─── Fetcher ──────────────────────────────────────────────────────────────────
@@ -51,23 +53,31 @@ interface AgendaDayRowProps {
   itemIds: string[]
   count: number
   hideHeader?: boolean
+  size?: "default" | "lg"
   children: React.ReactNode
 }
 
-function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, children }: AgendaDayRowProps) {
+function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, size = "default", children }: AgendaDayRowProps) {
   const { setNodeRef, isOver } = useDroppable({ id: dateKey })
+  const isLg = size === "lg"
 
   return (
     <div className="space-y-2">
       {!hideHeader && (
-        <div className="flex items-center gap-2">
-          <h3 className={cn("text-sm font-semibold", isToday && "text-primary")}>{label}</h3>
+        <div className={cn("flex items-center", isLg ? "gap-2.5" : "gap-2")}>
+          <h3 className={cn(isLg ? "text-lg" : "text-sm", "font-semibold", isToday && "text-primary")}>{label}</h3>
           {isToday && (
-            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            <span className={cn(
+              "rounded-full bg-primary/10 font-medium text-primary",
+              isLg ? "px-2.5 py-1 text-xs" : "px-2 py-0.5 text-[10px]",
+            )}>
               Today
             </span>
           )}
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <span className={cn(
+            "rounded-full bg-muted font-medium",
+            isLg ? "px-2.5 py-1 text-sm text-foreground/70" : "px-2 py-0.5 text-xs text-muted-foreground",
+          )}>
             {count}
           </span>
         </div>
@@ -83,7 +93,7 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, chi
           {children}
         </SortableContext>
         {count === 0 && (
-          <p className="py-1 text-center text-xs text-muted-foreground">Drop here</p>
+          <p className={cn("py-1 text-center text-muted-foreground", isLg ? "text-sm" : "text-xs")}>Drop here</p>
         )}
       </div>
     </div>
@@ -92,15 +102,19 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, chi
 
 // ─── Droppable Bucket Section (agenda view) ───────────────────────────────────
 
-function DroppableBucketSection({ id, label, children }: {
+function DroppableBucketSection({ id, label, size = "default", children }: {
   id: string
   label: string
+  size?: "default" | "lg"
   children: React.ReactNode
 }) {
   const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <div ref={setNodeRef} className={cn("space-y-1.5 rounded-md transition-colors", isOver && "bg-primary/5")}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-1.5 mt-0.5 px-1">
+      <p className={cn(
+        "font-semibold uppercase tracking-wide border-t pt-1.5 mt-0.5 px-1",
+        size === "lg" ? "text-sm text-foreground/70" : "text-xs text-muted-foreground",
+      )}>
         {label}
       </p>
       {children}
@@ -119,8 +133,9 @@ const BUCKET_NAMES: Record<string, string> = {
 
 export function AgendaView({
   date, showStories, showVideos, selectMode, selectedIds, onToggleSelect, refreshTrigger,
-  personIds, excludeReporterIds, cacheKeyPrefix = "/api/budget/agenda",
+  personIds, excludeReporterIds, cacheKeyPrefix = "/api/budget/agenda", size = "default",
 }: AgendaViewProps) {
+  const isLg = size === "lg"
   const [activeId, setActiveId] = useState<string | null>(null)
   const [tbdExpanded, setTbdExpanded] = useState(false)
 
@@ -227,11 +242,9 @@ export function AgendaView({
       if (targetDate === "TBD") {
         newTBD = true
       } else if (targetBucketId) {
-        const bucket = TIME_BUCKETS.find((b) => b.id === targetBucketId)
-        if (bucket && bucket.defaultHour !== null) {
-          const h = String(bucket.defaultHour).padStart(2, "0")
-          const m = String(bucket.defaultMinute ?? 0).padStart(2, "0")
-          newPubDate = `${targetDate}T${h}:${m}:00.000Z`
+        const stamp = bucketToUtcStamp(targetDate, targetBucketId)
+        if (stamp) {
+          newPubDate = stamp
         } else {
           newTBD = true
         }
@@ -241,7 +254,10 @@ export function AgendaView({
         const m = String(existing.getUTCMinutes()).padStart(2, "0")
         newPubDate = `${targetDate}T${h}:${m}:00.000Z`
       } else {
-        newPubDate = `${targetDate}T00:00:00.000Z`
+        // TBD item dropped on a day with no specific bucket target — assign
+        // a plausible default time (Morning) rather than midnight, matching
+        // how the explicit-bucket branch above assigns a bucket's default time.
+        newPubDate = bucketToUtcStamp(targetDate, "MORNING")
       }
 
       const sameDay = targetDate === sourceDate
@@ -390,7 +406,7 @@ export function AgendaView({
       const id = activeId.slice("story-".length)
       for (const group of allGroups) {
         const story = group.stories.find((s) => s.id === id)
-        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator videoCount={story.videos.length} />
+        if (story) return <StoryCard story={story} isDragging showWordCount showPhotoIndicator videoCount={story.videos.length} size={size} />
       }
     }
 
@@ -398,7 +414,7 @@ export function AgendaView({
       const id = activeId.slice("video-".length)
       for (const group of allGroups) {
         const video = group.videos.find((v) => v.id === id)
-        if (video) return <VideoCard video={video} isDragging />
+        if (video) return <VideoCard video={video} isDragging size={size} />
       }
     }
 
@@ -439,11 +455,11 @@ export function AgendaView({
           <div className="space-y-3">
             <button
               onClick={() => setTbdExpanded((v) => !v)}
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+              className={cn("flex items-center text-muted-foreground hover:text-foreground", isLg ? "gap-2.5 text-base" : "gap-2 text-sm")}
             >
-              <ChevronDown className={cn("size-4 transition-transform", tbdExpanded && "rotate-180")} />
+              <ChevronDown className={cn("transition-transform", isLg ? "size-5" : "size-4", tbdExpanded && "rotate-180")} />
               <span className="font-medium">TBD — No scheduled date</span>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+              <span className={cn("rounded-full bg-muted font-medium", isLg ? "px-2.5 py-1 text-sm" : "px-2 py-0.5 text-xs")}>
                 {tbdCount}
               </span>
             </button>
@@ -464,6 +480,7 @@ export function AgendaView({
                     itemIds={tbdItemIds}
                     count={tbdCount}
                     hideHeader
+                    size={size}
                   >
                     {tbdMerged.map((m) => (
                       <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
@@ -477,6 +494,7 @@ export function AgendaView({
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`story-${m.item.id}`)}
                               onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
+                              size={size}
                             />
                           : <VideoCard
                               video={m.item as VideoWithRelations}
@@ -484,6 +502,7 @@ export function AgendaView({
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`video-${m.item.id}`)}
                               onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
+                              size={size}
                             />}
                       </SortableCard>
                     ))}
@@ -542,6 +561,7 @@ export function AgendaView({
               isToday={isToday}
               itemIds={itemIds}
               count={count}
+              size={size}
             >
               <div className="space-y-3">
                 {bucketGroups.map((bg) => (
@@ -549,6 +569,7 @@ export function AgendaView({
                     key={bg.bucket.id}
                     id={`${group.date}::${bg.bucket.id}`}
                     label={`${BUCKET_NAMES[bg.bucket.id]} · ${bg.bucket.label}`}
+                    size={size}
                   >
                     {bg.items.map((m) => (
                       <SortableCard key={`${m.kind}-${m.item.id}`} id={`${m.kind}-${m.item.id}`} handle disabled={selectMode}>
@@ -562,6 +583,7 @@ export function AgendaView({
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`story-${m.item.id}`)}
                               onToggleSelect={() => onToggleSelect(`story-${m.item.id}`, m.item.status)}
+                              size={size}
                             />
                           : <VideoCard
                               video={m.item as VideoWithRelations}
@@ -569,6 +591,7 @@ export function AgendaView({
                               selectMode={selectMode}
                               isSelected={selectedIds.has(`video-${m.item.id}`)}
                               onToggleSelect={() => onToggleSelect(`video-${m.item.id}`, m.item.status)}
+                              size={size}
                             />}
                       </SortableCard>
                     ))}

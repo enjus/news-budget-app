@@ -35,7 +35,7 @@ import {
   type CreateVideoInput,
 } from "@/lib/validations"
 import { useSession } from "next-auth/react"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, todayString, toVideoAssignmentRole } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, displayName, todayString, toVideoAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { apiPath } from "@/lib/api-path"
@@ -374,7 +374,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                   key={i}
                   className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
                 >
-                  {a.person.name}
+                  {displayName(a.person.name)}
                   <span className="text-muted-foreground/70">
                     · {PERSON_ROLE_LABELS[a.role] ?? a.role}
                   </span>

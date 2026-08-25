@@ -34,7 +34,9 @@ export const TIME_BUCKETS: TimeBucket[] = [
     description: "Morning newsletter deadline",
     defaultHour: 7,
     defaultMinute: 30,
-    startMinutes: 4 * 60,
+    // Starts at local midnight (not 4 AM) so midnight–4 AM pub times — rare
+    // but real — silently classify here instead of falling through to TBD.
+    startMinutes: 0,
     endMinutes: 7 * 60 + 30,
   },
   {
@@ -83,6 +85,18 @@ export function dateToBucket(date: Date): string {
   return "TBD";
 }
 
+/** Build the UTC ISO stamp for a bucket's default time on a given date
+ *  (e.g. "2026-08-16" + "MORNING" -> "2026-08-16T07:30:00.000Z"), for
+ *  assigning a plausible pub time when an item is dropped into a bucket
+ *  without an exact time. Returns null for TBD or an unknown bucket id. */
+export function bucketToUtcStamp(dateStr: string, bucketId: string): string | null {
+  const bucket = TIME_BUCKETS.find((b) => b.id === bucketId);
+  if (!bucket || bucket.defaultHour === null) return null;
+  const h = String(bucket.defaultHour).padStart(2, "0");
+  const m = String(bucket.defaultMinute ?? 0).padStart(2, "0");
+  return `${dateStr}T${h}:${m}:00.000Z`;
+}
+
 /** Format a UTC-as-local ISO date as a short time string.
  *  Omits ":00" for on-the-hour times (e.g. "9 AM" not "9:00 AM"). */
 export function formatTime(date: Date | string | null | undefined): string | null {
@@ -108,6 +122,19 @@ export function formatPubDate(
     ? local.toLocaleTimeString([], { hour: "numeric" })
     : local.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   return `${format(local, "MMM d, yyyy")} ${timePart}`;
+}
+
+/** Format a nullable pub date for display in the compact "Online:" row used by
+ *  edition/enterprise budget cards — weekday + month/day, no year, ` · ` separator.
+ *  Same "newsroom time encoded as UTC" convention as formatPubDate/formatTime. */
+export function formatOnlinePubShort(
+  date: Date | string | null | undefined,
+  isTBD: boolean
+): string {
+  if (isTBD || !date) return "TBD";
+  const d = typeof date === "string" ? new Date(date) : date;
+  const local = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes());
+  return `${format(local, "EEE, MMM d")} · ${formatTime(date)}`;
 }
 
 /** Format a nullable print date (date only) for display. */
@@ -182,10 +209,22 @@ export function initials(name: string): string {
     .slice(0, 2);
 }
 
-/** Return the last word of a full name as the surname */
+/** Render a full name for display, converting the underscore used to join a
+ *  multipart surname back into a space. A multipart surname (e.g. "Van Der
+ *  Berg") is stored as a single underscore-joined token ("Van_Der_Berg") so
+ *  it survives a whitespace split as one word; use this anywhere a Person's
+ *  raw `name` field is rendered — the underscore should never reach the
+ *  screen. */
+export function displayName(name: string): string {
+  return name.replace(/_/g, " ");
+}
+
+/** Return the last word of a full name as the surname, with any
+ *  underscore-joined multipart surname (see `displayName()`) converted back
+ *  to spaces. */
 export function surname(name: string): string {
   const parts = name.trim().split(/\s+/);
-  return parts[parts.length - 1];
+  return displayName(parts[parts.length - 1]);
 }
 
 /** Build a copy-paste budget line string for a story card.

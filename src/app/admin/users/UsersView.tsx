@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersonSelect } from "@/components/people/PersonSelect"
-import { cn, APP_ROLE_LABELS } from "@/lib/utils"
+import { cn, APP_ROLE_LABELS, displayName } from "@/lib/utils"
 import { apiPath } from "@/lib/api-path"
 
 const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
@@ -129,7 +129,7 @@ function UserForm({
           value={data.personId}
           onChange={(personId) => setData((d) => ({ ...d, personId }))}
           excludeIds={takenPersonIds}
-          fallbackLabel={initial?.person?.name}
+          fallbackLabel={initial?.person?.name ? displayName(initial.person.name) : undefined}
         />
         <p className="text-xs text-muted-foreground">
           Links this account to a staff member, so their assigned content shows
@@ -281,7 +281,7 @@ export function UsersView() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
-                      {user.person?.name ?? "—"}
+                      {user.person?.name ? displayName(user.person.name) : "—"}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">

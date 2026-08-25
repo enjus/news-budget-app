@@ -20,7 +20,8 @@ If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a packa
 
 No test suite exists yet.
 
-**Before editing shared files** (API routes, `src/lib/*`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`). If an open PR already touches your target file, do that piece after it merges instead of risking a conflict.
+**Before editing shared files** (API routes, `src/lib/*`, or the budget-view components `StoryCard.tsx`/`VideoCard.tsx`/`AgendaView.tsx`/`ColumnsView.tsx`/`EnterpriseView.tsx`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`, or all of the budget card components at once). If an open PR already touches your target file, run `gh pr diff <number>` to see exactly which lines — adjacent-line edits in the same JSX block usually merge cleanly, but do the check before assuming so.
+`npm run lint` lints `.claude/worktrees/*` too — expect a huge, mostly-unrelated problem count and a run past the default 120s timeout. Grep the output for your own edited file paths (excluding `worktrees/`) rather than reading the full summary.
 **Schema changes are deployed via `prisma db push`, not migrations.** `prisma/migrations/migration_lock.toml` is still stamped `provider = "sqlite"` from before the project moved to Postgres, and no migration has been added since — `prisma migrate dev`/`deploy` are effectively dead here. Before a schema change that drops or renames a column with existing data, write a one-off SQL backfill script to run *before* `db push` (see `prisma/manual-backfill-story-tags.sql` for the pattern) — there's no migration history to roll back to otherwise.
 
 ## Architecture Overview

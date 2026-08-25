@@ -7,7 +7,7 @@ import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PersonBadge } from "@/components/people/PersonBadge"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
-import { PERSON_ROLE_LABELS, toStoryAssignmentRole } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, toStoryAssignmentRole, displayName } from "@/lib/utils"
 import type { AssignmentWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -35,7 +35,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Failed to add assignment (${res.status})`)
       }
-      toast.success(`${person.name} added as ${PERSON_ROLE_LABELS[role] ?? role}`)
+      toast.success(`${displayName(person.name)} added as ${PERSON_ROLE_LABELS[role] ?? role}`)
       onUpdate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add assignment")
