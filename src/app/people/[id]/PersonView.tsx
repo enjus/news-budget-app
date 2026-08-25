@@ -129,7 +129,7 @@ export function PersonView({ id }: PersonViewProps) {
   const storyCount = items.filter((i) => i.type === "story").length
   const videoCount = items.filter((i) => i.type === "video").length
 
-  const today = format(new Date(), "yyyy-MM-dd")
+  const today = todayString()
 
   // Type and status filters apply globally
   const globalFiltered = items.filter((item) => {

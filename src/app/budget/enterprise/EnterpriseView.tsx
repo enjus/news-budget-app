@@ -89,12 +89,12 @@ function DroppableSection({
         <div className="flex items-center gap-2">
           <CalendarDays className="size-4 text-muted-foreground" />
           <h3 className="font-semibold">{label}</h3>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium text-foreground/70">
             {count}
           </span>
         </div>
-        <Link href={newStoryHref} title="New story for this date" className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground">
-          <Plus className="size-3" />
+        <Link href={newStoryHref} title="New story for this date" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-sm text-foreground/70 hover:bg-muted hover:text-foreground">
+          <Plus className="size-3.5" />
           New Story
         </Link>
       </div>
@@ -114,7 +114,7 @@ function DroppableSection({
         </SortableContext>
 
         {count === 0 && (
-          <p className="py-4 text-center text-xs text-muted-foreground">
+          <p className="py-4 text-center text-sm text-foreground/70">
             Drop stories or videos here
           </p>
         )}
@@ -137,12 +137,12 @@ function ActiveItemOverlay({ activeId, groups }: ActiveItemOverlayProps) {
     if (activeId.startsWith("story-")) {
       const id = activeId.slice("story-".length)
       const story = group.stories.find((s) => s.id === id)
-      if (story) return <StoryCard story={story} isDragging hideEnterpriseTag />
+      if (story) return <StoryCard story={story} isDragging hideEnterpriseTag showOnlinePubDate size="lg" />
     }
     if (VIDEOS_ENABLED && activeId.startsWith("video-")) {
       const id = activeId.slice("video-".length)
       const video = group.videos.find((v) => v.id === id)
-      if (video) return <VideoCard video={video} isDragging />
+      if (video) return <VideoCard video={video} isDragging showOnlinePubDate size="lg" />
     }
   }
   return null
@@ -387,12 +387,12 @@ export function EnterpriseView() {
       >
         {group.stories.map((story) => (
           <SortableCard key={`story-${story.id}`} id={`story-${story.id}`} handle>
-            <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount videoCount={story.videos.length} budgetLineClamp={3} />
+            <StoryCard story={story} hideEnterpriseTag showPhotoIndicator showWordCount showOnlinePubDate videoCount={story.videos.length} budgetLineClamp={3} size="lg" />
           </SortableCard>
         ))}
         {VIDEOS_ENABLED && group.videos.map((video) => (
           <SortableCard key={`video-${video.id}`} id={`video-${video.id}`} handle>
-            <VideoCard video={video} budgetLineClamp={3} />
+            <VideoCard video={video} showOnlinePubDate budgetLineClamp={3} size="lg" />
           </SortableCard>
         ))}
       </DroppableSection>
@@ -447,11 +447,11 @@ export function EnterpriseView() {
               <div className="space-y-3">
                 <button
                   onClick={() => setTbdExpanded((v) => !v)}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-2.5 text-base text-foreground/70 hover:text-foreground"
                 >
-                  <ChevronDown className={cn("size-4 transition-transform", tbdExpanded && "rotate-180")} />
+                  <ChevronDown className={cn("size-5 transition-transform", tbdExpanded && "rotate-180")} />
                   <span className="font-medium">TBD — No scheduled date</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium">
                     {tbdCount}
                   </span>
                 </button>
@@ -468,11 +468,11 @@ export function EnterpriseView() {
               <div className="space-y-4">
                 <button
                   onClick={() => setPastExpanded((v) => !v)}
-                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-2.5 text-base text-foreground/70 hover:text-foreground"
                 >
-                  <ChevronDown className={cn("size-4 transition-transform", pastExpanded && "rotate-180")} />
+                  <ChevronDown className={cn("size-5 transition-transform", pastExpanded && "rotate-180")} />
                   <span className="font-medium">Past weeks</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium">
                     {pastGroups.reduce((n, g) => n + g.stories.length + g.videos.length, 0)} items
                   </span>
                 </button>

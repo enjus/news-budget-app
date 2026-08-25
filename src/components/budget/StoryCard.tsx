@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, MessageSquare, type LucideIcon } from "lucide-react"
-import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
 import type { StoryListItem } from "@/types/index"
@@ -58,6 +57,8 @@ interface StoryCardProps {
   selectMode?: boolean
   isSelected?: boolean
   onToggleSelect?: (currentStatus: string) => void
+  /** "lg" bumps type/icon/spacing scale for meeting-room readability (Daily Agenda, Enterprise). Default unchanged. */
+  size?: "default" | "lg"
 }
 
 // Compact status + time chip shown top-right.
@@ -66,23 +67,26 @@ interface StoryCardProps {
 function StatusTimeChip({
   story,
   hideTime,
+  size = "default",
 }: {
   story: StoryListItem
   hideTime?: boolean
+  size?: "default" | "lg"
 }) {
+  const s = CARD_SIZE[size]
   const hasTime = !story.onlinePubDateTBD && story.onlinePubDate
   const time = hasTime && !hideTime ? formatTime(story.onlinePubDate) : null
 
   switch (story.status) {
     case "PUBLISHED_FINAL":
       return (
-        <span className="shrink-0 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+        <span className={cn("shrink-0 font-medium text-emerald-600 dark:text-emerald-400", s.statusText)}>
           {time ? `✓ ${time}` : "✓ Published"}
         </span>
       )
     case "PUBLISHED_ITERATING":
       return (
-        <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+        <span className={cn("shrink-0 font-medium text-amber-600 dark:text-amber-400", s.statusText)}>
           ● Updating
         </span>
       )
@@ -90,7 +94,8 @@ function StatusTimeChip({
       const overdue = hasTime && isPastDue(story.onlinePubDate!)
       return (
         <span className={cn(
-          "shrink-0 text-[10px] font-medium",
+          "shrink-0 font-medium",
+          s.statusText,
           overdue ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"
         )}>
           {time ?? "Scheduled"}
@@ -99,7 +104,7 @@ function StatusTimeChip({
     }
     case "SHELVED":
       return (
-        <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
+        <span className={cn("shrink-0 font-medium text-red-500 dark:text-red-400", s.statusText)}>
           Shelved
         </span>
       )
@@ -108,20 +113,20 @@ function StatusTimeChip({
       // date has passed while still in DRAFT (nobody locked in readiness).
       if (story.assignments.length === 0) {
         return (
-          <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
+          <span className={cn("shrink-0 font-medium text-red-500 dark:text-red-400", s.statusText)}>
             Unassigned
           </span>
         )
       }
       if (isDraftDue(story)) {
         return (
-          <span className="shrink-0 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+          <span className={cn("shrink-0 font-medium text-amber-600 dark:text-amber-400", s.statusText)}>
             ⚠ Due{time ? ` ${time}` : ""}
           </span>
         )
       }
       return time ? (
-        <span className="shrink-0 text-[10px] text-muted-foreground">{time}</span>
+        <span className={cn("shrink-0", s.statusText, s.statusMuted)}>{time}</span>
       ) : null
     }
   }
@@ -139,8 +144,10 @@ export function StoryCard({
   selectMode,
   isSelected,
   onToggleSelect,
+  size = "default",
 }: StoryCardProps) {
   const [copied, setCopied] = useState(false)
+  const s = CARD_SIZE[size]
 
   function handleCopy(e: React.MouseEvent) {
     e.preventDefault()
@@ -160,18 +167,12 @@ export function StoryCard({
   const wordCount = showWordCount ? story.wordCount : null
   const wordCountOver = wordCount != null && wordCount > WORD_COUNT_LIMIT
 
-  function formatOnlinePub(): string {
-    if (story.onlinePubDateTBD || !story.onlinePubDate) return "TBD"
-    const d = new Date(story.onlinePubDate)
-    const fakeLocal = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes())
-    return `${format(fakeLocal, "EEE, MMM d")} · ${formatTime(story.onlinePubDate)}`
-  }
-
   return (
     <Link
       href={`/stories/${story.id}`}
       className={cn(
-        "group block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
+        "group block rounded-lg border bg-card text-sm transition-colors hover:bg-accent/50",
+        s.padding,
         STATUS_BORDER[story.status] ?? (
           story.status === "DRAFT" && story.assignments.length === 0
             ? "border-l-4 border-l-red-400"
@@ -190,7 +191,7 @@ export function StoryCard({
         }
       }}
     >
-      <div className="flex gap-2.5">
+      <div className={cn("flex", s.outerGap)}>
         {selectMode && (
           <div className="mt-0.5 flex shrink-0 items-start">
             <div className={cn(
@@ -201,14 +202,14 @@ export function StoryCard({
             </div>
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className={cn("flex min-w-0 flex-1 flex-col", s.stackGap)}>
           {/* Top row: slug + enterprise badge (left) · copy button + status/time chip (right) */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <FileText className="size-3 shrink-0 text-muted-foreground/60" />
-              <span className="font-semibold leading-none">{story.slug}</span>
+              <FileText className={cn("shrink-0 text-muted-foreground/60", s.titleIcon)} />
+              <span className={cn("font-semibold leading-none", s.title)}>{story.slug}</span>
               {story.isEnterprise && !hideEnterpriseTag && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="secondary" className={s.badge}>
                   Enterprise
                 </Badge>
               )}
@@ -220,40 +221,43 @@ export function StoryCard({
                 title="Copy budget line"
               >
                 {copied
-                  ? <Check className="size-3 text-emerald-500" />
-                  : <Clipboard className="size-3" />
+                  ? <Check className={cn("text-emerald-500", s.actionIcon)} />
+                  : <Clipboard className={s.actionIcon} />
                 }
               </button>
-              <StatusTimeChip story={story} hideTime={showOnlinePubDate} />
+              <StatusTimeChip story={story} hideTime={showOnlinePubDate} size={size} />
             </div>
           </div>
 
           {/* Budget line */}
           {story.budgetLine && (
-            <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>{story.budgetLine}</p>
+            <p className={cn(
+              s.body,
+              budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1",
+            )}>{story.budgetLine}</p>
           )}
 
           {/* Visual indicators row — only when visuals, linked videos or comments are present */}
           {(hasVisuals || commentCount > 0) && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className={cn("flex items-center gap-3", s.metaRow)}>
               {hasPhoto && (
                 <span className="flex items-center text-sky-600 dark:text-sky-400" title="Photo">
-                  <Camera className="size-3.5 shrink-0" />
+                  <Camera className={cn("shrink-0", s.metaIcon)} />
                 </span>
               )}
               {hasGraphic && (
                 <span className="flex items-center text-violet-600 dark:text-violet-400" title="Graphic">
-                  <BarChart2 className="size-3.5 shrink-0" />
+                  <BarChart2 className={cn("shrink-0", s.metaIcon)} />
                 </span>
               )}
               {hasMap && (
                 <span className="flex items-center text-emerald-600 dark:text-emerald-400" title="Map">
-                  <Map className="size-3.5 shrink-0" />
+                  <Map className={cn("shrink-0", s.metaIcon)} />
                 </span>
               )}
               {(hasVisualVideo || (videoCount ?? 0) > 0) && (
                 <span className="flex items-center text-orange-600 dark:text-orange-400" title="Video">
-                  <Video className="size-3.5 shrink-0" />
+                  <Video className={cn("shrink-0", s.metaIcon)} />
                 </span>
               )}
               {commentCount > 0 && (
@@ -261,7 +265,7 @@ export function StoryCard({
                   className="flex items-center gap-0.5"
                   title={`${commentCount} comment${commentCount === 1 ? "" : "s"}`}
                 >
-                  <MessageSquare className="size-3.5 shrink-0" />
+                  <MessageSquare className={cn("shrink-0", s.metaIcon)} />
                   {commentCount}
                 </span>
               )}
@@ -270,14 +274,14 @@ export function StoryCard({
 
           {/* Online pub date row — edition / enterprise views */}
           {showOnlinePubDate && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <span className="font-medium text-foreground/60">Online:</span>
-              <span>{formatOnlinePub()}</span>
+            <div className={cn("flex items-center gap-1", s.pubRow)}>
+              <span className={cn("font-medium", s.pubLabel)}>Online:</span>
+              <span className={s.pubValue}>{formatOnlinePubShort(story.onlinePubDate, story.onlinePubDateTBD)}</span>
             </div>
           )}
 
           {/* Bottom row: people chips + indicators */}
-          <div className="flex flex-wrap items-center gap-1">
+          <div className={cn("flex flex-wrap items-center", s.chipRowGap)}>
             {story.assignments.map((a) => {
               const abbrev = ROLE_ABBREV[a.role]
               return (
@@ -292,10 +296,13 @@ export function StoryCard({
             })}
             {story.aiContributed && (
               <span
-                className="inline-flex items-center gap-0.5 rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md bg-violet-100 font-medium text-violet-700 dark:bg-violet-950/40 dark:text-violet-400",
+                  s.chip,
+                )}
                 title="AI Contributed"
               >
-                <Sparkles className="size-2.5 pointer-events-none" />
+                <Sparkles className={cn("pointer-events-none", s.chipIcon)} />
                 AI
               </span>
             )}
@@ -304,10 +311,14 @@ export function StoryCard({
               return (
                 <span
                   key={t.id}
-                  className={cn("inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium", STORY_TAG_COLOR[t.tag])}
+                  className={cn(
+                    "inline-flex items-center gap-0.5 rounded-md font-medium",
+                    s.chip,
+                    STORY_TAG_COLOR[t.tag],
+                  )}
                   title={STORY_TAG_LABELS[t.tag] ?? t.tag}
                 >
-                  {Icon && <Icon className="size-2.5 pointer-events-none" />}
+                  {Icon && <Icon className={cn("pointer-events-none", s.chipIcon)} />}
                   {STORY_TAG_ABBREV[t.tag] ?? t.tag}
                 </span>
               )
@@ -315,7 +326,8 @@ export function StoryCard({
             {wordCount != null && (
               <span
                 className={cn(
-                  "inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium",
+                  "inline-flex items-center rounded-md font-medium",
+                  s.chip,
                   wordCountOver
                     ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
                     : "bg-secondary text-secondary-foreground",
@@ -336,10 +348,13 @@ export function StoryCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md bg-secondary font-medium text-secondary-foreground hover:bg-accent",
+                  s.chip,
+                )}
                 title="Open published post"
               >
-                <ExternalLink className="size-2.5" />
+                <ExternalLink className={s.chipIcon} />
                 Post
               </a>
             )}
@@ -351,10 +366,13 @@ export function StoryCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground hover:bg-accent"
+                className={cn(
+                  "inline-flex items-center gap-0.5 rounded-md bg-secondary font-medium text-secondary-foreground hover:bg-accent",
+                  s.chip,
+                )}
                 title="Open working draft"
               >
-                <FileText className="size-2.5" />
+                <FileText className={s.chipIcon} />
                 Draft
               </a>
             )}

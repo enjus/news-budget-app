@@ -2,16 +2,20 @@
 
 import Link from "next/link"
 import { Video as VideoIcon, Check, MessageSquare } from "lucide-react"
-import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort } from "@/lib/utils"
+import { CARD_SIZE } from "@/components/budget/card-size"
 import type { VideoWithRelations } from "@/types/index"
 
 interface VideoCardProps {
   video: VideoWithRelations
   isDragging?: boolean
+  showOnlinePubDate?: boolean
   budgetLineClamp?: 1 | 3
   selectMode?: boolean
   isSelected?: boolean
   onToggleSelect?: (currentStatus: string) => void
+  /** "lg" bumps type/icon/spacing scale for meeting-room readability (Daily Agenda, Enterprise). Default unchanged. */
+  size?: "default" | "lg"
 }
 
 const STATUS_BORDER: Record<string, string> = {
@@ -26,16 +30,19 @@ function isPastDue(onlinePubDate: Date | string): boolean {
   return new Date(onlinePubDate) < nowFake
 }
 
-function VideoStatusChip({ video }: { video: VideoWithRelations }) {
+// hideTime is true when a full date+time row is shown separately (edition/enterprise).
+function VideoStatusChip({ video, hideTime, size = "default" }: { video: VideoWithRelations; hideTime?: boolean; size?: "default" | "lg" }) {
+  const s = CARD_SIZE[size]
   const hasTime = !video.onlinePubDateTBD && video.onlinePubDate
-  const time = hasTime ? formatTime(video.onlinePubDate) : null
+  const time = hasTime && !hideTime ? formatTime(video.onlinePubDate) : null
 
   switch (video.status) {
     case "SCHEDULED": {
       const overdue = hasTime && isPastDue(video.onlinePubDate!)
       return (
         <span className={cn(
-          "shrink-0 text-[10px] font-medium",
+          "shrink-0 font-medium",
+          s.statusText,
           overdue ? "text-amber-600 dark:text-amber-400" : "text-blue-600 dark:text-blue-400"
         )}>
           {time ?? "Scheduled"}
@@ -44,13 +51,13 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
     }
     case "PUBLISHED_FINAL":
       return (
-        <span className="shrink-0 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+        <span className={cn("shrink-0 font-medium text-emerald-600 dark:text-emerald-400", s.statusText)}>
           {time ? `✓ ${time}` : "✓ Published"}
         </span>
       )
     case "SHELVED":
       return (
-        <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
+        <span className={cn("shrink-0 font-medium text-red-500 dark:text-red-400", s.statusText)}>
           Shelved
         </span>
       )
@@ -58,26 +65,28 @@ function VideoStatusChip({ video }: { video: VideoWithRelations }) {
       // DRAFT — flag unassigned videos; otherwise show time only if set
       if (video.assignments.length === 0) {
         return (
-          <span className="shrink-0 text-[10px] font-medium text-red-500 dark:text-red-400">
+          <span className={cn("shrink-0 font-medium text-red-500 dark:text-red-400", s.statusText)}>
             Unassigned
           </span>
         )
       }
       return time ? (
-        <span className="shrink-0 text-[10px] text-muted-foreground">{time}</span>
+        <span className={cn("shrink-0", s.statusText, s.statusMuted)}>{time}</span>
       ) : null
   }
 }
 
-export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect }: VideoCardProps) {
+export function VideoCard({ video, isDragging, showOnlinePubDate, budgetLineClamp = 1, selectMode, isSelected, onToggleSelect, size = "default" }: VideoCardProps) {
   // Optional chaining: a few list endpoints hand-roll their payload and cast.
   const commentCount = video._count?.comments ?? 0
+  const s = CARD_SIZE[size]
 
   return (
     <Link
       href={`/videos/${video.id}`}
       className={cn(
-        "block rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-accent/50",
+        "block rounded-lg border bg-card text-sm transition-colors hover:bg-accent/50",
+        s.padding,
         STATUS_BORDER[video.status] ?? (video.status === "DRAFT" && video.assignments.length === 0 ? "border-l-4 border-l-red-400" : ""),
         isDragging && "shadow-lg ring-2 ring-primary/30",
         isSelected && "ring-2 ring-primary bg-primary/5",
@@ -90,7 +99,7 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
         }
       }}
     >
-      <div className="flex gap-2.5">
+      <div className={cn("flex", s.outerGap)}>
         {selectMode && (
           <div className="mt-0.5 flex shrink-0 items-start">
             <div className={cn(
@@ -101,46 +110,59 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
             </div>
           </div>
         )}
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className={cn("flex min-w-0 flex-1 flex-col", s.stackGap)}>
           {/* Top row: slug + Video badge (left) · status/time chip (right) */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <VideoIcon className="size-3 shrink-0 text-muted-foreground/60" />
-              <span className="font-semibold leading-none">{video.slug}</span>
+              <VideoIcon className={cn("shrink-0 text-muted-foreground/60", s.titleIcon)} />
+              <span className={cn("font-semibold leading-none", s.title)}>{video.slug}</span>
             </div>
-            <VideoStatusChip video={video} />
+            <VideoStatusChip video={video} hideTime={showOnlinePubDate} size={size} />
           </div>
 
           {/* Budget line */}
           {video.budgetLine && (
-            <p className={cn("text-xs text-muted-foreground", budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1")}>
+            <p className={cn(
+              s.body,
+              budgetLineClamp === 3 ? "line-clamp-3" : "line-clamp-1",
+            )}>
               {video.budgetLine}
             </p>
           )}
 
           {/* Comment indicator — only when the video has comments */}
           {commentCount > 0 && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className={cn("flex items-center gap-3", s.metaRow)}>
               <span
                 className="flex items-center gap-0.5"
                 title={`${commentCount} comment${commentCount === 1 ? "" : "s"}`}
               >
-                <MessageSquare className="size-3.5 shrink-0" />
+                <MessageSquare className={cn("shrink-0", s.metaIcon)} />
                 {commentCount}
               </span>
             </div>
           )}
 
+          {/* Online pub date row — edition / enterprise views */}
+          {showOnlinePubDate && (
+            <div className={cn("flex items-center gap-1", s.pubRow)}>
+              <span className={cn("font-medium", s.pubLabel)}>Online:</span>
+              <span className={s.pubValue}>{formatOnlinePubShort(video.onlinePubDate, video.onlinePubDateTBD)}</span>
+            </div>
+          )}
+
           {/* Bottom row: people chips + AI tag */}
-          <div className="flex flex-wrap items-center gap-1">
+          <div className={cn("flex flex-wrap items-center", s.chipRowGap)}>
             {video.assignments.map((a) => {
               const abbrev = ROLE_ABBREV[a.role]
               return (
                 <span
                   key={`${a.personId}-${a.role}`}
-                  className="inline-flex items-center gap-0.5 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground"
-                  title={`${displayName(a.person.name)} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}
-                >
+                  className={cn(
+                    "inline-flex items-center gap-0.5 rounded-md bg-secondary font-medium text-secondary-foreground",
+                    s.chip,
+                  )}
+                  title={`${displayName(a.person.name)} — ${PERSON_ROLE_LABELS[a.role] ?? a.role}`}                >
                   {surname(a.person.name)}{abbrev && <span className="text-muted-foreground/70">·{abbrev}</span>}
                 </span>
               )
@@ -149,7 +171,7 @@ export function VideoCard({ video, isDragging, budgetLineClamp = 1, selectMode, 
 
           {/* Parent story link label */}
           {video.story && (
-            <p className="text-[10px] text-muted-foreground">
+            <p className={s.caption}>
               Story: {video.story.slug}
             </p>
           )}
