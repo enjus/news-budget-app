@@ -16,7 +16,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { cn } from "@/lib/utils"
+import { cn, bucketToUtcStamp } from "@/lib/utils"
 import type { EnterpriseDateGroup } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -323,13 +323,16 @@ export function EnterpriseView() {
             printPubDate: null,
           }
         } else {
-          // Local midnight so dates group correctly in the user's timezone
-          const midnight = new Date(`${targetDate}T00:00:00`)
+          // Plausible default time (Morning), encoded directly as UTC per this
+          // app's "newsroom time encoded as UTC" convention — no timezone math,
+          // so the calendar day is always exactly `targetDate` regardless of the
+          // browser's local timezone.
+          const stamp = bucketToUtcStamp(targetDate, "MORNING")!
           patchBody = {
             onlinePubDateTBD: false,
-            onlinePubDate: midnight.toISOString(),
+            onlinePubDate: stamp,
             printPubDateTBD: false,
-            printPubDate: midnight.toISOString(),
+            printPubDate: stamp,
           }
         }
 
