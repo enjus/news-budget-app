@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { PersonForm } from "./PersonForm"
 import { usePeople } from "@/lib/hooks/usePeople"
-import { PERSON_ROLE_LABELS, hasAdminAccess, cn } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, hasAdminAccess, cn, displayName } from "@/lib/utils"
 import type { PersonWithCounts } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -41,7 +41,7 @@ export function PersonList() {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Delete failed (${res.status})`)
       }
-      toast.success(`${person.name} deleted`)
+      toast.success(`${displayName(person.name)} deleted`)
       mutate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to delete person")
@@ -62,7 +62,7 @@ export function PersonList() {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
-      toast.success(person.isActive ? `${person.name} marked inactive` : `${person.name} marked active`)
+      toast.success(person.isActive ? `${displayName(person.name)} marked inactive` : `${displayName(person.name)} marked active`)
       mutate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
@@ -102,7 +102,7 @@ export function PersonList() {
       >
         <td className="px-4 py-3 font-medium">
           <Link href={`/people/${person.id}`} className="hover:underline">
-            {person.name}
+            {displayName(person.name)}
           </Link>
         </td>
         <td className="px-4 py-3 text-muted-foreground">{person.email ?? "—"}</td>
@@ -175,7 +175,7 @@ export function PersonList() {
                 </AlertDialogTrigger>
                 <AlertDialogContent size="sm">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {person.name}?</AlertDialogTitle>
+                    <AlertDialogTitle>Delete {displayName(person.name)}?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This action cannot be undone. This will permanently delete this person.
                     </AlertDialogDescription>

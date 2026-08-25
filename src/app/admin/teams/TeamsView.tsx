@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersonPicker } from "@/components/people/PersonPicker"
 import { useAdminTeams } from "@/lib/hooks/useTeams"
-import { PERSON_ROLE_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
+import { displayName, PERSON_ROLE_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -106,7 +106,7 @@ function MembersDialog({
       toast.error(err.error ?? "Failed to add member")
       return
     }
-    toast.success(`Added ${person.name} to ${team.name}`)
+    toast.success(`Added ${displayName(person.name)} to ${team.name}`)
     onMutate()
   }
 
@@ -142,7 +142,7 @@ function MembersDialog({
               {team.members.map((m) => (
                 <div key={m.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{m.person.name}</span>
+                    <span className="text-sm font-medium">{displayName(m.person.name)}</span>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                       {TEAM_MEMBER_ROLE_LABELS[m.role] ?? m.role}
                     </Badge>
@@ -154,7 +154,7 @@ function MembersDialog({
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => handleRemoveMember(m.id, m.person.name)}
+                    onClick={() => handleRemoveMember(m.id, displayName(m.person.name))}
                   >
                     <X className="size-3.5" />
                   </Button>
