@@ -4,7 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, MessageSquare, type LucideIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
+import { CARD_SIZE } from "@/components/budget/card-size"
 import type { StoryListItem } from "@/types/index"
 
 // Icons for StoryTag values — kept here (not in utils.ts) since they're components.
