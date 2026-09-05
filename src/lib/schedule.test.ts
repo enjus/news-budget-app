@@ -3,6 +3,8 @@ import {
   resolveDay,
   shiftDaysInWindow,
   detectShiftConflict,
+  describeShiftConflict,
+  mergeShiftDays,
   type ResolveDayMarker,
   type ResolveDayWorkSchedule,
 } from "./schedule"
@@ -268,5 +270,51 @@ describe("detectShiftConflict", () => {
     )
     expect(resolved.split).toBe(true)
     expect(detectShiftConflict(resolved)).toEqual({ kind: "out" })
+  })
+})
+
+describe("describeShiftConflict", () => {
+  it("returns null for no conflict", () => {
+    expect(describeShiftConflict(null, "Chen", "Saturday")).toBeNull()
+  })
+
+  it("describes an 'out' conflict as a warning naming the person", () => {
+    expect(describeShiftConflict({ kind: "out" }, "Chen", "Saturday")).toEqual({
+      severity: "warning",
+      message: "Chen is out that day.",
+    })
+  })
+
+  it("describes an 'outsidePattern' conflict as a note naming the weekday and person", () => {
+    expect(describeShiftConflict({ kind: "outsidePattern" }, "Chen", "Saturday")).toEqual({
+      severity: "note",
+      message: "Saturday is outside Chen's normal schedule.",
+    })
+  })
+})
+
+describe("mergeShiftDays", () => {
+  it("marks derived days as not ad-hoc", () => {
+    const derived = shiftDaysInWindow(dateOnly("2026-09-05"), dateOnly("2026-09-05"), [])
+    const merged = mergeShiftDays(derived, [])
+    expect(merged).toEqual([{ date: "2026-09-05", holiday: null, adHoc: false }])
+  })
+
+  it("adds an assigned weekday date as ad-hoc, sorted alongside derived days", () => {
+    // 2026-09-05 (Sat) is derived; 2026-09-02 (Wed) is only assigned.
+    const derived = shiftDaysInWindow(dateOnly("2026-09-01"), dateOnly("2026-09-06"), [])
+    const merged = mergeShiftDays(derived, ["2026-09-02"])
+    expect(merged.map((d) => d.date)).toEqual(["2026-09-02", "2026-09-05", "2026-09-06"])
+    expect(merged.find((d) => d.date === "2026-09-02")).toEqual({ date: "2026-09-02", holiday: null, adHoc: true })
+  })
+
+  it("doesn't duplicate a date that's both derived and assigned", () => {
+    const derived = shiftDaysInWindow(dateOnly("2026-09-05"), dateOnly("2026-09-05"), [])
+    const merged = mergeShiftDays(derived, ["2026-09-05", "2026-09-05"])
+    expect(merged).toEqual([{ date: "2026-09-05", holiday: null, adHoc: false }])
+  })
+
+  it("returns nothing for an empty window with no assignments", () => {
+    expect(mergeShiftDays([], [])).toEqual([])
   })
 })

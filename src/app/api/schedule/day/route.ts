@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { dateOnly } from "@/lib/utils";
-import { resolveDay, type AvailabilityEntry } from "@/lib/schedule";
+import { resolveDay, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,29 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ date, people, teams, markers });
+    // Any shift assigned on this date, filled roles only (issue #19 §5
+    // extension — an unfilled slot is a /schedule/shifts concern, not
+    // something the absence board needs to surface).
+    const shiftAssignments = await prisma.shiftAssignment.findMany({
+      where: { date: dateObj },
+      include: { person: { select: { id: true, name: true } } },
+    });
+    const weekdayLabel = dateObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+    const shifts = shiftAssignments.map((a) => {
+      const rows = availabilityByPerson.get(a.personId) ?? [];
+      const entries: AvailabilityEntry[] = rows.map((r) => ({ date, segment: r.segment, status: r.status }));
+      const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(a.personId) ?? [], holidayMarkers);
+      return {
+        id: a.id,
+        shiftRole: a.shiftRole,
+        personId: a.personId,
+        name: a.person.name,
+        note: a.note,
+        conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name, weekdayLabel),
+      };
+    });
+
+    return NextResponse.json({ date, people, teams, markers, shifts });
   } catch (error) {
     console.error("GET /api/schedule/day error:", error);
     return NextResponse.json({ error: "Failed to fetch day schedule" }, { status: 500 });

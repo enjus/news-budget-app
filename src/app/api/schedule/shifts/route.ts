@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftAssignmentSchema } from "@/lib/validations";
 import { canEditSchedule, dateOnly, toDateString, SHIFT_ROLES } from "@/lib/utils";
-import { resolveDay, detectShiftConflict, shiftDaysInWindow, type AvailabilityEntry } from "@/lib/schedule";
+import { resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    const shiftDays = shiftDaysInWindow(startDate, endDate, markers);
     const assignmentsByDate = new Map<string, typeof assignments>();
     for (const a of assignments) {
       const key = toDateString(a.date);
@@ -53,6 +52,15 @@ export async function GET(request: NextRequest) {
       list.push(a);
       assignmentsByDate.set(key, list);
     }
+
+    // Any date with a real ShiftAssignment stays visible even when it isn't
+    // a weekend or observed holiday — an ad-hoc coverage day (e.g. a
+    // weeknight protest) added directly by assigning someone to it. See
+    // mergeShiftDays() in src/lib/schedule.ts.
+    const shiftDays = mergeShiftDays(
+      shiftDaysInWindow(startDate, endDate, markers),
+      Array.from(assignmentsByDate.keys())
+    );
 
     const days = shiftDays.map((day) => {
       const forDate = assignmentsByDate.get(day.date) ?? [];
@@ -69,26 +77,20 @@ export async function GET(request: NextRequest) {
             }));
             const personWorkSchedule = workScheduleByPerson.get(a.personId) ?? [];
             const resolved = resolveDay(dateOnly(day.date), entries, personWorkSchedule, markers);
-            const conflict = detectShiftConflict(resolved);
             const weekdayLabel = new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString("en-US", {
               weekday: "long",
               timeZone: "UTC",
             });
-            const conflictOut = conflict
-              ? conflict.kind === "out"
-                ? { severity: "warning" as const, message: `${a.person.name} is out that day.` }
-                : { severity: "note" as const, message: `${weekdayLabel} is outside ${a.person.name}'s normal schedule.` }
-              : null;
             return {
               id: a.id,
               personId: a.personId,
               name: a.person.name,
               note: a.note,
-              conflict: conflictOut,
+              conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name, weekdayLabel),
             };
           });
       }
-      return { date: day.date, holiday: day.holiday, roles };
+      return { date: day.date, holiday: day.holiday, adHoc: day.adHoc, roles };
     });
 
     return NextResponse.json({

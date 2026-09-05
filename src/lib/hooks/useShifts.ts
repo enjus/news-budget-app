@@ -16,6 +16,10 @@ export interface ShiftRoleAssignment {
 export interface ShiftDay {
   date: string
   holiday: { id: string; label: string } | null
+  /** true when this date has no weekend/holiday basis — an ad-hoc coverage
+   *  day (e.g. a weeknight protest) that exists only because it has an
+   *  assignment. */
+  adHoc: boolean
   roles: Record<string, ShiftRoleAssignment[]>
 }
 

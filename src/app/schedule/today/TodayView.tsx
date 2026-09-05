@@ -1,15 +1,15 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, PartyPopper } from "lucide-react"
+import { ChevronLeft, ChevronRight, PartyPopper, AlertTriangle, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { dateOnly, toDateString, todayString } from "@/lib/utils"
+import { dateOnly, toDateString, todayString, SHIFT_ROLE_LABELS } from "@/lib/utils"
 import { resolvedSegmentLabel } from "@/components/schedule/AvailabilityChip"
 import { groupPeople, isObservedHoliday, type GroupedDay } from "./groupPeople"
-import type { DaySchedulePerson } from "@/lib/hooks/useDaySchedule"
+import type { DaySchedulePerson, DayShiftAssignment } from "@/lib/hooks/useDaySchedule"
 import type { CalendarMarker } from "@prisma/client"
 
 interface TodayViewProps {
@@ -18,7 +18,47 @@ interface TodayViewProps {
   people: DaySchedulePerson[]
   teams: { id: string; name: string }[]
   markers: CalendarMarker[]
+  shifts: DayShiftAssignment[]
   isLoading: boolean
+}
+
+/** Anyone with a shift role on this date — issue #19 extension: filled shift
+ *  roles are worth surfacing on the absence board regardless of whether the
+ *  day is a holiday, a weekend, or an ad-hoc coverage day; unfilled roles
+ *  stay a /schedule/shifts-only concern. */
+function ShiftSection({ shifts }: { shifts: DayShiftAssignment[] }) {
+  if (shifts.length === 0) return null
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-medium">On shift ({shifts.length})</h2>
+      <div className="space-y-1.5">
+        {shifts.map((s) => (
+          <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {s.conflict && (
+                <span title={s.conflict.message}>
+                  {s.conflict.severity === "warning" ? (
+                    <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
+                  ) : (
+                    <Info className="size-3.5 shrink-0 text-amber-500" />
+                  )}
+                </span>
+              )}
+              <span className="text-sm font-medium truncate">{s.name}</span>
+            </div>
+            <div className="text-right shrink-0 max-w-[55%]">
+              <p className="text-xs text-muted-foreground">{SHIFT_ROLE_LABELS[s.shiftRole] ?? s.shiftRole}</p>
+              {s.note && (
+                <p className="text-xs text-muted-foreground truncate" title={s.note}>
+                  {s.note}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function shiftDate(date: string, deltaDays: number): string {
@@ -96,7 +136,7 @@ function Section({ title, people, teamsById, muted, collapsible }: {
   )
 }
 
-export function TodayView({ date, onDateChange, people, teams, markers, isLoading }: TodayViewProps) {
+export function TodayView({ date, onDateChange, people, teams, markers, shifts, isLoading }: TodayViewProps) {
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t.name])), [teams])
   const holiday = useMemo(() => isObservedHoliday(date, markers), [date, markers])
   const grouped: GroupedDay = useMemo(() => groupPeople(people, holiday !== null), [people, holiday])
@@ -123,6 +163,8 @@ export function TodayView({ date, onDateChange, people, teams, markers, isLoadin
           </Button>
         </div>
       </div>
+
+      {!isLoading && <ShiftSection shifts={shifts} />}
 
       {isLoading ? (
         <div className="space-y-2">

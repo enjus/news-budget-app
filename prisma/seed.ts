@@ -250,6 +250,9 @@ async function main() {
       { date: dateOnly(sat2), shiftRole: "VISUAL_JOURNALIST", personId: david.id },
       { date: dateOnly(5), shiftRole: "GA_REPORTER", personId: alice.id },
       { date: dateOnly(5), shiftRole: "EDITOR", personId: sam.id },
+      // Ad-hoc weekday shift day — e.g. a series of evening protests — with
+      // no weekend/holiday basis of its own; exists only via this row.
+      { date: dateOnly(2), shiftRole: "SOCIAL_VIDEO_PRODUCER", personId: maya.id },
     ],
   });
 

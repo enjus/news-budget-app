@@ -479,6 +479,32 @@ export function shiftDaysInWindow(
   return days
 }
 
+export interface MergedShiftDay extends ShiftDay {
+  /** true when this date has no weekend/holiday basis and shows up only
+   *  because someone has an explicit ShiftAssignment on it (e.g. a weekday
+   *  evening protest) — an extension of §6's "weekends + observed
+   *  holidays" rule to arbitrary ad-hoc coverage days. */
+  adHoc: boolean
+}
+
+/**
+ * Merge the calendar-derived shift days (weekends + observed holidays) with
+ * any dates that already carry a real ShiftAssignment but aren't derived —
+ * an ad-hoc day added directly by an editor. A date stays visible for
+ * exactly as long as it has an assignment: once the last assignment on an
+ * ad-hoc date is removed, the next call (which reads assignedDates fresh
+ * from the DB) simply won't include it anymore — no separate cleanup step.
+ */
+export function mergeShiftDays(derivedDays: ShiftDay[], assignedDates: string[]): MergedShiftDay[] {
+  const derivedDates = new Set(derivedDays.map((d) => d.date))
+  const extra = Array.from(new Set(assignedDates)).filter((d) => !derivedDates.has(d))
+  const merged: MergedShiftDay[] = [
+    ...derivedDays.map((d) => ({ ...d, adHoc: false })),
+    ...extra.map((date) => ({ date, holiday: null, adHoc: true })),
+  ]
+  return merged.sort((a, b) => a.date.localeCompare(b.date))
+}
+
 export type ShiftConflict = { kind: "out" } | { kind: "outsidePattern" }
 
 /**
@@ -501,6 +527,25 @@ export function detectShiftConflict(resolved: ResolvedDay): ShiftConflict | null
   if (segments.some((s) => s.status === "off" && s.reason === "availability")) return { kind: "out" }
   if (segments.some((s) => s.status === "off" && s.reason === "regular")) return { kind: "outsidePattern" }
   return null
+}
+
+export interface ShiftConflictInfo {
+  severity: "warning" | "note"
+  message: string
+}
+
+/** Turns a ShiftConflict into the human sentence shown next to an assignee —
+ *  shared by GET /api/schedule/shifts and GET /api/schedule/day so the two
+ *  routes that both surface shift conflicts don't drift on the wording. */
+export function describeShiftConflict(
+  conflict: ShiftConflict | null,
+  personName: string,
+  weekdayLabel: string
+): ShiftConflictInfo | null {
+  if (!conflict) return null
+  return conflict.kind === "out"
+    ? { severity: "warning", message: `${personName} is out that day.` }
+    : { severity: "note", message: `${weekdayLabel} is outside ${personName}'s normal schedule.` }
 }
 
 /**
