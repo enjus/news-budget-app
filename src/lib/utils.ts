@@ -565,8 +565,8 @@ export function isoDateOnly(iso: string): string {
 // ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
 
 export const SHIFT_ROLE_LABELS: Record<string, string> = {
-  GA_REPORTER: "GA Reporter",
   EDITOR: "Editor",
+  GA_REPORTER: "GA Reporter",
   SOCIAL_VIDEO_PRODUCER: "Social/Video Producer",
   VISUAL_JOURNALIST: "Visual Journalist",
 }

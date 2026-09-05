@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { dateOnly, toDateString, todayString, SHIFT_ROLE_LABELS } from "@/lib/utils"
+import { dateOnly, toDateString, todayString, SHIFT_ROLES, SHIFT_ROLE_LABELS } from "@/lib/utils"
 import { resolvedSegmentLabel } from "@/components/schedule/AvailabilityChip"
 import { groupPeople, isObservedHoliday, type GroupedDay } from "./groupPeople"
 import type { DaySchedulePerson, DayShiftAssignment } from "@/lib/hooks/useDaySchedule"
@@ -28,11 +28,14 @@ interface TodayViewProps {
  *  stay a /schedule/shifts-only concern. */
 function ShiftSection({ shifts }: { shifts: DayShiftAssignment[] }) {
   if (shifts.length === 0) return null
+  const sorted = [...shifts].sort(
+    (a, b) => SHIFT_ROLES.indexOf(a.shiftRole) - SHIFT_ROLES.indexOf(b.shiftRole)
+  )
   return (
     <div className="space-y-2">
       <h2 className="text-sm font-medium">On shift ({shifts.length})</h2>
       <div className="space-y-1.5">
-        {shifts.map((s) => (
+        {sorted.map((s) => (
           <div key={s.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
             <div className="flex items-center gap-1.5 min-w-0">
               {s.conflict && (
