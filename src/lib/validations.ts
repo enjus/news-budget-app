@@ -85,7 +85,10 @@ export const workScheduleDaySchema = z.object({
 // with exactly what's sent, so "no rows" means "back to Mon–Fri default."
 export const replaceWorkScheduleSchema = z.object({
   days: z.array(workScheduleDaySchema).max(7),
-});
+}).refine(
+  (data) => new Set(data.days.map((d) => d.weekday)).size === data.days.length,
+  { message: "Duplicate weekday in days", path: ["days"] }
+);
 
 // ─── Pub date / TBD cross-field validation ────────────────────────────────────
 // Shared by create/update Story and Video schemas: if a *PubDateTBD flag is

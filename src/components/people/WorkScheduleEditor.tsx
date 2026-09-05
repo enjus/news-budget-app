@@ -28,13 +28,17 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
   )
   const [days, setDays] = useState<DayRow[] | null>(null)
   const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState(false)
 
-  // Seed local editable state from the resolved pattern whenever fresh data arrives.
+  // Seed local editable state from the resolved pattern whenever fresh data
+  // arrives — but not if the admin has unsaved toggles in progress, or a
+  // background SWR revalidation (e.g. window refocus) would silently wipe them.
   useEffect(() => {
-    if (data) setDays(resolveWeekPattern(data))
-  }, [data])
+    if (data && !dirty) setDays(resolveWeekPattern(data))
+  }, [data, dirty])
 
   function toggleDay(weekday: number) {
+    setDirty(true)
     setDays((prev) =>
       (prev ?? []).map((d) =>
         d.weekday === weekday
@@ -58,6 +62,7 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
       toast.success("Standing pattern saved")
+      setDirty(false)
       mutate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to save pattern")
