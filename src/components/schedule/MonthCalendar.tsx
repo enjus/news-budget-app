@@ -72,10 +72,12 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
                     key={date}
                     type="button"
                     onClick={() => onDayClick(date)}
-                    className="rounded-md border p-1.5 text-left text-xs min-h-14 hover:ring-2 hover:ring-ring transition-shadow"
+                    className="flex flex-col rounded-md border p-1.5 text-left text-xs h-16 overflow-hidden hover:ring-2 hover:ring-ring transition-shadow"
                   >
-                    <div className="font-medium">{Number(date.slice(8))}</div>
-                    <AvailabilityChip day={dayByDate[date]} size="sm" />
+                    <div className="font-medium shrink-0">{Number(date.slice(8))}</div>
+                    <div className="flex-1 min-h-0 mt-0.5">
+                      <AvailabilityChip day={dayByDate[date]} size="sm" />
+                    </div>
                   </button>
                 ) : (
                   <div key={`empty-${j}`} />
