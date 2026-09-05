@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, PartyPopper, AlertTriangle, Info } from "lucide-react"
+import { ChevronLeft, ChevronRight, CalendarDays, AlertTriangle, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -143,6 +143,15 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t.name])), [teams])
   const holiday = useMemo(() => isObservedHoliday(date, markers), [date, markers])
   const grouped: GroupedDay = useMemo(() => groupPeople(people, holiday !== null), [people, holiday])
+  // On a holiday, anyone already on the formal shift roster is inherently
+  // "working" — ShiftSection says so with more detail (role) than this
+  // section can. Only surface the edge case here: someone working the
+  // holiday via an availability override who ISN'T on the shift roster.
+  const shiftIds = useMemo(() => new Set(shifts.map((s) => s.personId)), [shifts])
+  const workingOnHolidayNotOnShift = useMemo(
+    () => grouped.workingOnHoliday.filter((p) => !shiftIds.has(p.id)),
+    [grouped.workingOnHoliday, shiftIds]
+  )
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
@@ -167,6 +176,13 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
         </div>
       </div>
 
+      {!isLoading && holiday && (
+        <div className="flex items-center gap-2 rounded-lg border bg-violet-50 dark:bg-violet-950/30 px-4 py-3 text-sm">
+          <CalendarDays className="size-4 text-violet-600 dark:text-violet-400 shrink-0" />
+          <strong>{holiday.label}</strong>
+        </div>
+      )}
+
       {!isLoading && <ShiftSection shifts={shifts} />}
 
       {isLoading ? (
@@ -177,14 +193,8 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
         </div>
       ) : holiday ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 rounded-lg border bg-violet-50 dark:bg-violet-950/30 px-4 py-3 text-sm">
-            <PartyPopper className="size-4 text-violet-600 dark:text-violet-400 shrink-0" />
-            <span>
-              <strong>{holiday.label}</strong> — newsroom holiday. Showing who&apos;s working.
-            </span>
-          </div>
-          <Section title="Working" people={grouped.workingOnHoliday} teamsById={teamsById} />
-          {grouped.workingOnHoliday.length === 0 && (
+          <Section title="Working" people={workingOnHolidayNotOnShift} teamsById={teamsById} />
+          {shifts.length === 0 && workingOnHolidayNotOnShift.length === 0 && (
             <p className="text-sm text-muted-foreground">Nobody is scheduled to work today.</p>
           )}
         </div>
