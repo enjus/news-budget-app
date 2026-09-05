@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, type PresetId } from "./availabilityPresets"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import { apiPath } from "@/lib/api-path"
-import { weekdayAbbrev } from "@/lib/utils"
+import { weekdayAbbrev, shortDate } from "@/lib/utils"
 
 type WeekEditorDay = { date: string; revert: true } | { date: string; segment: string; status: string }
 
@@ -79,7 +79,7 @@ export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDa
           {weekDates.map((date) => (
             <div key={date} className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-sm text-muted-foreground">
-                {weekdayAbbrev(date)} {date.slice(5)}
+                {weekdayAbbrev(date)} {shortDate(date)}
               </span>
               <Select
                 value={selections[date]}

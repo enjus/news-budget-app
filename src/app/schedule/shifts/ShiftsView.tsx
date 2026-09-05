@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { ShiftRoleSlot } from "@/components/schedule/ShiftRoleSlot"
-import { SHIFT_ROLE_LABELS, SHIFT_ROLES, addDays, todayString } from "@/lib/utils"
+import { SHIFT_ROLE_LABELS, SHIFT_ROLES, addDays, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
 import type { ShiftDay, ShiftRosterPerson } from "@/lib/hooks/useShifts"
 
 interface ShiftsViewProps {
@@ -19,10 +19,6 @@ interface ShiftsViewProps {
   days: ShiftDay[]
   isLoading: boolean
   onSaved: () => void
-}
-
-function weekdayLabel(date: string): string {
-  return new Date(`${date}T00:00:00.000Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
 }
 
 function emptyRoles(): Record<string, []> {
@@ -128,7 +124,7 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
             <div key={day.date} className="rounded-lg border p-3 space-y-3">
               <div className="flex items-center gap-2">
                 <span className="font-medium">
-                  {weekdayLabel(day.date)} {day.date.slice(5)}
+                  {weekdayAbbrev(day.date)} {shortDate(day.date)}
                 </span>
                 {day.holiday && (
                   <Badge variant="secondary" title={day.holiday.label}>
