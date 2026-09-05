@@ -581,14 +581,12 @@ export function standardUsHolidays(year: number): { label: string; date: string 
   return [
     { label: "New Year's Day", date: toDateString(new Date(Date.UTC(year, 0, 1))) },
     { label: "Martin Luther King Jr. Day", date: nthWeekdayOfMonth(year, 0, 1, 3) },
-    { label: "Presidents' Day", date: nthWeekdayOfMonth(year, 1, 1, 3) },
     { label: "Memorial Day", date: lastWeekdayOfMonth(year, 4, 1) },
     { label: "Juneteenth", date: toDateString(new Date(Date.UTC(year, 5, 19))) },
     { label: "Independence Day", date: toDateString(new Date(Date.UTC(year, 6, 4))) },
     { label: "Labor Day", date: nthWeekdayOfMonth(year, 8, 1, 1) },
-    { label: "Columbus Day", date: nthWeekdayOfMonth(year, 9, 1, 2) },
-    { label: "Veterans Day", date: toDateString(new Date(Date.UTC(year, 10, 11))) },
     { label: "Thanksgiving", date: nthWeekdayOfMonth(year, 10, 4, 4) },
+    { label: "Day after Thanksgiving", date: nthWeekdayOfMonth(year, 10, 5, 4) },
     { label: "Christmas", date: toDateString(new Date(Date.UTC(year, 11, 25))) },
   ]
 }

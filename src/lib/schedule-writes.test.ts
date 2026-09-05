@@ -213,13 +213,14 @@ describe("standardUsHolidays", () => {
     expect(byLabel["Martin Luther King Jr. Day"]).toBe("2026-01-19")
     expect(byLabel["Labor Day"]).toBe("2026-09-07")
     expect(byLabel["Thanksgiving"]).toBe("2026-11-26")
+    expect(byLabel["Day after Thanksgiving"]).toBe("2026-11-27")
     expect(byLabel["Christmas"]).toBe("2026-12-25")
   })
 
-  it("returns 11 holidays with unique dates", () => {
+  it("returns 9 holidays with unique dates", () => {
     const holidays = standardUsHolidays(2026)
-    expect(holidays).toHaveLength(11)
-    expect(new Set(holidays.map((h) => h.date)).size).toBe(11)
+    expect(holidays).toHaveLength(9)
+    expect(new Set(holidays.map((h) => h.date)).size).toBe(9)
   })
 })
 
