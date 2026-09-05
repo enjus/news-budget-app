@@ -242,6 +242,40 @@ Seeds 15-day historical budget + enterprise stories extending 180 days forward.
 
 **Date encoding**: All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`). The seed helper `d(offsetDays, hour)` constructs these dates.
 
+### Staffing schedule (issue #19, dark-launched)
+
+A layer tracking who's working, off, or half-day on any date, plus weekend/holiday shift roles — intended to eventually replace the PTO spreadsheet. Phases 1–3 are implemented; **there is no `TopNav` entry yet** — every route below is reachable only by direct URL, and the spreadsheet stays the system of record until a later, separate commit adds the nav link (that's the actual cutover moment, not any phase boundary).
+
+**Models** (`prisma/schema.prisma`): `Person.isStaff`/`isActive` (roster membership — see `ROSTER_WHERE` below), `WorkSchedule` (per-weekday override on a Mon–Fri default: `FULL_DAY`|`OFF`, no rows = standard week), `CalendarMarker` (org-wide labeled date ranges — `HOLIDAY`|`BLACKOUT`|`NOTE`, `endDate` inclusive), `Availability` (per-date/segment override — `FULL_DAY`|`MORNING`|`AFTERNOON` × `OUT`|`WORKING`|`UNAVAILABLE`, with `createdByUserId`/`updatedByUserId` audit trail).
+
+**`resolveDay()`** (`src/lib/schedule.ts`) is the single source of truth for whether someone is working on a given date — every view goes through it rather than re-deriving the rule. Precedence order: (1) an explicit `Availability` row for that date/segment wins outright; (2) otherwise the standing `WorkSchedule` pattern (or Mon–Fri default) — off → "off (regular)"; (3) if the pattern says working and an observed `HOLIDAY` marker covers the date → "off (holiday)"; (4) otherwise → "working". Holiday is checked *after* the pattern so a Tuesday–Saturday person's Monday during a holiday week reads "regularly off," not "holiday." A date can resolve to one whole-day verdict (`split: false`) or two half verdicts (`split: true`, `am`/`pm`) when an explicit half-day override exists. `bandSpan()`/`resolveMarkerBands()` (same file) lay out `CalendarMarker` ranges against a displayed week's columns, clamped so a range starting before or ending after the visible week (or spanning it entirely) still renders a correct band.
+
+**Dates are date-only labels, not instants** — stored at `T00:00:00.000Z`, read with `dateOnly()`/`toDateString()` (`src/lib/utils.ts`), never local-time methods. `isoDateOnly()` handles the same conversion when a `CalendarMarker` date arrives over the wire as a JSON-serialized ISO string rather than a `Date`. `WorkSchedule.weekday` must be derived with `getUTCDay()`, never `getDay()`.
+
+**Permissions**: `canEditSchedule(role)` — everyone but `VIEWER` can create/edit any person's availability, matching the spreadsheet's equally-open edit rights. `canManageRoster(role)` — `ADMIN`/`LEADERSHIP` only, gates `isStaff`/`isActive`, `WorkSchedule`, and `CalendarMarker` writes. `ROSTER_WHERE = { isStaff: true, isActive: true }` is the shared roster-membership predicate.
+
+**API routes** (all `force-dynamic`; reads are open to any authenticated session, matching the "VIEWER reads everything" rule — no separate read-only check per route):
+
+| Route | Methods | Purpose |
+|-------|---------|---------|
+| `/api/people/[id]/availability?start=&end=` | GET | One person's resolved days over a window |
+| `/api/people/[id]/work-schedule` | GET/PATCH | Read/replace a person's standing pattern |
+| `/api/schedule/day?date=` | GET | Resolved status for the whole roster on one date, plus markers |
+| `/api/schedule/week?start=` | GET | Resolved status for the whole roster over a Monday-Sunday week, batched (not per-person) |
+| `/api/schedule/availability` | POST | Range write (half-day collision clearing, blackout warnings) |
+| `/api/schedule/availability/week` | PUT | One-off week editor — diff-and-write in one transaction |
+| `/api/schedule/availability/[id]` | PATCH/DELETE | Edit or clear one entry |
+| `/api/schedule/markers?start=&end=&kind=` | GET/POST | Calendar markers |
+| `/api/schedule/markers/[id]` | PATCH/DELETE | Edit or remove a marker |
+| `/api/schedule/markers/seed-holidays` | POST | Batch-seed the standard US federal holidays for a year |
+| `/api/schedule/export?start=&end=` | GET | CSV of the whole roster's resolved schedule over a range |
+
+**SWR hooks** (`src/lib/hooks/`): `useMySchedule`, `useCalendarMarkers`, `useDaySchedule`, `useWeekSchedule`.
+
+**Client routes**: `/admin/calendar` (holidays/blackout admin, linked from `TopNav`'s admin menu — unlike the routes below), `/schedule/me` (personal month calendar), `/schedule/today` (absence board — who's out/half-day/unavailable today, inverts to "who's working" on an observed holiday), `/schedule/teams` (Monday–Sunday team grid — marker band, per-row week editor, drag-select a range of cells to open the range picker).
+
+**Shared components** (`src/components/schedule/`): `MonthCalendar`, `WeekEditor` (takes an arbitrary `weekDates` array, not month-bound — reused as-is by the team grid), `PresetPicker` (single-day/range entry; `initialEndDate` pre-fills a dragged range), `AvailabilityChip` (the one color/label mapping shared by all three calendar-ish views), `MarkerBand` (holiday/blackout bands across a week, edge-clamped).
+
 ### Feature Flags (`src/lib/features.ts`)
 
 | Flag | Env var | Default | Effect when `false` |

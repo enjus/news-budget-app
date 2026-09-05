@@ -385,6 +385,62 @@ function lastWeekdayOfMonth(year: number, month: number, weekday: number): strin
   return toDateString(new Date(Date.UTC(year, month, lastDay - offset)))
 }
 
+// ─── Marker band layout (Phase 3) ──────────────────────────────────────────
+
+export interface MarkerBandSpan {
+  markerId: string
+  kind: string
+  label: string
+  startCol: number // 0-based index into weekDates
+  span: number // number of columns, >= 1
+}
+
+/**
+ * Where a marker's date range lands on a displayed week, in grid-column
+ * terms — clamped to the visible week rather than assuming both edges are
+ * in frame. A blackout (or holiday) that starts before the week, ends after
+ * it, or spans the whole thing must still render as a correct, non-cut-off
+ * band (issue #19 §3: "must handle a blackout covering an entire displayed
+ * week... not as a span that assumes visible start and end edges").
+ *
+ * Returns null if the marker doesn't touch this week at all.
+ */
+export function bandSpan(
+  marker: { id: string; kind: string; label: string; startDate: Date; endDate: Date },
+  weekDates: string[]
+): MarkerBandSpan | null {
+  if (weekDates.length === 0) return null
+  const start = toDateString(marker.startDate)
+  const end = toDateString(marker.endDate)
+  if (end < weekDates[0] || start > weekDates[weekDates.length - 1]) return null
+
+  const startCol = Math.max(
+    0,
+    weekDates.findIndex((d) => d >= start)
+  )
+  const lastCoveredIdx = weekDates.reduce((acc, d, i) => (d <= end ? i : acc), -1)
+  const endCol = lastCoveredIdx === -1 ? weekDates.length - 1 : lastCoveredIdx
+
+  return {
+    markerId: marker.id,
+    kind: marker.kind,
+    label: marker.label,
+    startCol,
+    span: endCol - startCol + 1,
+  }
+}
+
+/** All markers that touch this week, laid out as MarkerBandSpans — pass
+ *  HOLIDAY/BLACKOUT/NOTE markers covering (or overlapping) the window. */
+export function resolveMarkerBands(
+  weekDates: string[],
+  markers: { id: string; kind: string; label: string; startDate: Date; endDate: Date }[]
+): MarkerBandSpan[] {
+  return markers
+    .map((m) => bandSpan(m, weekDates))
+    .filter((s): s is MarkerBandSpan => s !== null)
+}
+
 /**
  * The standard US federal holiday set for a year — a *starting point* an
  * admin seeds via /admin/calendar and can then edit or delete per-holiday

@@ -3,6 +3,7 @@
 import { CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toDateString } from "@/lib/utils"
+import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -16,27 +17,6 @@ interface MonthCalendarProps {
 }
 
 const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-function cellClasses(day: MyScheduleDay | undefined): string {
-  if (!day) return "bg-transparent"
-  if (day.split) return "bg-amber-100 dark:bg-amber-950/40"
-  if (day.status === "off" && day.reason === "regular") return "bg-muted text-muted-foreground"
-  if (day.status === "off" && day.reason === "holiday") return "bg-violet-100 dark:bg-violet-950/40"
-  if (day.status === "off" && day.reason === "availability") return "bg-rose-100 dark:bg-rose-950/40"
-  if (day.status === "unavailable") return "bg-amber-100 dark:bg-amber-950/40"
-  return "bg-transparent"
-}
-
-function cellLabel(day: MyScheduleDay | undefined): string {
-  if (!day) return ""
-  if (day.split) return "Split"
-  if (day.status === "off" && day.reason === "regular") return "Off"
-  if (day.status === "off" && day.reason === "holiday") return day.markerLabel
-  if (day.status === "off" && day.reason === "availability") return "Out"
-  if (day.status === "unavailable") return "Unavailable"
-  if (day.status === "working" && day.source === "availability") return "Working"
-  return ""
-}
 
 /** Generic month grid, taking resolved days/markers as props so it isn't
  *  hardwired to the "me" view — Phase 3's team/absence views reuse it. */
@@ -88,10 +68,10 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
                     key={date}
                     type="button"
                     onClick={() => onDayClick(date)}
-                    className={`rounded-md border p-1.5 text-left text-xs min-h-14 hover:ring-2 hover:ring-ring transition-shadow ${cellClasses(dayByDate[date])}`}
+                    className="rounded-md border p-1.5 text-left text-xs min-h-14 hover:ring-2 hover:ring-ring transition-shadow"
                   >
                     <div className="font-medium">{Number(date.slice(8))}</div>
-                    <div className="truncate">{cellLabel(dayByDate[date])}</div>
+                    <AvailabilityChip day={dayByDate[date]} size="sm" />
                   </button>
                 ) : (
                   <div key={`empty-${j}`} />

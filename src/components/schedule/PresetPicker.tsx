@@ -17,6 +17,10 @@ interface PresetPickerProps {
   personId: string
   /** The date the picker was opened for — start/end default here but are editable, so a single click can be widened into a range. */
   date: string
+  /** Pre-fills the end date to something other than `date` — used by
+   *  /schedule/teams' drag-entry, which opens the picker already scoped to a
+   *  dragged range instead of a single day. Defaults to `date`. */
+  initialEndDate?: string
   onSaved: () => void
 }
 
@@ -40,10 +44,10 @@ async function postAvailability(personId: string, startDate: string, endDate: st
   return res.json() as Promise<{ entries: unknown[]; warnings: { label: string; dates: string[] }[] }>
 }
 
-export function PresetPicker({ open, onOpenChange, personId, date, onSaved }: PresetPickerProps) {
+export function PresetPicker({ open, onOpenChange, personId, date, initialEndDate, onSaved }: PresetPickerProps) {
   const [preset, setPreset] = useState<PresetId>("OUT")
   const [startDate, setStartDate] = useState(date)
-  const [endDate, setEndDate] = useState(date)
+  const [endDate, setEndDate] = useState(initialEndDate ?? date)
   const [note, setNote] = useState("")
   const [skipNonWorkingDays, setSkipNonWorkingDays] = useState(true)
   const [amStatus, setAmStatus] = useState<PresetRow["status"]>("OUT")

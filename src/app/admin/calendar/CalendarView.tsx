@@ -10,13 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarkerForm, type MarkerFormData } from "@/components/schedule/MarkerForm"
 import { useCalendarMarkers } from "@/lib/hooks/useCalendarMarkers"
-import { CALENDAR_MARKER_KIND_LABELS, todayString } from "@/lib/utils"
+import { CALENDAR_MARKER_KIND_LABELS, todayString, isoDateOnly } from "@/lib/utils"
 import { apiPath } from "@/lib/api-path"
 import type { CalendarMarker } from "@prisma/client"
-
-function toDateInput(iso: string): string {
-  return iso.slice(0, 10)
-}
 
 const KIND_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   HOLIDAY: "default",
@@ -205,8 +201,8 @@ export function CalendarView() {
                 </tr>
               ) : (
                 visibleMarkers.map((marker) => {
-                  const start = toDateInput(String(marker.startDate))
-                  const end = toDateInput(String(marker.endDate))
+                  const start = isoDateOnly(String(marker.startDate))
+                  const end = isoDateOnly(String(marker.endDate))
                   return (
                     <tr key={marker.id} className="border-b last:border-0 hover:bg-muted/30">
                       <td className="px-4 py-3">

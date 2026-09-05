@@ -552,3 +552,21 @@ export function toDateString(date: Date): string {
   const d = String(date.getUTCDate()).padStart(2, "0")
   return `${y}-${m}-${d}`
 }
+
+// ─── Staffing schedule (Phase 3) ───────────────────────────────────────────
+
+/** A CalendarMarker's startDate/endDate arrive over the wire (SWR/fetch JSON)
+ *  as a full ISO datetime string, not a Date — this is the "YYYY-MM-DD" read
+ *  for that case. Prefer toDateString() when you already hold a Date. */
+export function isoDateOnly(iso: string): string {
+  return toDateString(new Date(iso))
+}
+
+/** The Monday (UTC) on or before the given date-only string, for snapping a
+ *  week-nav view (e.g. /schedule/teams) to its Monday–Sunday boundary. */
+export function mondayOf(dateStr: string): string {
+  const d = dateOnly(dateStr)
+  const weekday = d.getUTCDay() // 0 = Sunday … 6 = Saturday
+  const diff = weekday === 0 ? -6 : 1 - weekday
+  return toDateString(new Date(d.getTime() + diff * 24 * 60 * 60 * 1000))
+}

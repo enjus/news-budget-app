@@ -5,6 +5,8 @@ import {
   detectBlackoutOverlap,
   isBaseWorkingDay,
   standardUsHolidays,
+  bandSpan,
+  resolveMarkerBands,
   type WeekDiffDesiredDay,
   type WeekDiffExistingRow,
 } from "./schedule"
@@ -205,5 +207,61 @@ describe("standardUsHolidays", () => {
     const holidays = standardUsHolidays(2026)
     expect(holidays).toHaveLength(11)
     expect(new Set(holidays.map((h) => h.date)).size).toBe(11)
+  })
+})
+
+describe("bandSpan / resolveMarkerBands", () => {
+  // Mon 2026-08-31 .. Sun 2026-09-06
+  const weekDates = [
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-05",
+    "2026-09-06",
+  ]
+
+  function marker(overrides: { startDate: string; endDate: string; id?: string; kind?: string; label?: string }) {
+    return {
+      id: overrides.id ?? "m1",
+      kind: overrides.kind ?? "BLACKOUT",
+      label: overrides.label ?? "Holiday season — no PTO",
+      startDate: dateOnly(overrides.startDate),
+      endDate: dateOnly(overrides.endDate),
+    }
+  }
+
+  it("spans the full displayed week when the marker brackets it entirely", () => {
+    const m = marker({ startDate: "2026-08-01", endDate: "2026-09-30" })
+    expect(bandSpan(m, weekDates)).toEqual({ markerId: "m1", kind: "BLACKOUT", label: m.label, startCol: 0, span: 7 })
+  })
+
+  it("clamps the start when the marker begins before the visible week", () => {
+    const m = marker({ startDate: "2026-08-01", endDate: "2026-09-02" })
+    expect(bandSpan(m, weekDates)).toEqual({ markerId: "m1", kind: "BLACKOUT", label: m.label, startCol: 0, span: 3 })
+  })
+
+  it("clamps the end when the marker continues past the visible week", () => {
+    const m = marker({ startDate: "2026-09-04", endDate: "2026-12-31" })
+    expect(bandSpan(m, weekDates)).toEqual({ markerId: "m1", kind: "BLACKOUT", label: m.label, startCol: 4, span: 3 })
+  })
+
+  it("handles an ordinary two-day holiday entirely inside the week", () => {
+    const m = marker({ id: "h1", kind: "HOLIDAY", label: "Thanksgiving", startDate: "2026-09-03", endDate: "2026-09-04" })
+    expect(bandSpan(m, weekDates)).toEqual({ markerId: "h1", kind: "HOLIDAY", label: "Thanksgiving", startCol: 3, span: 2 })
+  })
+
+  it("returns null for a marker that doesn't touch the week at all", () => {
+    expect(bandSpan(marker({ startDate: "2026-07-01", endDate: "2026-07-05" }), weekDates)).toBeNull()
+    expect(bandSpan(marker({ startDate: "2026-10-01", endDate: "2026-10-05" }), weekDates)).toBeNull()
+  })
+
+  it("resolveMarkerBands filters out non-overlapping markers and keeps overlapping ones", () => {
+    const inWeek = marker({ id: "in", startDate: "2026-09-01", endDate: "2026-09-02" })
+    const outOfWeek = marker({ id: "out", startDate: "2026-01-01", endDate: "2026-01-05" })
+    const bands = resolveMarkerBands(weekDates, [inWeek, outOfWeek])
+    expect(bands).toHaveLength(1)
+    expect(bands[0].markerId).toBe("in")
   })
 })
