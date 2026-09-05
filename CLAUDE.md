@@ -21,7 +21,7 @@ If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a packa
 No test suite exists yet.
 
 **Before editing shared files** (API routes, `src/lib/*`, or the budget-view components `StoryCard.tsx`/`VideoCard.tsx`/`AgendaView.tsx`/`ColumnsView.tsx`/`EnterpriseView.tsx`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`, or all of the budget card components at once). If an open PR already touches your target file, run `gh pr diff <number>` to see exactly which lines — adjacent-line edits in the same JSX block usually merge cleanly, but do the check before assuming so.
-`npm run lint` lints `.claude/worktrees/*` too — expect a huge, mostly-unrelated problem count and a run past the default 120s timeout. Grep the output for your own edited file paths (excluding `worktrees/`) rather than reading the full summary.
+`npm run lint` ignores `.claude/worktrees/*` (`eslint.config.mjs` `globalIgnores`) — runs in seconds and reports only real source files.
 **Schema changes are deployed via `prisma db push`, not migrations.** `prisma/migrations/migration_lock.toml` is still stamped `provider = "sqlite"` from before the project moved to Postgres, and no migration has been added since — `prisma migrate dev`/`deploy` are effectively dead here. Before a schema change that drops or renames a column with existing data, write a one-off SQL backfill script to run *before* `db push` (see `prisma/manual-backfill-story-tags.sql` for the pattern) — there's no migration history to roll back to otherwise.
 
 ## Architecture Overview
@@ -236,49 +236,13 @@ Root layout (`src/app/layout.tsx`) wraps: `SessionProvider` → `ThemeProvider` 
 
 ### Prisma Seed (`prisma/seed.ts`)
 
-Seeds 15-day historical budget + enterprise stories extending 180 days forward.
-
-**9 staff members** (2 linked to user accounts):
-- Alice Chen (REPORTER), Bob Martinez (EDITOR), Carol Williams (REPORTER), David Kim (PHOTOGRAPHER), Elena Patel (GRAPHIC_DESIGNER), Frank Johnson (EDITOR), Maya Singh (VIDEOGRAPHER), Sam Okafor (EDITOR → `admin@newsroom.com`), Jamie Rivera (EDITOR → `director@newsroom.com`)
-
-**Date encoding**: All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`). The seed helper `d(offsetDays, hour)` constructs these dates.
+Seeds 15-day historical budget + enterprise stories extending 180 days forward, 9 staff members (2 linked to user accounts: Sam Okafor → `admin@newsroom.com`, Jamie Rivera → `director@newsroom.com`). All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`) via the seed helper `d(offsetDays, hour)`. Full staff roster and roles: see `prisma/seed.ts` directly.
 
 ### Staffing schedule (issue #19, dark-launched)
 
-A layer tracking who's working, off, or half-day on any date, plus weekend/holiday shift roles — intended to eventually replace the PTO spreadsheet. Phases 1–4 are implemented; **there is no `TopNav` entry yet** — every route below is reachable only by direct URL, and the spreadsheet stays the system of record until a later, separate commit adds the nav link (that's the actual cutover moment, not any phase boundary).
+A layer tracking who's working, off, or half-day on any date, plus weekend/holiday shift roles — intended to eventually replace the PTO spreadsheet. Phases 1–4 are implemented; **there is no `TopNav` entry yet** — every route is reachable only by direct URL, and the spreadsheet stays the system of record until a later, separate commit adds the nav link.
 
-**Models** (`prisma/schema.prisma`): `Person.isStaff`/`isActive` (roster membership — see `ROSTER_WHERE` below), `WorkSchedule` (per-weekday override on a Mon–Fri default: `FULL_DAY`|`OFF`, no rows = standard week), `CalendarMarker` (org-wide labeled date ranges — `HOLIDAY`|`BLACKOUT`|`NOTE`, `endDate` inclusive), `Availability` (per-date/segment override — `FULL_DAY`|`MORNING`|`AFTERNOON` × `OUT`|`WORKING`|`UNAVAILABLE`, with `createdByUserId`/`updatedByUserId` audit trail), `ShiftAssignment` (named role slots — `GA_REPORTER`|`EDITOR`|`SOCIAL_VIDEO_PRODUCER`|`VISUAL_JOURNALIST` — on shift days; unique only on `(date, shiftRole, personId)`, so two people can share a role).
-
-**`resolveDay()`** (`src/lib/schedule.ts`) is the single source of truth for whether someone is working on a given date — every view goes through it rather than re-deriving the rule. Precedence order: (1) an explicit `Availability` row for that date/segment wins outright; (2) otherwise the standing `WorkSchedule` pattern (or Mon–Fri default) — off → "off (regular)"; (3) if the pattern says working and an observed `HOLIDAY` marker covers the date → "off (holiday)"; (4) otherwise → "working". Holiday is checked *after* the pattern so a Tuesday–Saturday person's Monday during a holiday week reads "regularly off," not "holiday." A date can resolve to one whole-day verdict (`split: false`) or two half verdicts (`split: true`, `am`/`pm`) when an explicit half-day override exists. `bandSpan()`/`resolveMarkerBands()` (same file) lay out `CalendarMarker` ranges against a displayed week's columns, clamped so a range starting before or ending after the visible week (or spanning it entirely) still renders a correct band. `shiftDaysInWindow()` derives shift days (every Saturday/Sunday plus observed holidays) over an arbitrary window; `mergeShiftDays()` adds any date that already carries a real `ShiftAssignment` but isn't derived — an **ad-hoc coverage day** (e.g. a series of weeknight protests) that stays visible for exactly as long as it has an assignment, with `adHoc: true` in the API/UI so it's visually distinguished from a standing weekend/holiday day. `detectShiftConflict()` flags an explicit `OUT` day or a standing-pattern day off when a shift is assigned (built on `resolveDay()`'s own output — a day off suppresses itself automatically for someone whose `WorkSchedule` already covers that weekday, no extra check needed); `describeShiftConflict()` turns that into the human sentence shared by both `/api/schedule/shifts` and `/api/schedule/day`.
-
-**Dates are date-only labels, not instants** — stored at `T00:00:00.000Z`, read with `dateOnly()`/`toDateString()` (`src/lib/utils.ts`), never local-time methods. `isoDateOnly()` handles the same conversion when a `CalendarMarker` date arrives over the wire as a JSON-serialized ISO string rather than a `Date`. `WorkSchedule.weekday` must be derived with `getUTCDay()`, never `getDay()`.
-
-**Permissions**: `canEditSchedule(role)` — everyone but `VIEWER` can create/edit any person's availability, matching the spreadsheet's equally-open edit rights. `canManageRoster(role)` — `ADMIN`/`LEADERSHIP` only, gates `isStaff`/`isActive`, `WorkSchedule`, and `CalendarMarker` writes. `ROSTER_WHERE = { isStaff: true, isActive: true }` is the shared roster-membership predicate.
-
-**API routes** (all `force-dynamic`; reads are open to any authenticated session, matching the "VIEWER reads everything" rule — no separate read-only check per route):
-
-| Route | Methods | Purpose |
-|-------|---------|---------|
-| `/api/people/[id]/availability?start=&end=` | GET | One person's resolved days over a window |
-| `/api/people/[id]/work-schedule` | GET/PATCH | Read/replace a person's standing pattern |
-| `/api/schedule/day?date=` | GET | Resolved status for the whole roster on one date, plus markers, plus any filled shift assignments that date (`shifts`) |
-| `/api/schedule/week?start=` | GET | Resolved status for the whole roster over a Monday-Sunday week, batched (not per-person) |
-| `/api/schedule/availability` | POST | Range write (half-day collision clearing, blackout warnings) |
-| `/api/schedule/availability/week` | PUT | One-off week editor — diff-and-write in one transaction |
-| `/api/schedule/availability/[id]` | PATCH/DELETE | Edit or clear one entry |
-| `/api/schedule/markers?start=&end=&kind=` | GET/POST | Calendar markers |
-| `/api/schedule/markers/[id]` | PATCH/DELETE | Edit or remove a marker |
-| `/api/schedule/markers/seed-holidays` | POST | Batch-seed the standard US federal holidays for a year |
-| `/api/schedule/export?start=&end=` | GET | CSV of the whole roster's resolved schedule over a range |
-| `/api/schedule/shifts?start=&end=` | GET | Shift days in a window (weekends + observed holidays, plus any ad-hoc date that already has an assignment — see `mergeShiftDays()`), each with its 4 role slots, assignees, and conflict warnings, plus the roster for the assign-picker |
-| `/api/schedule/shifts` | POST | Assign a person to a `(date, shiftRole)` slot on **any** date, not only a derived shift day — `writeWorkingRow` (default true) also writes the matching `Availability` `FULL_DAY`/`WORKING` row, but skips it (returning `workingRowSkipped: true`) rather than clobbering an existing entry that isn't already a plain, note-free `WORKING` day |
-| `/api/schedule/shifts/[id]` | DELETE | Remove one shift assignment — any date, including a standing weekend/holiday one (does not touch any `Availability` row written alongside it) |
-
-**SWR hooks** (`src/lib/hooks/`): `useMySchedule`, `useCalendarMarkers`, `useDaySchedule`, `useWeekSchedule`, `useShifts`.
-
-**Client routes**: `/admin/calendar` (holidays/blackout admin, linked from `TopNav`'s admin menu — unlike the routes below), `/schedule/me` (personal month calendar), `/schedule/today` (absence board — who's out/half-day/unavailable today, inverts to "who's working" on an observed holiday), `/schedule/teams` (Monday–Sunday team grid — marker band, per-row week editor, drag-select a range of cells to open the range picker), `/schedule/shifts` (weekend/holiday role slots over an arbitrary date range — a season at a time or narrowed to a week).
-
-**Shared components** (`src/components/schedule/`): `MonthCalendar`, `WeekEditor` (takes an arbitrary `weekDates` array, not month-bound — reused as-is by the team grid), `PresetPicker` (single-day/range entry; `initialEndDate` pre-fills a dragged range), `AvailabilityChip` (the one color/label mapping shared by all three calendar-ish views), `MarkerBand` (holiday/blackout bands across a week, edge-clamped), `ShiftRoleSlot` (one role's assignee list for one shift day — add/remove, conflict icons, and a visibly distinct empty state since an unfilled slot is the point of the view).
+Full detail (models, `resolveDay()` precedence, permissions, API routes, SWR hooks, client routes, shared components) is in **[`docs/staffing-schedule.md`](docs/staffing-schedule.md)** — load it before touching anything under `src/lib/schedule.ts`, `src/app/api/schedule/**`, `src/app/api/people/[id]/(availability|work-schedule)`, `src/app/schedule/**`, `src/app/admin/calendar`, or `src/components/schedule/**`.
 
 ### Feature Flags (`src/lib/features.ts`)
 

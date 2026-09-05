@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Each worktree is a full checkout of the repo — without this, lint
+    // re-walks and reports on every worktree's copy of every file.
+    ".claude/worktrees/**",
   ]),
 ]);
 
