@@ -331,9 +331,14 @@ export function EnterpriseView() {
           patchBody = {
             onlinePubDateTBD: false,
             onlinePubDate: stamp,
-            printPubDateTBD: false,
-            printPubDate: stamp,
           }
+          // Deliberately not touching printPubDate/printPubDateTBD here — see #61.
+          // Pinning print date to match the dragged-to week used to silently
+          // override this item's Enterprise Budget placement (getDateBucket()
+          // uses the earliest of online/print date) the next time someone edited
+          // the online date, since non-leadership editors can't see/fix print
+          // date. Leave any existing print-date override alone; it stays TBD by
+          // default for everyone else.
         }
 
         // Videos don't have printPubDate fields
@@ -372,9 +377,14 @@ export function EnterpriseView() {
     const defaultPubDateStr = group.date === "TBD"
       ? null
       : format(addDays(parseISO(group.date), 2), "yyyy-MM-dd") // default new stories to Wednesday of the week
+    // Print pub date is deliberately left unset here — see #61. Pre-pinning it
+    // to match the default online date locked in an Enterprise Budget
+    // placement that non-leadership editors couldn't see or fix if the online
+    // date changed later. It stays TBD by default (StoryForm's default) unless
+    // a director sets an explicit override.
     const newStoryHref = defaultPubDateStr === null
       ? "/stories/new?isEnterprise=true"
-      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&onlinePubDateTBD=false&printPubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&printPubDateTBD=false`
+      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&onlinePubDateTBD=false`
 
     return (
       <DroppableSection
