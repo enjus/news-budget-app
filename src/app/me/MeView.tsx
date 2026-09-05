@@ -132,7 +132,7 @@ function DraftsSection() {
       {!isEmpty && (
         <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" />
-          <span>Drafts are private to you until sent to budget. Assigned people won&apos;t see them.</span>
+          <span>Drafts are private until sent to budget — visible only to you and anyone assigned to them.</span>
         </div>
       )}
 

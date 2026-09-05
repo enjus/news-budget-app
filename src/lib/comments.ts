@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommentSchema } from "@/lib/validations";
-import { canCreateContent, hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
 import {
   collectEmails,
   notifyCommentMention,
@@ -23,14 +23,19 @@ export const commentOrderBy = { createdAt: "asc" } as const;
 
 type Kind = "story" | "video";
 
-const parentDraftSelect = { id: true, onBudget: true, createdByUserId: true } as const;
+const parentDraftSelect = {
+  id: true,
+  onBudget: true,
+  createdByUserId: true,
+  assignments: { select: { personId: true } },
+} as const;
 
 /**
  * GET handler shared by /api/stories/[id]/comments and /api/videos/[id]/comments.
  * Read access matches the other child collections (assignments, visuals): any
  * request that got past the auth middleware can read — except off-budget
- * drafts, which stay visible only to their creator (or admins), same as the
- * parent story/video detail route.
+ * drafts, which stay visible only to their creator, assignees, or admins,
+ * same as the parent story/video detail route.
  */
 export async function listComments(kind: Kind, parentId: string) {
   const parent =
@@ -45,14 +50,12 @@ export async function listComments(kind: Kind, parentId: string) {
     );
   }
 
-  if (!parent.onBudget) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (parent.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
-      return NextResponse.json(
-        { error: kind === "story" ? "Story not found" : "Video not found" },
-        { status: 404 }
-      );
-    }
+  const session = await getServerSession(authOptions);
+  if (blockedFromDraft(parent, session?.user)) {
+    return NextResponse.json(
+      { error: kind === "story" ? "Story not found" : "Video not found" },
+      { status: 404 }
+    );
   }
 
   const comments = await prisma.comment.findMany({
@@ -106,7 +109,7 @@ export async function createComment(
     budgetLine: true,
     onBudget: true,
     createdByUserId: true,
-    assignments: { select: { role: true, person: { select: { name: true, email: true, isActive: true } } } },
+    assignments: { select: { personId: true, role: true, person: { select: { name: true, email: true, isActive: true } } } },
   } as const;
 
   // Fetched into separate consts rather than one union-typed `parent` so the
@@ -134,7 +137,7 @@ export async function createComment(
     );
   }
 
-  if (!parent.onBudget && parent.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+  if (blockedFromDraft(parent, session.user)) {
     return NextResponse.json(
       { error: kind === "story" ? "Story not found" : "Video not found" },
       { status: 404 }

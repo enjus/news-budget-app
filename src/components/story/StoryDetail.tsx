@@ -3,7 +3,8 @@
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { ExternalLink, MessageSquare, Send } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ExternalLink, MessageSquare, Send, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -58,8 +59,23 @@ function CommentJumpLink({ count }: { count: number }) {
 }
 
 export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
+  const router = useRouter()
   const formRef = useRef<StoryFormHandle>(null)
   const [sendingToBudget, setSendingToBudget] = useState(false)
+  const [deletingDraft, setDeletingDraft] = useState(false)
+
+  async function handleDeleteDraft() {
+    setDeletingDraft(true)
+    try {
+      const res = await fetch(apiPath(`/api/stories/${story.id}`), { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      toast.success("Draft deleted")
+      router.push("/me")
+    } catch {
+      toast.error("Failed to delete draft. Please try again.")
+      setDeletingDraft(false)
+    }
+  }
 
   async function handleSendToBudget() {
     setSendingToBudget(true)
@@ -266,17 +282,50 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
       {!story.onBudget && (
         <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            This is a draft. Only you can see it.
+            This draft was created by {story.createdByUser?.name ?? "an unknown user"}. Only the
+            creator and assigned users can see it until it&apos;s added to the budget.
           </p>
-          <Button
-            size="sm"
-            className="gap-1"
-            disabled={sendingToBudget}
-            onClick={handleSendToBudget}
-          >
-            <Send className="size-3" />
-            {sendingToBudget ? "Sending..." : "Send to Budget"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                  disabled={deletingDraft}
+                >
+                  <Trash2 className="size-3" />
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent size="sm">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    &ldquo;{story.slug}&rdquo; will be permanently deleted. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-white hover:bg-destructive/90"
+                    onClick={handleDeleteDraft}
+                  >
+                    Delete permanently
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button
+              size="sm"
+              className="gap-1"
+              disabled={sendingToBudget}
+              onClick={handleSendToBudget}
+            >
+              <Send className="size-3" />
+              {sendingToBudget ? "Sending..." : "Send to Budget"}
+            </Button>
+          </div>
         </div>
       )}
 

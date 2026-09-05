@@ -17,6 +17,7 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
         mentions: { include: { person: { select: { id: true; name: true } } } };
       };
     };
+    createdByUser: { select: { id: true; name: true } };
   };
 }>;
 
@@ -70,6 +71,7 @@ export type VideoWithComments = Prisma.VideoGetPayload<{
         mentions: { include: { person: { select: { id: true; name: true } } } };
       };
     };
+    createdByUser: { select: { id: true; name: true } };
   };
 }>;
 

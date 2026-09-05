@@ -4,8 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
-import { canCreateContent, hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
+import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +18,7 @@ const storyInclude = {
   videos: true,
   tags: true,
   comments: { include: commentInclude, orderBy: commentOrderBy },
+  createdByUser: { select: { id: true, name: true } },
 } as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
@@ -33,12 +34,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
-    // Off-budget drafts are only visible to their creator (or admins)
-    if (!story.onBudget) {
-      const session = await getServerSession(authOptions);
-      if (!session?.user || (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
-        return NextResponse.json({ error: "Story not found" }, { status: 404 });
-      }
+    // Off-budget drafts are only visible to their creator, assignees, or admins
+    const session = await getServerSession(authOptions);
+    if (blockedFromDraft(story, session?.user)) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
     return NextResponse.json(story);
@@ -60,9 +59,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Block non-owners from editing off-budget drafts
-    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
-    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Block non-owners/non-assignees from editing off-budget drafts
+    const existing = await prisma.story.findUnique({
+      where: { id },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+    });
+    if (existing && blockedFromDraft(existing, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -175,9 +177,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Block non-owners from deleting off-budget drafts
-    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
-    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Block non-owners/non-assignees from deleting off-budget drafts
+    const existing = await prisma.story.findUnique({
+      where: { id },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+    });
+    if (existing && blockedFromDraft(existing, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 

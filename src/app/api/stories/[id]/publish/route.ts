@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +28,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
     });
 
     if (!story) {
@@ -40,8 +39,8 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story is already on the budget" }, { status: 400 });
     }
 
-    // Only the creator or an admin can publish a draft
-    if (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Only the creator, an assignee, or an admin can publish a draft
+    if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 

@@ -7,16 +7,27 @@ import { hasAdminAccess } from "./utils"
  * Story/Video or one of its child resources (comments, visuals,
  * assignments, tags). Per CLAUDE.md this is deliberately per-route rather
  * than centralized middleware — callers still 404 on a missing parent
- * themselves; this only covers the onBudget/createdByUserId gate itself,
- * so the same rule can't drift between routes the way it previously did.
+ * themselves; this only covers the onBudget/createdByUserId/assignments gate
+ * itself, so the same rule can't drift between routes the way it previously
+ * did.
+ *
+ * A draft is visible (and, per this same check, writable) to its creator,
+ * anyone assigned to it, and admins. `parent.assignments` must be selected
+ * by the caller — pass the StoryAssignment/VideoAssignment rows' `personId`s.
+ * Visual credits are deliberately NOT consulted here (unlike
+ * `collectEmails()`'s notification recipients) — the simplest rule for draft
+ * access is assignment-based only.
  */
 export function blockedFromDraft(
-  parent: { onBudget: boolean; createdByUserId: string | null },
-  sessionUser: { id: string; appRole: string } | null | undefined
+  parent: { onBudget: boolean; createdByUserId: string | null; assignments: { personId: string }[] },
+  sessionUser: { id: string; appRole: string; personId?: string | null } | null | undefined
 ): boolean {
   if (parent.onBudget) return false
   if (!sessionUser) return true
-  return parent.createdByUserId !== sessionUser.id && !hasAdminAccess(sessionUser.appRole)
+  if (sessionUser.id === parent.createdByUserId) return false
+  if (hasAdminAccess(sessionUser.appRole)) return false
+  if (sessionUser.personId && parent.assignments.some((a) => a.personId === sessionUser.personId)) return false
+  return true
 }
 
 /**

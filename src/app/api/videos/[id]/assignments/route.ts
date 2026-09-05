@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
@@ -121,7 +121,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
