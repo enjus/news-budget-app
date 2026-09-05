@@ -202,8 +202,7 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
         <div className="space-y-6">
           <p className="text-sm text-muted-foreground">
             {grouped.out.length} out · {grouped.halfDay.length} half {grouped.halfDay.length === 1 ? "day" : "days"} ·{" "}
-            {grouped.unavailable.length} unavailable · {grouped.regularlyOff.length} regularly off ·{" "}
-            {people.length} on the roster
+            {grouped.unavailable.length} unavailable · {grouped.regularlyOff.length} regularly off
           </p>
           <Section title="Out" people={grouped.out} teamsById={teamsById} />
           <Section title="Half day" people={grouped.halfDay} teamsById={teamsById} />
