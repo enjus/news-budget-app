@@ -2,7 +2,13 @@ import useSWR from "swr"
 import type { CalendarMarker } from "@prisma/client"
 import type { ResolvedDay } from "@/lib/schedule"
 
-export type WeekScheduleDay = ResolvedDay & { date: string; note: string | null; inBlackout: boolean }
+export type WeekScheduleDay = ResolvedDay & {
+  date: string
+  note: string | null
+  amNote?: string | null
+  pmNote?: string | null
+  inBlackout: boolean
+}
 
 export interface WeekSchedulePerson {
   id: string

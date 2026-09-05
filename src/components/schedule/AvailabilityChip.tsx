@@ -58,6 +58,16 @@ interface AvailabilityChipProps {
    *  (issue #19 §3: "a flag on the chip... a manager scanning the week sees
    *  the exceptions after the fact"). Only meaningful for explicit entries. */
   inBlackout?: boolean
+  /** Whole-day note, from the resolved Availability row — only meaningful
+   *  when `day` isn't split. Surfaced as a small indicator + full text on
+   *  hover (the cell is too small for inline text), the same reveal pattern
+   *  already used for `inBlackout` — a note otherwise has no way to show up
+   *  anywhere but the Today view or a CSV export. */
+  note?: string | null
+  /** Per-half notes for a split day — parallels `note` but keyed to AM/PM,
+   *  since a split day's two halves can each carry their own. */
+  amNote?: string | null
+  pmNote?: string | null
   /** "sm" for compact grid cells (team grid), "md" for month-calendar cells. */
   size?: "sm" | "md"
   className?: string
@@ -71,7 +81,7 @@ interface AvailabilityChipProps {
  *  and labeled — which half is worked and which isn't is exactly the
  *  information a split day exists to carry, so collapsing it to a single
  *  "Split" chip (the original behavior) lost the one thing worth showing. */
-export function AvailabilityChip({ day, inBlackout, size = "md", className }: AvailabilityChipProps) {
+export function AvailabilityChip({ day, inBlackout, note, amNote, pmNote, size = "md", className }: AvailabilityChipProps) {
   const textSize = size === "sm" ? "text-[10px]" : "text-xs"
 
   // flex-1/items-center below let the chip stretch to fill a flex parent
@@ -82,11 +92,19 @@ export function AvailabilityChip({ day, inBlackout, size = "md", className }: Av
   if (day?.split) {
     return (
       <div className={`rounded overflow-hidden h-full flex flex-col ${className ?? ""}`}>
-        <div className={`flex-1 flex items-center min-w-0 truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.am)}`} title={`AM: ${resolvedSegmentLabel(day.am)}`}>
+        <div
+          className={`flex-1 flex items-center min-w-0 truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.am)}`}
+          title={amNote ? `AM: ${resolvedSegmentLabel(day.am)} — ${amNote}` : `AM: ${resolvedSegmentLabel(day.am)}`}
+        >
           AM {resolvedSegmentLabel(day.am)}
+          {amNote && <span className="ml-0.5 shrink-0 text-sky-600 dark:text-sky-400">●</span>}
         </div>
-        <div className={`flex-1 flex items-center min-w-0 truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.pm)}`} title={`PM: ${resolvedSegmentLabel(day.pm)}`}>
+        <div
+          className={`flex-1 flex items-center min-w-0 truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.pm)}`}
+          title={pmNote ? `PM: ${resolvedSegmentLabel(day.pm)} — ${pmNote}` : `PM: ${resolvedSegmentLabel(day.pm)}`}
+        >
           PM {resolvedSegmentLabel(day.pm)}
+          {pmNote && <span className="ml-0.5 shrink-0 text-sky-600 dark:text-sky-400">●</span>}
         </div>
         {inBlackout && (
           <span className="px-1 shrink-0 text-amber-600 dark:text-amber-400" title="Falls inside the PTO blackout">
@@ -101,8 +119,14 @@ export function AvailabilityChip({ day, inBlackout, size = "md", className }: Av
   return (
     <div
       className={`rounded flex items-center min-w-0 ${size === "sm" ? "px-1 py-0.5 text-[11px]" : "px-1.5 py-1 text-xs"} ${resolvedDayClasses(day)} ${className ?? ""}`}
+      title={note ? `${label} — ${note}` : undefined}
     >
       <span className="truncate min-w-0">{label}</span>
+      {note && (
+        <span className="ml-0.5 shrink-0 text-sky-600 dark:text-sky-400" title={note}>
+          ●
+        </span>
+      )}
       {inBlackout && (
         <span className="ml-0.5 shrink-0 text-amber-600 dark:text-amber-400" title="Falls inside the PTO blackout">
           ●

@@ -76,7 +76,13 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
                   >
                     <div className="font-medium shrink-0">{Number(date.slice(8))}</div>
                     <div className="flex-1 min-h-0 mt-0.5">
-                      <AvailabilityChip day={dayByDate[date]} size="sm" />
+                      <AvailabilityChip
+                        day={dayByDate[date]}
+                        note={dayByDate[date]?.note}
+                        amNote={dayByDate[date]?.amNote}
+                        pmNote={dayByDate[date]?.pmNote}
+                        size="sm"
+                      />
                     </div>
                   </button>
                 ) : (

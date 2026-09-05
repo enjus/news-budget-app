@@ -2,11 +2,11 @@
 
 import { useState } from "react"
 import { apiPath } from "@/lib/api-path"
+import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import Link from "next/link"
 import useSWR from "swr"
 import { useSession } from "next-auth/react"
 import { format } from "date-fns"
-import { toast } from "sonner"
 import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -79,57 +79,12 @@ export function PersonView({ id }: PersonViewProps) {
   const [openUpcoming, setOpenUpcoming] = useState(true)
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
-  const [togglingActive, setTogglingActive] = useState(false)
-  const [togglingStaff, setTogglingStaff] = useState(false)
 
   const { data, isLoading, error, mutate } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
-
-  async function handleToggleActive() {
-    if (!data) return
-    setTogglingActive(true)
-    try {
-      const res = await fetch(apiPath(`/api/people/${id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !data.person.isActive }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Request failed (${res.status})`)
-      }
-      toast.success(data.person.isActive ? "Marked inactive" : "Marked active")
-      mutate()
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status")
-    } finally {
-      setTogglingActive(false)
-    }
-  }
-
-  async function handleToggleStaff() {
-    if (!data) return
-    setTogglingStaff(true)
-    try {
-      const res = await fetch(apiPath(`/api/people/${id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isStaff: !data.person.isStaff }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Request failed (${res.status})`)
-      }
-      toast.success(data.person.isStaff ? "Removed from staff roster" : "Added to staff roster")
-      mutate()
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status")
-    } finally {
-      setTogglingStaff(false)
-    }
-  }
+  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(id, mutate)
 
   if (error || (data && !data.items)) {
     return (
@@ -239,7 +194,7 @@ export function PersonView({ id }: PersonViewProps) {
               variant="outline"
               size="sm"
               disabled={togglingStaff}
-              onClick={handleToggleStaff}
+              onClick={() => toggleStaff(person.isStaff)}
             >
               <Briefcase className="size-4" />
               {person.isStaff ? "Remove from staff" : "Add to staff"}
@@ -251,7 +206,7 @@ export function PersonView({ id }: PersonViewProps) {
               variant="outline"
               size="sm"
               disabled={togglingActive}
-              onClick={handleToggleActive}
+              onClick={() => toggleActive(person.isActive)}
             >
               {person.isActive ? (
                 <>

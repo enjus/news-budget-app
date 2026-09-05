@@ -79,7 +79,15 @@ function DayCell({
       onMouseEnter={onMouseEnter}
       className={`flex rounded border border-border/60 min-h-9 overflow-hidden ${selected ? "ring-2 ring-ring" : ""}`}
     >
-      <AvailabilityChip day={day} inBlackout={day?.inBlackout ?? false} size="sm" className="flex-1 min-w-0" />
+      <AvailabilityChip
+        day={day}
+        inBlackout={day?.inBlackout ?? false}
+        note={day?.note}
+        amNote={day?.amNote}
+        pmNote={day?.pmNote}
+        size="sm"
+        className="flex-1 min-w-0"
+      />
     </button>
   )
 }

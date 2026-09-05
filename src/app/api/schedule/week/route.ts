@@ -54,7 +54,13 @@ export async function GET(request: NextRequest) {
         const note = resolved.split
           ? null
           : rowsForDate.find((r) => r.segment === "FULL_DAY")?.note ?? null;
-        return { date, ...resolved, note, inBlackout };
+        // A split day can carry a note on either half — surfaced separately
+        // rather than nulled out, same fix as /api/people/[id]/availability's
+        // amNote/pmNote (that route's note-loss bug, fixed for "My schedule";
+        // the team grid needs the same fields to show half-day notes too).
+        const amNote = resolved.split ? rowsForDate.find((r) => r.segment === "MORNING")?.note ?? null : undefined;
+        const pmNote = resolved.split ? rowsForDate.find((r) => r.segment === "AFTERNOON")?.note ?? null : undefined;
+        return { date, ...resolved, note, amNote, pmNote, inBlackout };
       });
 
       return {

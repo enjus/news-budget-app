@@ -42,6 +42,7 @@ import {
 import { PERSON_ROLE_LABELS, hasAdminAccess, canManageRoster, displayName } from "@/lib/utils"
 import type { PersonWithCounts } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import { WorkScheduleEditor } from "./WorkScheduleEditor"
 
 const ROLE_OPTIONS = [
@@ -65,13 +66,15 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
   const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
   const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [open, setOpen] = useState(false)
-  const [togglingActive, setTogglingActive] = useState(false)
-  const [togglingStaff, setTogglingStaff] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const isEdit = !!person
   const assignmentCount = person
     ? (person._count?.assignments ?? 0) + (person._count?.videoAssignments ?? 0)
     : 0
+  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(
+    person?.id ?? "",
+    onSuccess
+  )
 
   const {
     register,
@@ -118,50 +121,6 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
       onSuccess()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
-    }
-  }
-
-  async function handleToggleActive() {
-    if (!person) return
-    setTogglingActive(true)
-    try {
-      const res = await fetch(apiPath(`/api/people/${person.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !person.isActive }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Request failed (${res.status})`)
-      }
-      toast.success(person.isActive ? "Marked inactive" : "Marked active")
-      onSuccess()
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status")
-    } finally {
-      setTogglingActive(false)
-    }
-  }
-
-  async function handleToggleStaff() {
-    if (!person) return
-    setTogglingStaff(true)
-    try {
-      const res = await fetch(apiPath(`/api/people/${person.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isStaff: !person.isStaff }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Request failed (${res.status})`)
-      }
-      toast.success(person.isStaff ? "Removed from staff" : "Added to staff")
-      onSuccess()
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status")
-    } finally {
-      setTogglingStaff(false)
     }
   }
 
@@ -292,7 +251,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
                   variant="outline"
                   size="sm"
                   disabled={togglingStaff}
-                  onClick={handleToggleStaff}
+                  onClick={() => toggleStaff(person!.isStaff)}
                 >
                   <Briefcase className="size-4" />
                   {person!.isStaff ? "Remove from staff" : "Add to staff"}
@@ -304,7 +263,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
                   variant="outline"
                   size="sm"
                   disabled={togglingActive}
-                  onClick={handleToggleActive}
+                  onClick={() => toggleActive(person!.isActive)}
                 >
                   {person!.isActive ? (
                     <>
