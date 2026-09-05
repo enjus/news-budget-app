@@ -146,6 +146,19 @@ describe("computeWeekDiff", () => {
     expect(result.toUpsert).toEqual([{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT", note: "swapped with Rivera" }])
   })
 
+  it("a full-day override matching the baseline status still preserves an existing note (upserts, doesn't delete)", () => {
+    // Status alone matches Monday's normal WORKING pattern, but the stored
+    // row carries a note the desired write doesn't mention — deleting it
+    // outright (the old behavior) would silently drop that note.
+    const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", segment: "FULL_DAY", status: "WORKING" }]
+    const existing: WeekDiffExistingRow[] = [
+      { id: "row-1", date: "2026-08-31", segment: "FULL_DAY", status: "WORKING", note: "working from the courthouse" },
+    ]
+    const result = computeWeekDiff(desired, existing, noPattern, noMarkers)
+    expect(result.toUpsert).toEqual([{ date: "2026-08-31", segment: "FULL_DAY", status: "WORKING", note: "working from the courthouse" }])
+    expect(result.toDelete).toEqual([])
+  })
+
   it("still clears the note when the desired day explicitly sends note: null", () => {
     const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT", note: null }]
     const existing: WeekDiffExistingRow[] = [

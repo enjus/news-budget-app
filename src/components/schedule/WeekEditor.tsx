@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, type PresetId } from "./availabilityPresets"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import { apiPath } from "@/lib/api-path"
+import { weekdayAbbrev } from "@/lib/utils"
 
 type WeekEditorDay = { date: string; revert: true } | { date: string; segment: string; status: string }
 
@@ -15,13 +16,16 @@ interface WeekEditorProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   personId: string
-  /** The 7 dates in the displayed week, Sunday first. */
+  /** The dates to edit, Monday first (the app's standard week — see
+   *  mondayOf()/weekDatesFrom()) — but rendering doesn't actually assume
+   *  that: each row's label is computed from its own date via
+   *  weekdayAbbrev(), not from position, so a partial or oddly-ordered list
+   *  (e.g. a month's first/last week from MonthCalendar) still labels
+   *  correctly. */
   weekDates: string[]
   resolvedDays: MyScheduleDay[]
   onSaved: () => void
 }
-
-const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDays, onSaved }: WeekEditorProps) {
   const dayByDate = useMemo(() => Object.fromEntries(resolvedDays.map((d) => [d.date, d])), [resolvedDays])
@@ -72,10 +76,10 @@ export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDa
           <DialogTitle>Edit week</DialogTitle>
         </DialogHeader>
         <div className="space-y-2 pt-2">
-          {weekDates.map((date, i) => (
+          {weekDates.map((date) => (
             <div key={date} className="flex items-center gap-3">
               <span className="w-24 shrink-0 text-sm text-muted-foreground">
-                {WEEKDAY_LABELS[i]} {date.slice(5)}
+                {weekdayAbbrev(date)} {date.slice(5)}
               </span>
               <Select
                 value={selections[date]}

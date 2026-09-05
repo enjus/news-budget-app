@@ -8,6 +8,34 @@
 
 import { toDateString } from "./utils"
 
+/** Common shape of a HOLIDAY-checkable marker, loose enough to cover both
+ *  server-side markers (Date fields) and markers as they arrive over the
+ *  wire (JSON-serialized ISO strings) — see isoDateOnly()'s comment in
+ *  utils.ts for why the latter happens. */
+interface HolidayMarkerLike {
+  kind: string
+  observed: boolean
+  label: string
+  startDate: string | Date
+  endDate: string | Date
+}
+
+function markerDateStr(value: string | Date): string {
+  return typeof value === "string" ? value.slice(0, 10) : toDateString(value)
+}
+
+/** Whether `dateStr` falls within an observed HOLIDAY marker's inclusive
+ *  range. The one implementation shared by resolveFromPattern (server-side
+ *  day resolution), shiftDaysInWindow (Phase 4 shift-day derivation), and
+ *  the absence board's holiday banner (src/app/schedule/today/groupPeople.ts)
+ *  — previously three independent copies of the same "HOLIDAY, observed,
+ *  inclusive both ends" check, which could drift. */
+export function findObservedHoliday<T extends HolidayMarkerLike>(dateStr: string, markers: T[]): T | undefined {
+  return markers.find(
+    (m) => m.kind === "HOLIDAY" && m.observed && markerDateStr(m.startDate) <= dateStr && dateStr <= markerDateStr(m.endDate)
+  )
+}
+
 /**
  * Local (non-Prisma) shape for an explicit availability override on one date.
  * Routes map real `Availability` rows into this shape — `{date:
@@ -93,15 +121,7 @@ function resolveFromPattern(
   }
 
   // Observed holiday, checked only once the standing pattern says working.
-  // Inclusive range: lte both ends.
-  const time = date.getTime()
-  const holiday = markers.find(
-    (m) =>
-      m.kind === "HOLIDAY" &&
-      m.observed &&
-      m.startDate.getTime() <= time &&
-      time <= m.endDate.getTime()
-  )
+  const holiday = findObservedHoliday(toDateString(date), markers)
   if (holiday) {
     return { status: "off", reason: "holiday", markerId: holiday.id, markerLabel: holiday.label }
   }
@@ -296,23 +316,23 @@ export function computeWeekDiff(
     const resolveNote = (desiredNote: string | null | undefined, existing: WeekDiffExistingRow | undefined) =>
       desiredNote !== undefined ? desiredNote : existing?.note ?? null
 
-    const matchesBaseline = (d: Extract<WeekDiffDesiredDay, { segment: string }>) => d.status === baseline && !d.note
-
+    // "Matches baseline" (no override needed → delete rather than upsert)
+    // has to be judged on the *resolved* note, not just the desired write's
+    // own note field — a desired write with no note (e.g. the week editor,
+    // which never sends one) must still preserve a note the existing row
+    // already carries via resolveNote() below, or that note is silently
+    // dropped even though the status alone matches baseline.
     const desiredFullDay = nonRevertDays.length === 1 && nonRevertDays[0].segment === "FULL_DAY"
       ? nonRevertDays[0]
       : undefined
 
     if (desiredFullDay) {
-      if (matchesBaseline(desiredFullDay)) {
+      const existingSameSeg = existingForDate.find((r) => r.segment === "FULL_DAY")
+      const note = resolveNote(desiredFullDay.note, existingSameSeg)
+      if (desiredFullDay.status === baseline && !note) {
         existingForDate.forEach((r) => toDelete.push({ id: r.id }))
       } else {
-        const existingSameSeg = existingForDate.find((r) => r.segment === "FULL_DAY")
-        toUpsert.push({
-          date,
-          segment: "FULL_DAY",
-          status: desiredFullDay.status,
-          note: resolveNote(desiredFullDay.note, existingSameSeg),
-        })
+        toUpsert.push({ date, segment: "FULL_DAY", status: desiredFullDay.status, note })
         existingForDate.filter((r) => r.segment !== "FULL_DAY").forEach((r) => toDelete.push({ id: r.id }))
       }
       continue
@@ -324,8 +344,13 @@ export function computeWeekDiff(
     for (const seg of ["MORNING", "AFTERNOON"] as const) {
       const desired = nonRevertDays.find((d) => d.segment === seg)
       const existing = existingForDate.find((r) => r.segment === seg)
-      if (desired && !matchesBaseline(desired)) {
-        toUpsert.push({ date, segment: seg, status: desired.status, note: resolveNote(desired.note, existing) })
+      if (desired) {
+        const note = resolveNote(desired.note, existing)
+        if (desired.status === baseline && !note) {
+          if (existing) toDelete.push({ id: existing.id })
+        } else {
+          toUpsert.push({ date, segment: seg, status: desired.status, note })
+        }
       } else if (existing) {
         toDelete.push({ id: existing.id })
       }
@@ -461,13 +486,11 @@ export function shiftDaysInWindow(
   endDate: Date,
   holidayMarkers: ResolveDayMarker[]
 ): ShiftDay[] {
-  const observedHolidays = holidayMarkers.filter((m) => m.kind === "HOLIDAY" && m.observed)
   const days: ShiftDay[] = []
   let cursor = new Date(startDate.getTime())
   while (cursor.getTime() <= endDate.getTime()) {
     const weekday = cursor.getUTCDay()
-    const time = cursor.getTime()
-    const holiday = observedHolidays.find((m) => m.startDate.getTime() <= time && time <= m.endDate.getTime())
+    const holiday = findObservedHoliday(toDateString(cursor), holidayMarkers)
     if (weekday === 0 || weekday === 6 || holiday) {
       days.push({
         date: toDateString(cursor),

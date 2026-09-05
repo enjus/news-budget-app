@@ -11,7 +11,7 @@ import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { dateOnly, toDateString, mondayOf, todayString } from "@/lib/utils"
+import { dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev } from "@/lib/utils"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -24,8 +24,6 @@ interface TeamsViewProps {
   isLoading: boolean
   onSaved: () => void
 }
-
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 function weekDatesFrom(weekStart: string): string[] {
   const start = dateOnly(weekStart)
@@ -229,7 +227,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
               <SelectContent>
                 {weekDates.map((d, i) => (
                   <SelectItem key={d} value={String(i)}>
-                    {WEEKDAY_LABELS[i]} {d.slice(5)}
+                    {weekdayAbbrev(d)} {d.slice(5)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -261,7 +259,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
               <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} />
               <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
                 {columns.map((i) => (
-                  <div key={i}>{WEEKDAY_LABELS[i]} {weekDates[i].slice(5)}</div>
+                  <div key={i}>{weekdayAbbrev(weekDates[i])} {weekDates[i].slice(5)}</div>
                 ))}
               </div>
             </div>

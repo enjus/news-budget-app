@@ -586,3 +586,15 @@ export function mondayOf(dateStr: string): string {
   const diff = weekday === 0 ? -6 : 1 - weekday
   return toDateString(new Date(d.getTime() + diff * 24 * 60 * 60 * 1000))
 }
+
+const WEEKDAY_ABBREV_SUN_FIRST = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+/** 3-letter weekday label for a date-only string, computed from the date
+ *  itself via getUTCDay() rather than a caller's assumed position in some
+ *  week array — safe regardless of whether that week starts on Monday or
+ *  Sunday, or is a partial (month-boundary) week. The one implementation
+ *  shared by WeekEditor and the team schedule grid, replacing two
+ *  independent, differently-ordered WEEKDAY_LABELS arrays. */
+export function weekdayAbbrev(dateStr: string): string {
+  return WEEKDAY_ABBREV_SUN_FIRST[dateOnly(dateStr).getUTCDay()]
+}

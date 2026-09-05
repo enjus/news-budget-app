@@ -5,7 +5,7 @@
 // src/lib/schedule.ts.
 
 import type { DaySchedulePerson } from "@/lib/hooks/useDaySchedule"
-import type { ResolvedSegment } from "@/lib/schedule"
+import { findObservedHoliday, type ResolvedSegment } from "@/lib/schedule"
 
 export interface GroupedDay {
   out: DaySchedulePerson[]
@@ -17,14 +17,14 @@ export interface GroupedDay {
 }
 
 /** Whether an observed HOLIDAY marker covers `date` — flips the board from
- *  "who's out" to "who's working" (issue #19 §5). */
-export function isObservedHoliday(date: string, markers: { kind: string; observed: boolean; startDate: string | Date; endDate: string | Date }[]): { label: string } | null {
-  const holiday = markers.find((m) => {
-    if (m.kind !== "HOLIDAY" || !m.observed) return false
-    const start = typeof m.startDate === "string" ? m.startDate.slice(0, 10) : m.startDate.toISOString().slice(0, 10)
-    const end = typeof m.endDate === "string" ? m.endDate.slice(0, 10) : m.endDate.toISOString().slice(0, 10)
-    return start <= date && date <= end
-  }) as { label: string } | undefined
+ *  "who's out" to "who's working" (issue #19 §5). Thin wrapper over the
+ *  shared findObservedHoliday() (src/lib/schedule.ts) rather than its own
+ *  copy of the date-range/kind/observed check. */
+export function isObservedHoliday(
+  date: string,
+  markers: { kind: string; observed: boolean; label: string; startDate: string | Date; endDate: string | Date }[]
+): { label: string } | null {
+  const holiday = findObservedHoliday(date, markers)
   return holiday ? { label: holiday.label } : null
 }
 

@@ -16,14 +16,18 @@ interface MonthCalendarProps {
   onWeekClick: (weekDates: string[]) => void
 }
 
-const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 /** Generic month grid, taking resolved days/markers as props so it isn't
- *  hardwired to the "me" view — Phase 3's team/absence views reuse it. */
+ *  hardwired to the "me" view — Phase 3's team/absence views reuse it.
+ *  Weeks are Monday–Sunday, matching the app's standard week (mondayOf(),
+ *  the team schedule grid) — not JS's native Sunday-first getUTCDay(). */
 export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekClick }: MonthCalendarProps) {
   const [year, month] = monthStart.split("-").map(Number)
   const firstOfMonth = new Date(Date.UTC(year, month - 1, 1))
-  const startWeekday = firstOfMonth.getUTCDay()
+  // getUTCDay() is 0 = Sunday … 6 = Saturday; shift so 0 = Monday … 6 = Sunday
+  // to get the number of leading blank cells in a Monday-first grid.
+  const startWeekday = (firstOfMonth.getUTCDay() + 6) % 7
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
 
   const dayByDate = Object.fromEntries(days.map((d) => [d.date, d]))
