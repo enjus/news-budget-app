@@ -9,6 +9,8 @@ import { AVAILABILITY_PRESETS, presetRows, type PresetId } from "./availabilityP
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import { apiPath } from "@/lib/api-path"
 
+type WeekEditorDay = { date: string; revert: true } | { date: string; segment: string; status: string }
+
 interface WeekEditorProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -34,17 +36,6 @@ function presetForResolvedDay(day: MyScheduleDay | undefined): PresetId | "BASEL
   return "BASELINE"
 }
 
-/** The FULL_DAY status a "no override" selection resolves to, so reverting
- *  to baseline round-trips through computeWeekDiff() as a true no-op/delete
- *  rather than accidentally writing a redundant row. */
-function baselineFullDayStatus(day: MyScheduleDay | undefined): "OUT" | "WORKING" | "UNAVAILABLE" {
-  if (!day) return "WORKING"
-  if (day.split) return "WORKING" // rare to leave a split day at BASELINE; degrade sensibly
-  if (day.status === "off") return "OUT"
-  if (day.status === "unavailable") return "UNAVAILABLE"
-  return "WORKING"
-}
-
 export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDays, onSaved }: WeekEditorProps) {
   const dayByDate = useMemo(() => Object.fromEntries(resolvedDays.map((d) => [d.date, d])), [resolvedDays])
 
@@ -56,10 +47,14 @@ export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDa
   async function handleSave() {
     setSaving(true)
     try {
-      const days = weekDates.flatMap((date) => {
+      const days: WeekEditorDay[] = weekDates.flatMap((date): WeekEditorDay[] => {
         const selection = selections[date]
         if (selection === "BASELINE") {
-          return [{ date, segment: "FULL_DAY" as const, status: baselineFullDayStatus(dayByDate[date]) }]
+          // Let the server delete whatever override exists for this date and
+          // fall back to the standing pattern/holiday baseline — correct for
+          // split (AM/PM) days too, which a guessed FULL_DAY status can't
+          // express (see computeWeekDiff's `revert` handling).
+          return [{ date, revert: true as const }]
         }
         return presetRows(selection).map((row) => ({ date, segment: row.segment, status: row.status }))
       })

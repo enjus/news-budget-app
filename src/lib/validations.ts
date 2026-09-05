@@ -100,12 +100,22 @@ export const AvailabilityStatusEnum = z.enum(["OUT", "WORKING", "UNAVAILABLE"]);
 
 // POST /api/schedule/availability — one call expands to a date range (cap:
 // 180 days, enforced in the route since it depends on holiday/pattern lookups).
+// `rows` (not a single segment/status) so a half-day preset that writes both
+// MORNING and AFTERNOON in one shot arrives as one atomic write — the route
+// clears every segment NOT present in `rows` for each date, so a stale
+// opposite-half row from an earlier preset can't survive a switch. A
+// single-row half-day write (e.g. "here in the morning") still correctly
+// clears the other half, since that segment is simply absent from `rows`.
+const availabilityRowSchema = z.object({
+  segment: AvailabilitySegmentEnum,
+  status: AvailabilityStatusEnum,
+});
+
 export const createAvailabilitySchema = z.object({
   personId: z.string().cuid(),
   startDate: dateOnlyString,
   endDate: dateOnlyString,
-  segment: AvailabilitySegmentEnum.default("FULL_DAY"),
-  status: AvailabilityStatusEnum,
+  rows: z.array(availabilityRowSchema).min(1).max(2),
   note: z.string().max(500).nullable().optional(),
   // Resolves against the person's WorkSchedule pattern AND observed holidays —
   // so a range doesn't burn a day on a standing day off or a holiday.
@@ -113,6 +123,12 @@ export const createAvailabilitySchema = z.object({
 }).refine((data) => data.endDate >= data.startDate, {
   message: "End date must be on or after start date",
   path: ["endDate"],
+}).refine((data) => new Set(data.rows.map((r) => r.segment)).size === data.rows.length, {
+  message: "Duplicate segment in rows",
+  path: ["rows"],
+}).refine((data) => data.rows.length === 1 || !data.rows.some((r) => r.segment === "FULL_DAY"), {
+  message: "FULL_DAY cannot be combined with another segment",
+  path: ["rows"],
 });
 
 // PATCH /api/schedule/availability/[id] — personId/date/segment are the row's
@@ -122,13 +138,20 @@ export const updateAvailabilitySchema = z.object({
   note: z.string().max(500).nullable().optional(),
 });
 
-// One day's desired resolved value, for the one-off week editor's diff.
-export const weekAvailabilityDaySchema = z.object({
-  date: dateOnlyString,
-  segment: AvailabilitySegmentEnum,
-  status: AvailabilityStatusEnum,
-  note: z.string().max(500).nullable().optional(),
-});
+// One day's desired resolved value, for the one-off week editor's diff. A
+// `revert` row means "delete whatever override exists for this date and let
+// it fall back to the standing pattern/holiday baseline" — used instead of
+// guessing a FULL_DAY status client-side, which can't correctly express
+// reverting a split (AM/PM) day back to its true baseline.
+export const weekAvailabilityDaySchema = z.union([
+  z.object({ date: dateOnlyString, revert: z.literal(true) }),
+  z.object({
+    date: dateOnlyString,
+    segment: AvailabilitySegmentEnum,
+    status: AvailabilityStatusEnum,
+    note: z.string().max(500).nullable().optional(),
+  }),
+]);
 
 // PUT /api/schedule/availability/week — up to 14 rows to allow independent
 // AM/PM entries across a 7-day week.
@@ -156,6 +179,11 @@ export const createMarkerSchema = markerFieldsSchema.refine((data) => data.endDa
   path: ["endDate"],
 });
 
+// This refine only catches an out-of-order pair when BOTH dates are sent in
+// the same PATCH — it can't see the row's stored other date, so a
+// single-field PATCH (e.g. only startDate) that would put the range out of
+// order against the *stored* endDate is validated in the route instead,
+// after loading the current row.
 export const updateMarkerSchema = markerFieldsSchema.partial().refine(
   (data) => !data.startDate || !data.endDate || data.endDate >= data.startDate,
   { message: "End date must be on or after start date", path: ["endDate"] }

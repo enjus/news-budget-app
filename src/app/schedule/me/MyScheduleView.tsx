@@ -32,6 +32,14 @@ export function MyScheduleView() {
     setMonthStart(toDateString(new Date(Date.UTC(year, month - 1 + delta, 1))))
   }
 
+  // isLoading covers the session itself still resolving, not just the SWR
+  // fetch — otherwise a properly-linked account flashes "no linked staff
+  // record" for a frame before the session finishes loading and personId
+  // becomes available.
+  if (!personId && isLoading) {
+    return <p className="mx-auto max-w-lg px-4 py-16 text-sm text-muted-foreground">Loading…</p>
+  }
+
   if (!personId) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">

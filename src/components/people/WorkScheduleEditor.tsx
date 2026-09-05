@@ -66,6 +66,10 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
       mutate()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to save pattern")
+      // `dirty` intentionally stays true here: the user's unsaved toggles
+      // are still in `days` and must not be silently overwritten by the next
+      // SWR revalidation just because the save attempt failed. Resetting it
+      // would discard their pending edits, not just "unstick" the resync.
     } finally {
       setSaving(false)
     }

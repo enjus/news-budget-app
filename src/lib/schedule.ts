@@ -222,12 +222,13 @@ export function expandDateRange(
   return dates
 }
 
-export interface WeekDiffDesiredDay {
-  date: string
-  segment: string // FULL_DAY | MORNING | AFTERNOON
-  status: string
-  note?: string | null
-}
+export type WeekDiffDesiredDay =
+  // "Revert to baseline" — delete whatever override exists for this date,
+  // regardless of shape (FULL_DAY or split AM/PM). Used instead of guessing a
+  // FULL_DAY status client-side, which can't correctly express reverting a
+  // split day back to its true (possibly OFF) pattern/holiday baseline.
+  | { date: string; revert: true }
+  | { date: string; segment: string; status: string; note?: string | null }
 
 export interface WeekDiffExistingRow {
   id: string
@@ -276,19 +277,42 @@ export function computeWeekDiff(
   for (const date of dates) {
     const desiredForDate = desiredDays.filter((d) => d.date === date)
     const existingForDate = existingRows.filter((r) => r.date === date)
+
+    // An explicit revert wins outright for this date: drop every existing
+    // row (FULL_DAY or split) and write nothing, regardless of any other
+    // entries that might also be present for the same date.
+    if (desiredForDate.some((d) => "revert" in d)) {
+      existingForDate.forEach((r) => toDelete.push({ id: r.id }))
+      continue
+    }
+
+    const nonRevertDays = desiredForDate as Extract<WeekDiffDesiredDay, { segment: string }>[]
     const baseline = baselineStatus(new Date(`${date}T00:00:00.000Z`), workSchedule, markers)
 
-    const matchesBaseline = (d: WeekDiffDesiredDay) => d.status === baseline && !d.note
+    // A note of `undefined` means "not specified by this write" (e.g. the
+    // week editor doesn't expose note editing) — preserve whatever note the
+    // existing row for that same segment already has instead of nulling it
+    // out. An explicit `null` still clears it.
+    const resolveNote = (desiredNote: string | null | undefined, existing: WeekDiffExistingRow | undefined) =>
+      desiredNote !== undefined ? desiredNote : existing?.note ?? null
 
-    const desiredFullDay = desiredForDate.length === 1 && desiredForDate[0].segment === "FULL_DAY"
-      ? desiredForDate[0]
+    const matchesBaseline = (d: Extract<WeekDiffDesiredDay, { segment: string }>) => d.status === baseline && !d.note
+
+    const desiredFullDay = nonRevertDays.length === 1 && nonRevertDays[0].segment === "FULL_DAY"
+      ? nonRevertDays[0]
       : undefined
 
     if (desiredFullDay) {
       if (matchesBaseline(desiredFullDay)) {
         existingForDate.forEach((r) => toDelete.push({ id: r.id }))
       } else {
-        toUpsert.push({ date, segment: "FULL_DAY", status: desiredFullDay.status, note: desiredFullDay.note ?? null })
+        const existingSameSeg = existingForDate.find((r) => r.segment === "FULL_DAY")
+        toUpsert.push({
+          date,
+          segment: "FULL_DAY",
+          status: desiredFullDay.status,
+          note: resolveNote(desiredFullDay.note, existingSameSeg),
+        })
         existingForDate.filter((r) => r.segment !== "FULL_DAY").forEach((r) => toDelete.push({ id: r.id }))
       }
       continue
@@ -298,10 +322,10 @@ export function computeWeekDiff(
     // half not present in the payload is treated as "revert to baseline" —
     // the week editor always sends the full week it displayed.
     for (const seg of ["MORNING", "AFTERNOON"] as const) {
-      const desired = desiredForDate.find((d) => d.segment === seg)
+      const desired = nonRevertDays.find((d) => d.segment === seg)
       const existing = existingForDate.find((r) => r.segment === seg)
       if (desired && !matchesBaseline(desired)) {
-        toUpsert.push({ date, segment: seg, status: desired.status, note: desired.note ?? null })
+        toUpsert.push({ date, segment: seg, status: desired.status, note: resolveNote(desired.note, existing) })
       } else if (existing) {
         toDelete.push({ id: existing.id })
       }

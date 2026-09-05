@@ -18,8 +18,9 @@ interface MyScheduleResponse {
  * as "ask an admin to link your account," not as a failed request.
  */
 export function useMySchedule(start: string, end: string) {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const personId = session?.user?.personId
+  const sessionLoading = sessionStatus === "loading"
 
   const { data, isLoading, error, mutate } = useSWR<MyScheduleResponse>(
     personId ? `/api/people/${personId}/availability?start=${start}&end=${end}` : null
@@ -29,7 +30,10 @@ export function useMySchedule(start: string, end: string) {
     personId,
     days: data?.days ?? [],
     markers: data?.markers ?? [],
-    isLoading: personId ? isLoading : false,
+    // While the session itself is still resolving, `personId` reads as
+    // undefined even for a properly-linked account — report loading rather
+    // than falling through to "no personId" and flashing the empty state.
+    isLoading: sessionLoading || (personId ? isLoading : false),
     error,
     mutate,
   }

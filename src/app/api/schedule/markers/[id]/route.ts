@@ -35,6 +35,28 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     const { startDate, endDate, ...rest } = result.data;
+
+    // The schema's refine only catches an out-of-order pair when both dates
+    // are sent together — a single-field PATCH has to be checked against the
+    // stored other date instead.
+    if (startDate || endDate) {
+      const current = await prisma.calendarMarker.findUnique({
+        where: { id },
+        select: { startDate: true, endDate: true },
+      });
+      if (!current) {
+        return NextResponse.json({ error: "Marker not found" }, { status: 404 });
+      }
+      const effectiveStart = startDate ? dateOnly(startDate) : current.startDate;
+      const effectiveEnd = endDate ? dateOnly(endDate) : current.endDate;
+      if (effectiveEnd < effectiveStart) {
+        return NextResponse.json(
+          { error: "Validation failed", fieldErrors: { endDate: ["End date must be on or after start date"] } },
+          { status: 400 }
+        );
+      }
+    }
+
     const marker = await prisma.calendarMarker.update({
       where: { id },
       data: {

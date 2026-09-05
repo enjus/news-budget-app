@@ -20,7 +20,7 @@ interface PresetPickerProps {
   onSaved: () => void
 }
 
-async function postAvailability(personId: string, startDate: string, endDate: string, row: PresetRow, note: string, skipNonWorkingDays: boolean) {
+async function postAvailability(personId: string, startDate: string, endDate: string, rows: PresetRow[], note: string, skipNonWorkingDays: boolean) {
   const res = await fetch(apiPath("/api/schedule/availability"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -28,8 +28,7 @@ async function postAvailability(personId: string, startDate: string, endDate: st
       personId,
       startDate,
       endDate,
-      segment: row.segment,
-      status: row.status,
+      rows,
       note: note || null,
       skipNonWorkingDays,
     }),
@@ -57,13 +56,9 @@ export function PresetPicker({ open, onOpenChange, personId, date, onSaved }: Pr
     setSaving(true)
     try {
       const rows = preset === "CUSTOM" ? presetRows(preset, { am: amStatus, pm: pmStatus }) : presetRows(preset)
-      const allWarnings: { label: string; dates: string[] }[] = []
-      for (const row of rows) {
-        const result = await postAvailability(personId, startDate, endDate, row, note, skipNonWorkingDays)
-        allWarnings.push(...result.warnings)
-      }
-      if (allWarnings.length > 0) {
-        allWarnings.forEach((w) => toast.warning(`${w.label}: ${w.dates.join(", ")}`))
+      const result = await postAvailability(personId, startDate, endDate, rows, note, skipNonWorkingDays)
+      if (result.warnings.length > 0) {
+        result.warnings.forEach((w) => toast.warning(`${w.label}: ${w.dates.join(", ")}`))
       } else {
         toast.success("Saved")
       }

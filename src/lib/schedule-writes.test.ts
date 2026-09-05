@@ -134,6 +134,42 @@ describe("computeWeekDiff", () => {
     // ...and PM, no longer in the payload, is dropped.
     expect(result.toDelete).toEqual([{ id: "row-pm" }])
   })
+
+  it("preserves an existing row's note when the desired day omits note entirely", () => {
+    const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT" }] // no `note` key at all
+    const existing: WeekDiffExistingRow[] = [
+      { id: "row-1", date: "2026-08-31", segment: "FULL_DAY", status: "WORKING", note: "swapped with Rivera" },
+    ]
+    const result = computeWeekDiff(desired, existing, noPattern, noMarkers)
+    expect(result.toUpsert).toEqual([{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT", note: "swapped with Rivera" }])
+  })
+
+  it("still clears the note when the desired day explicitly sends note: null", () => {
+    const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT", note: null }]
+    const existing: WeekDiffExistingRow[] = [
+      { id: "row-1", date: "2026-08-31", segment: "FULL_DAY", status: "WORKING", note: "old note" },
+    ]
+    const result = computeWeekDiff(desired, existing, noPattern, noMarkers)
+    expect(result.toUpsert).toEqual([{ date: "2026-08-31", segment: "FULL_DAY", status: "OUT", note: null }])
+  })
+
+  it("a revert entry deletes every existing row for that date regardless of shape", () => {
+    const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", revert: true }]
+    const existing: WeekDiffExistingRow[] = [
+      { id: "row-am", date: "2026-08-31", segment: "MORNING", status: "OUT", note: null },
+      { id: "row-pm", date: "2026-08-31", segment: "AFTERNOON", status: "UNAVAILABLE", note: "training" },
+    ]
+    const result = computeWeekDiff(desired, existing, noPattern, noMarkers)
+    expect(result.toUpsert).toEqual([])
+    expect(result.toDelete).toEqual(expect.arrayContaining([{ id: "row-am" }, { id: "row-pm" }]))
+  })
+
+  it("a revert entry with no existing rows is a no-op", () => {
+    const desired: WeekDiffDesiredDay[] = [{ date: "2026-08-31", revert: true }]
+    const result = computeWeekDiff(desired, [], noPattern, noMarkers)
+    expect(result.toUpsert).toEqual([])
+    expect(result.toDelete).toEqual([])
+  })
 })
 
 describe("detectBlackoutOverlap", () => {

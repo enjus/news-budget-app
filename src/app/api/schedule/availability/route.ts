@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { personId, startDate, endDate, segment, status, note, skipNonWorkingDays } = result.data;
+    const { personId, startDate, endDate, rows, note, skipNonWorkingDays } = result.data;
 
     const startBound = dateOnly(startDate);
     const endBound = dateOnly(endDate);
@@ -72,35 +72,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ entries: [], warnings: [] });
     }
 
-    const clearSegments = segment === "FULL_DAY" ? ["MORNING", "AFTERNOON"] : ["FULL_DAY"];
+    // Clear every segment NOT in this write — including the opposite half of
+    // a half-day preset — so a stale row from a previous, different-shaped
+    // write (e.g. a CUSTOM MORNING+AFTERNOON pair, or the FULL_DAY row) can
+    // never survive alongside what's being written now.
+    const writtenSegments = new Set(rows.map((r) => r.segment));
+    const clearSegments = (["FULL_DAY", "MORNING", "AFTERNOON"] as const).filter((s) => !writtenSegments.has(s));
+    const dateObjs = dates.map((d) => dateOnly(d));
 
     const entries = await prisma.$transaction(async (tx) => {
       await tx.availability.deleteMany({
-        where: { personId, date: { in: dates.map((d) => dateOnly(d)) }, segment: { in: clearSegments } },
+        where: {
+          personId,
+          date: { in: dateObjs },
+          segment: { in: [...clearSegments, ...writtenSegments] },
+        },
       });
 
-      const written = [];
-      for (const date of dates) {
-        const row = await tx.availability.upsert({
-          where: { personId_date_segment: { personId, date: dateOnly(date), segment } },
-          create: {
+      // Delete-then-create rather than per-date upsert: a batched write
+      // instead of up to MAX_RANGE_DAYS * rows.length sequential round-trips.
+      await tx.availability.createMany({
+        data: dates.flatMap((date) =>
+          rows.map((row) => ({
             personId,
             date: dateOnly(date),
-            segment,
-            status,
+            segment: row.segment,
+            status: row.status,
             note: note ?? null,
             createdByUserId: session.user.id,
             updatedByUserId: session.user.id,
-          },
-          update: {
-            status,
-            note: note ?? null,
-            updatedByUserId: session.user.id,
-          },
-        });
-        written.push(row);
-      }
-      return written;
+          }))
+        ),
+      });
+
+      return tx.availability.findMany({
+        where: { personId, date: { in: dateObjs }, segment: { in: Array.from(writtenSegments) } },
+      });
     });
 
     const blackoutMarkers = markers.filter((m) => m.kind === "BLACKOUT");

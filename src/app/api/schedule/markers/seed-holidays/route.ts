@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { seedHolidaysSchema } from "@/lib/validations";
-import { canManageRoster, dateOnly } from "@/lib/utils";
+import { canManageRoster, dateOnly, toDateString } from "@/lib/utils";
 import { standardUsHolidays } from "@/lib/schedule";
 import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 
@@ -36,21 +36,38 @@ export async function POST(request: NextRequest) {
     }
 
     const holidays = standardUsHolidays(result.data.year);
-    await prisma.calendarMarker.createMany({
-      data: holidays.map((h) => ({
-        kind: "HOLIDAY",
-        label: h.label,
-        startDate: dateOnly(h.date),
-        endDate: dateOnly(h.date),
-        observed: true,
-        createdByUserId: session.user.id,
-      })),
+    const yearStart = dateOnly(`${result.data.year}-01-01`);
+    const yearEnd = dateOnly(`${result.data.year}-12-31`);
+
+    // No unique constraint on CalendarMarker (BLACKOUT/NOTE rows can
+    // legitimately share a label/date), so duplicate protection for holidays
+    // specifically is done here: skip any label already seeded for this year
+    // rather than relying on createMany's skipDuplicates (which needs a DB
+    // constraint we don't have).
+    const existing = await prisma.calendarMarker.findMany({
+      where: { kind: "HOLIDAY", startDate: { gte: yearStart, lte: yearEnd } },
+      select: { label: true, startDate: true },
     });
+    const existingKeys = new Set(existing.map((m) => `${m.label}|${toDateString(m.startDate)}`));
+    const toCreate = holidays.filter((h) => !existingKeys.has(`${h.label}|${h.date}`));
+
+    if (toCreate.length > 0) {
+      await prisma.calendarMarker.createMany({
+        data: toCreate.map((h) => ({
+          kind: "HOLIDAY",
+          label: h.label,
+          startDate: dateOnly(h.date),
+          endDate: dateOnly(h.date),
+          observed: true,
+          createdByUserId: session.user.id,
+        })),
+      });
+    }
 
     const markers = await prisma.calendarMarker.findMany({
       where: {
         kind: "HOLIDAY",
-        startDate: { gte: dateOnly(`${result.data.year}-01-01`), lte: dateOnly(`${result.data.year}-12-31`) },
+        startDate: { gte: yearStart, lte: yearEnd },
       },
       orderBy: { startDate: "asc" },
     });
