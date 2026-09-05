@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,9 +27,10 @@ import {
   createPersonSchema,
   type CreatePersonInput,
 } from "@/lib/validations"
-import { PERSON_ROLE_LABELS } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, canManageRoster } from "@/lib/utils"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { WorkScheduleEditor } from "./WorkScheduleEditor"
 
 const ROLE_OPTIONS = [
   "REPORTER",
@@ -47,6 +49,8 @@ interface PersonFormProps {
 }
 
 export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
+  const { data: session } = useSession()
+  const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [open, setOpen] = useState(false)
   const isEdit = !!person
 
@@ -191,6 +195,14 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
               <p className="text-xs text-destructive">{errors.defaultRole.message}</p>
             )}
           </div>
+
+          {/* Regular work week — only for an existing staff member, and only
+              a roster manager can set it (canManageRoster gates the write at
+              the API layer too). Saves independently via its own button;
+              unrelated to this form's own submit. */}
+          {isEdit && person!.isStaff && canManage && (
+            <WorkScheduleEditor personId={person!.id} />
+          )}
 
           <DialogFooter>
             <Button

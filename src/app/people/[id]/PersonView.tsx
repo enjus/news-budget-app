@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/select"
 import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, canManageRoster, displayName, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
-import { WorkScheduleEditor } from "@/components/people/WorkScheduleEditor"
 
 const PAST_INITIAL_COUNT = 10
 
@@ -269,10 +268,6 @@ export function PersonView({ id }: PersonViewProps) {
           )}
         </div>
       </div>
-
-      {person.isStaff && canManage && (
-        <WorkScheduleEditor personId={person.id} />
-      )}
 
       {/* Stats */}
       <div className="flex gap-6 text-sm">

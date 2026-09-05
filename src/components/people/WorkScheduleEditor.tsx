@@ -61,11 +61,11 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
-      toast.success("Standing pattern saved")
+      toast.success("Regular work week saved")
       setDirty(false)
       mutate()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to save pattern")
+      toast.error(err instanceof Error ? err.message : "Failed to save regular work week")
       // `dirty` intentionally stays true here: the user's unsaved toggles
       // are still in `days` and must not be silently overwritten by the next
       // SWR revalidation just because the save attempt failed. Resetting it
@@ -75,19 +75,10 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
     }
   }
 
-  const isDefault = data && diffFromDefaultWeek(resolveWeekPattern(data)).length === 0
-
   return (
-    <div className="space-y-3 rounded-lg border p-4">
+    <div className="space-y-3 rounded-lg border p-3">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-semibold">Standing pattern</h2>
-          <p className="text-xs text-muted-foreground">
-            All seven days shown, pre-filled with the resolved week. Only what
-            differs from Mon&ndash;Fri is saved.
-            {isDefault && " Currently: Mon–Fri (default)."}
-          </p>
-        </div>
+        <h2 className="text-sm font-semibold">Regular work week</h2>
         <Button size="sm" onClick={handleSave} disabled={saving || isLoading || !days}>
           {saving ? "Saving..." : "Save"}
         </Button>
