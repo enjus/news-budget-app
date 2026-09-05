@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
             videoAssignments: true,
           },
         },
+        user: { select: { id: true } },
       },
       orderBy: { name: "asc" },
       take,
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
             videoAssignments: true,
           },
         },
+        user: { select: { id: true } },
       },
     });
 

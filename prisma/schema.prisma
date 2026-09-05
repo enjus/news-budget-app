@@ -27,6 +27,7 @@ model User {
   createdStories Story[] @relation("storiesCreated")
   createdVideos  Video[] @relation("videosCreated")
   comments       Comment[]
+  markersCreated CalendarMarker[] @relation("markersCreated")
 
   @@index([appRole])
 }
@@ -43,6 +44,11 @@ model Person {
   // Inactive people are hidden from pickers for new assignments/stories but keep
   // their historical assignments, visuals, and comment mentions intact.
   isActive    Boolean  @default(true)
+  // On the newsroom staffing roster — set by hand per person by an admin, no
+  // backfill. Combined with isActive via ROSTER_WHERE (src/lib/utils.ts) for
+  // roster membership. Freelancers stay isActive:true, isStaff:false — still
+  // assignable via PersonPicker/PersonSelect (those filter on isActive only).
+  isStaff     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -52,6 +58,47 @@ model Person {
   videoAssignments VideoAssignment[]
   teamMemberships  TeamMember[]
   commentMentions  CommentMention[]
+  workSchedules    WorkSchedule[]
+}
+
+// Per-weekday override on a Mon–Fri default. No rows at all = the standard
+// week. FULL_DAY | OFF only — no half-day standing patterns (confirmed by
+// review: no one on staff has a permanent half-day pattern).
+model WorkSchedule {
+  id        String   @id @default(cuid())
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  weekday   Int      // 0 = Sunday … 6 = Saturday
+  // WorkScheduleSegment: FULL_DAY | OFF
+  segment   String   @default("FULL_DAY")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([personId, weekday])
+  @@index([personId])
+}
+
+// Org-wide labeled date ranges: company holidays, the annual PTO blackout,
+// and plain informational notes. Only HOLIDAY (observed:true) feeds
+// resolveDay() today — BLACKOUT/NOTE are schema-complete for later phases.
+model CalendarMarker {
+  id        String   @id @default(cuid())
+  // CalendarMarkerKind: HOLIDAY | BLACKOUT | NOTE
+  kind      String
+  label     String
+  startDate DateTime // date-only, T00:00:00.000Z
+  endDate   DateTime // date-only, inclusive — every query uses lte, not lt
+  note      String?
+  // HOLIDAY only. false = noted on the calendar, but the newsroom works normally.
+  observed  Boolean  @default(true)
+
+  createdByUserId String?
+  createdByUser   User?    @relation("markersCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startDate, endDate])
+  @@index([kind])
 }
 
 model Team {

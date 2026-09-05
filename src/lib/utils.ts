@@ -444,3 +444,65 @@ export function canCreateContent(role: string): boolean {
 export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
+
+// ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
+
+/** Roster membership predicate for scheduling features — staff AND active.
+ *  Freelancers (isActive but not isStaff) are excluded from the roster but
+ *  remain assignable via PersonPicker/PersonSelect, which filter on isActive
+ *  only — unaffected by isStaff. */
+export const ROSTER_WHERE = { isStaff: true, isActive: true } as const
+
+/** Roles that can manage the roster (isStaff, WorkSchedule, the newsroom
+ *  calendar). Same role set as hasAdminAccess — a semantic alias, same
+ *  precedent as canEditPrint. */
+export function canManageRoster(role: string): boolean {
+  return hasAdminAccess(role)
+}
+
+export interface WeekdayOption {
+  value: number // 0 = Sunday … 6 = Saturday
+  label: string
+  abbrev: string
+}
+
+export const WEEKDAY_OPTIONS: WeekdayOption[] = [
+  { value: 0, label: "Sunday", abbrev: "Su" },
+  { value: 1, label: "Monday", abbrev: "Mo" },
+  { value: 2, label: "Tuesday", abbrev: "Tu" },
+  { value: 3, label: "Wednesday", abbrev: "We" },
+  { value: 4, label: "Thursday", abbrev: "Th" },
+  { value: 5, label: "Friday", abbrev: "Fr" },
+  { value: 6, label: "Saturday", abbrev: "Sa" },
+]
+
+export const WORK_SCHEDULE_SEGMENT_LABELS: Record<string, string> = {
+  FULL_DAY: "Working",
+  OFF: "Off",
+}
+
+/** Resolve a person's full 7-day standing pattern for the editor: Mon–Fri
+ *  default + any override rows. Shared by the editor UI and the write-back
+ *  diff so "show all 7, persist only what differs" lives in one place. */
+export function resolveWeekPattern(
+  overrides: { weekday: number; segment: string }[]
+): { weekday: number; segment: string }[] {
+  return WEEKDAY_OPTIONS.map(({ value: weekday }) => {
+    const override = overrides.find((o) => o.weekday === weekday)
+    if (override) return { weekday, segment: override.segment }
+    const defaultWorking = weekday >= 1 && weekday <= 5
+    return { weekday, segment: defaultWorking ? "FULL_DAY" : "OFF" }
+  })
+}
+
+/** Diff a resolved 7-day pattern back to only the rows differing from the
+ *  Mon–Fri default, for PATCH payloads to /api/people/[id]/work-schedule. */
+export function diffFromDefaultWeek(
+  resolved: { weekday: number; segment: string }[]
+): { weekday: number; segment: string }[] {
+  return resolved.filter(({ weekday, segment }) => {
+    const defaultWorking = weekday >= 1 && weekday <= 5
+    const defaultSegment = defaultWorking ? "FULL_DAY" : "OFF"
+    return segment !== defaultSegment
+  })
+}

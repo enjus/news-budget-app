@@ -67,6 +67,24 @@ export const createPersonSchema = z.object({
 export const updatePersonSchema = createPersonSchema.partial().extend({
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
+  // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
+  isStaff: z.boolean().optional(),
+});
+
+// ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
+export const WorkScheduleSegmentEnum = z.enum(["FULL_DAY", "OFF"]);
+export const CalendarMarkerKindEnum = z.enum(["HOLIDAY", "BLACKOUT", "NOTE"]);
+
+export const workScheduleDaySchema = z.object({
+  weekday: z.number().int().min(0).max(6),
+  segment: WorkScheduleSegmentEnum,
+});
+
+// Body for the work-schedule PATCH — only rows differing from the Mon–Fri
+// default are sent; the route replaces the person's whole WorkSchedule set
+// with exactly what's sent, so "no rows" means "back to Mon–Fri default."
+export const replaceWorkScheduleSchema = z.object({
+  days: z.array(workScheduleDaySchema).max(7),
 });
 
 // ─── Pub date / TBD cross-field validation ────────────────────────────────────
@@ -295,6 +313,7 @@ export const updateUserSchema = z.object({
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
 export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
+export type ReplaceWorkScheduleInput = z.infer<typeof replaceWorkScheduleSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;

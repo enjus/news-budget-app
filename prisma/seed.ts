@@ -20,6 +20,13 @@ function d(offsetDays: number, hour: number): Date {
   return new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate(), hour, 0, 0));
 }
 
+// Date-only (T00:00:00.000Z) version of d() — for WorkSchedule/CalendarMarker
+// dates, which have no "newsroom time" hour component, unlike pub dates.
+function dateOnly(offsetDays: number): Date {
+  const base = addDays(new Date(todayY, todayM, todayD), offsetDays);
+  return new Date(Date.UTC(base.getFullYear(), base.getMonth(), base.getDate()));
+}
+
 // Wrap-around pick from an array
 function pick<T>(arr: T[], i: number): T {
   return arr[((i % arr.length) + arr.length) % arr.length];
@@ -183,22 +190,46 @@ async function main() {
 
   // ─── People ───────────────────────────────────────────────────────────────
 
-  const alice  = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",      defaultRole: "REPORTER"            } });
-  const bob    = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",        defaultRole: "EDITOR"              } });
-  const carol  = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",      defaultRole: "REPORTER"            } });
-  const david  = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",      defaultRole: "PHOTOGRAPHER"        } });
-  const elena  = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",      defaultRole: "GRAPHIC_DESIGNER"    } });
-  const frank  = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",      defaultRole: "EDITOR"              } });
-  const maya   = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",       defaultRole: "VIDEOGRAPHER"        } });
+  const alice  = await prisma.person.create({ data: { name: "Alice Chen",      email: "alice@newsroom.com",      defaultRole: "REPORTER",         isStaff: true } });
+  const bob    = await prisma.person.create({ data: { name: "Bob Martinez",    email: "bob@newsroom.com",        defaultRole: "EDITOR",           isStaff: true } });
+  const carol  = await prisma.person.create({ data: { name: "Carol Williams",  email: "carol@newsroom.com",      defaultRole: "REPORTER",         isStaff: true } });
+  // David works Tuesday–Saturday — see the WorkSchedule rows below.
+  const david  = await prisma.person.create({ data: { name: "David Kim",       email: "david@newsroom.com",      defaultRole: "PHOTOGRAPHER",     isStaff: true } });
+  const elena  = await prisma.person.create({ data: { name: "Elena Patel",     email: "elena@newsroom.com",      defaultRole: "GRAPHIC_DESIGNER", isStaff: true } });
+  const frank  = await prisma.person.create({ data: { name: "Frank Johnson",   email: "frank@newsroom.com",      defaultRole: "EDITOR",           isStaff: true } });
+  const maya   = await prisma.person.create({ data: { name: "Maya Singh",      email: "maya@newsroom.com",       defaultRole: "VIDEOGRAPHER",     isStaff: true } });
   // Linked to admin/director user accounts
-  const sam    = await prisma.person.create({ data: { name: "Sam Okafor",      email: "admin@newsroom.com",      defaultRole: "EDITOR"              } });
-  const jamie  = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",   defaultRole: "EDITOR"              } });
+  const sam    = await prisma.person.create({ data: { name: "Sam Okafor",      email: "admin@newsroom.com",      defaultRole: "EDITOR",   isStaff: true } });
+  const jamie  = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",   defaultRole: "EDITOR",   isStaff: true } });
   // Linked to demo MP / Producer accounts
-  const morgan = await prisma.person.create({ data: { name: "Morgan Lee",      email: "editor@newsroom.com",     defaultRole: "EDITOR"              } });
-  const riley  = await prisma.person.create({ data: { name: "Riley Park",      email: "reporter@newsroom.com",   defaultRole: "REPORTER"            } });
+  const morgan = await prisma.person.create({ data: { name: "Morgan Lee",      email: "editor@newsroom.com",     defaultRole: "EDITOR",   isStaff: true } });
+  // Freelancer: still assignable (isActive), but off the staffing roster (isStaff: false, the default).
+  const riley  = await prisma.person.create({ data: { name: "Riley Park",      email: "reporter@newsroom.com",   defaultRole: "REPORTER"                } });
 
   const reporters = [alice, carol];
   const editors   = [bob, frank];
+
+  // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
+  // David works Tuesday–Saturday: standing Monday off, standing Saturday on.
+  await prisma.workSchedule.createMany({
+    data: [
+      { personId: david.id, weekday: 1, segment: "OFF" },      // Monday
+      { personId: david.id, weekday: 6, segment: "FULL_DAY" }, // Saturday
+    ],
+  });
+
+  // An observed holiday a few days out, so resolveDay() has real data to
+  // exercise beyond the unit tests.
+  await prisma.calendarMarker.create({
+    data: {
+      kind: "HOLIDAY",
+      label: "Staff Holiday",
+      startDate: dateOnly(5),
+      endDate: dateOnly(5),
+      observed: true,
+      createdByUserId: null,
+    },
+  });
 
   // ─── Past 14 days: ~10 stories + 3 videos per day ─────────────────────────
 

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
-import { canCreateContent, hasAdminAccess } from "@/lib/utils";
+import { canCreateContent, canManageRoster } from "@/lib/utils";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -58,8 +58,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    if (result.data.isActive !== undefined && !hasAdminAccess(session.user.appRole)) {
+    if (result.data.isActive !== undefined && !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Only admins can change active status" }, { status: 403 });
+    }
+
+    if (result.data.isStaff !== undefined && !canManageRoster(session.user.appRole)) {
+      return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
     const person = await prisma.person.update({
