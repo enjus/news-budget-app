@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AVAILABILITY_PRESETS, presetRows, type PresetId } from "./availabilityPresets"
+import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, type PresetId } from "./availabilityPresets"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import { apiPath } from "@/lib/api-path"
 
@@ -22,19 +22,6 @@ interface WeekEditorProps {
 }
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-/** Best-effort mapping from a resolved day back to the preset that produced
- *  it — "BASELINE" (no override) unless an explicit availability entry is
- *  behind the result. Split days default to CUSTOM so both halves stay
- *  independently editable rather than collapsing to a single preset. */
-function presetForResolvedDay(day: MyScheduleDay | undefined): PresetId | "BASELINE" {
-  if (!day) return "BASELINE"
-  if (day.split) return "CUSTOM"
-  if (day.status === "off" && day.reason === "availability") return "OUT"
-  if (day.status === "working" && day.source === "availability") return "WORKING"
-  if (day.status === "unavailable") return "UNAVAILABLE"
-  return "BASELINE"
-}
 
 export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDays, onSaved }: WeekEditorProps) {
   const dayByDate = useMemo(() => Object.fromEntries(resolvedDays.map((d) => [d.date, d])), [resolvedDays])

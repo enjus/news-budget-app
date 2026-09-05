@@ -3,7 +3,12 @@ import { useSession } from "next-auth/react"
 import type { CalendarMarker } from "@prisma/client"
 import type { ResolvedDay } from "@/lib/schedule"
 
-export type MyScheduleDay = ResolvedDay & { date: string /* YYYY-MM-DD */ }
+export type MyScheduleDay = ResolvedDay & {
+  date: string /* YYYY-MM-DD */
+  note: string | null
+  amNote?: string | null
+  pmNote?: string | null
+}
 
 interface MyScheduleResponse {
   days: MyScheduleDay[]

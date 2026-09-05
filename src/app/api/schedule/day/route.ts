@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dateOnly, toDateString } from "@/lib/utils";
+import { dateOnly } from "@/lib/utils";
 import { resolveDay, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 

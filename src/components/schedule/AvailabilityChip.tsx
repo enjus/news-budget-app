@@ -28,15 +28,28 @@ export function resolvedDayLabel(day: ResolvedDayLike): string {
   return ""
 }
 
-/** Short per-segment label for a split (AM/PM) day's tooltip/detail — same
- *  vocabulary as resolvedDayLabel but operating on one ResolvedSegment half. */
+/** Short per-segment label for a split (AM/PM) day — which half is worked
+ *  and which isn't is exactly the thing a split day exists to communicate,
+ *  so every status (including a plain working half) gets a real label here,
+ *  unlike resolvedDayLabel's whole-day "blank means working normally"
+ *  convention. */
 export function resolvedSegmentLabel(segment: ResolvedSegment): string {
   if (segment.status === "off" && segment.reason === "regular") return "Off"
   if (segment.status === "off" && segment.reason === "holiday") return segment.markerLabel
   if (segment.status === "off" && segment.reason === "availability") return "Out"
   if (segment.status === "unavailable") return "Unavailable"
-  if (segment.status === "working" && segment.source === "availability") return "Working"
   return "Working"
+}
+
+/** Background color for one half of a split day — parallels
+ *  resolvedDayClasses but per-segment, so AM and PM can be colored
+ *  independently instead of both halves sharing one "split" amber tint. */
+export function resolvedSegmentClasses(segment: ResolvedSegment): string {
+  if (segment.status === "off" && segment.reason === "regular") return "bg-muted text-muted-foreground"
+  if (segment.status === "off" && segment.reason === "holiday") return "bg-violet-100 dark:bg-violet-950/40"
+  if (segment.status === "off" && segment.reason === "availability") return "bg-rose-100 dark:bg-rose-950/40"
+  if (segment.status === "unavailable") return "bg-amber-100 dark:bg-amber-950/40"
+  return "bg-transparent"
 }
 
 interface AvailabilityChipProps {
@@ -52,8 +65,33 @@ interface AvailabilityChipProps {
 
 /** Renders just the color+label chip content — callers own their own
  *  clickable wrapper (a whole grid cell, or a smaller area inside a day
- *  button alongside a date number) since that chrome differs per view. */
+ *  button alongside a date number) since that chrome differs per view.
+ *
+ *  A split day renders as two stacked halves, each independently colored
+ *  and labeled — which half is worked and which isn't is exactly the
+ *  information a split day exists to carry, so collapsing it to a single
+ *  "Split" chip (the original behavior) lost the one thing worth showing. */
 export function AvailabilityChip({ day, inBlackout, size = "md", className }: AvailabilityChipProps) {
+  const textSize = size === "sm" ? "text-[10px]" : "text-xs"
+
+  if (day?.split) {
+    return (
+      <div className={`rounded overflow-hidden ${className ?? ""}`}>
+        <div className={`truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.am)}`} title={`AM: ${resolvedSegmentLabel(day.am)}`}>
+          AM {resolvedSegmentLabel(day.am)}
+        </div>
+        <div className={`truncate px-1 py-0.5 ${textSize} ${resolvedSegmentClasses(day.pm)}`} title={`PM: ${resolvedSegmentLabel(day.pm)}`}>
+          PM {resolvedSegmentLabel(day.pm)}
+        </div>
+        {inBlackout && (
+          <span className="px-1 text-amber-600 dark:text-amber-400" title="Falls inside the PTO blackout">
+            ●
+          </span>
+        )}
+      </div>
+    )
+  }
+
   const label = resolvedDayLabel(day)
   return (
     <div

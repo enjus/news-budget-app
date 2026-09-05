@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { dateOnly, toDateString, todayString } from "@/lib/utils"
+import { resolvedSegmentLabel } from "@/components/schedule/AvailabilityChip"
 import { groupPeople, isObservedHoliday, type GroupedDay } from "./groupPeople"
 import type { DaySchedulePerson } from "@/lib/hooks/useDaySchedule"
 import type { CalendarMarker } from "@prisma/client"
@@ -32,8 +33,17 @@ function noteFor(person: DaySchedulePerson): string | null {
   return person.note
 }
 
+/** "AM: Out · PM: Working" — which half is worked and which isn't is the
+ *  one thing a half-day entry exists to communicate, so it needs its own
+ *  line rather than being inferable only from a free-text note. */
+function splitStatusLabel(person: DaySchedulePerson): string | null {
+  if (!person.resolved.split) return null
+  return `AM: ${resolvedSegmentLabel(person.resolved.am)} · PM: ${resolvedSegmentLabel(person.resolved.pm)}`
+}
+
 function PersonRow({ person, teamsById }: { person: DaySchedulePerson; teamsById: Map<string, string> }) {
   const note = noteFor(person)
+  const splitStatus = splitStatusLabel(person)
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
       <div className="min-w-0">
@@ -48,7 +58,10 @@ function PersonRow({ person, teamsById }: { person: DaySchedulePerson; teamsById
           </div>
         )}
       </div>
-      {note && <p className="text-xs text-muted-foreground text-right max-w-[50%] truncate" title={note}>{note}</p>}
+      <div className="text-right shrink-0 max-w-[55%]">
+        {splitStatus && <p className="text-xs font-medium">{splitStatus}</p>}
+        {note && <p className="text-xs text-muted-foreground truncate" title={note}>{note}</p>}
+      </div>
     </div>
   )
 }

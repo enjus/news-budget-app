@@ -57,10 +57,22 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       status: row.status,
     }));
 
+    // Notes aren't part of AvailabilityEntry (resolveDay() only needs
+    // date/segment/status), so they're looked up separately here and
+    // attached alongside the resolved verdict — otherwise a day's note is
+    // silently unreachable from this response, which is what made the
+    // "Update availability" picker on /schedule/me appear to forget a note
+    // on reopen (it does save; this endpoint just never returned it back).
     const days = [];
     let cursor = new Date(startDate);
     while (cursor.getTime() <= endDate.getTime()) {
-      days.push({ date: toDateString(cursor), ...resolveDay(cursor, availability, workSchedule, markers) });
+      const dateStr = toDateString(cursor);
+      const resolved = resolveDay(cursor, availability, workSchedule, markers);
+      const rowsForDate = availabilityRows.filter((r) => toDateString(r.date) === dateStr);
+      const note = resolved.split ? null : rowsForDate.find((r) => r.segment === "FULL_DAY")?.note ?? null;
+      const amNote = resolved.split ? rowsForDate.find((r) => r.segment === "MORNING")?.note ?? null : undefined;
+      const pmNote = resolved.split ? rowsForDate.find((r) => r.segment === "AFTERNOON")?.note ?? null : undefined;
+      days.push({ date: dateStr, ...resolved, note, amNote, pmNote });
       cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
     }
 

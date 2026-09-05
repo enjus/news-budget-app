@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,6 +23,7 @@ export function MyScheduleView() {
 
   const { personId, days, isLoading, mutate } = useMySchedule(start, end)
   const { markers } = useCalendarMarkers({ start, end })
+  const dayByDate = useMemo(() => Object.fromEntries(days.map((d) => [d.date, d])), [days])
 
   const [pickerDate, setPickerDate] = useState<string | null>(null)
   const [editingWeek, setEditingWeek] = useState<string[] | null>(null)
@@ -97,6 +98,7 @@ export function MyScheduleView() {
           onOpenChange={(open) => !open && setPickerDate(null)}
           personId={personId}
           date={pickerDate}
+          initialDay={dayByDate[pickerDate]}
           onSaved={() => mutate()}
         />
       )}
