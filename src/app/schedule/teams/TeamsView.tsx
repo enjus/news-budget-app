@@ -324,6 +324,19 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           personId={rangePicker.personId}
           date={rangePicker.dates[0]}
           initialEndDate={rangePicker.dates[rangePicker.dates.length - 1]}
+          // Only meaningful for a single-day selection — PresetPicker's own
+          // "Revert to default" gate already requires startDate === endDate,
+          // so a multi-day drag range just never sees this. Without it, a
+          // single-cell click on the team grid never passed the already-
+          // resolved day back to the picker, so its revert button (which
+          // needs to know there's something to revert to baseline) could
+          // never appear here even though /schedule/me's picker has always
+          // had it.
+          initialDay={
+            rangePicker.dates.length === 1
+              ? people.find((p) => p.id === rangePicker.personId)?.days.find((d) => d.date === rangePicker.dates[0])
+              : undefined
+          }
           onSaved={() => {
             onSaved()
             setRangePicker(null)
