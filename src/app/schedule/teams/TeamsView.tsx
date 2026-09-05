@@ -11,7 +11,7 @@ import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev } from "@/lib/utils"
+import { dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -37,9 +37,11 @@ function isBaseline(day: WeekSchedulePerson["days"][number]): boolean {
   return (day.status === "working" && day.source === "pattern") || (day.status === "off" && day.reason === "regular")
 }
 
-/** "8 staff · 2 out Wed" — pure presentational aggregation over already
- *  resolved data, not resolution logic, so it stays here rather than in
- *  src/lib/schedule.ts. */
+/** "2 out Wed" — the out-count exceptions only, not the team's headcount
+ *  (that's redundant with the row count below it). Pure presentational
+ *  aggregation over already resolved data, not resolution logic, so it
+ *  stays here rather than in src/lib/schedule.ts. Empty string when nobody
+ *  in the group is out. */
 export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: string[]): string {
   const outCounts = weekDates.map((date, i) => {
     const n = people.filter((p) => {
@@ -48,10 +50,8 @@ export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: strin
     }).length
     return { date, n }
   })
-  const label = (date: string) =>
-    new Date(`${date}T00:00:00.000Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" })
-  const parts = outCounts.filter((c) => c.n > 0).map((c) => `${c.n} out ${label(c.date)}`)
-  return `${people.length} staff${parts.length > 0 ? ` · ${parts.join(", ")}` : ""}`
+  const parts = outCounts.filter((c) => c.n > 0).map((c) => `${c.n} out ${weekdayAbbrev(c.date)}`)
+  return parts.join(", ")
 }
 
 interface DragState {
@@ -76,7 +76,7 @@ function DayCell({
       type="button"
       onMouseDown={onMouseDown}
       onMouseEnter={onMouseEnter}
-      className={`rounded min-h-9 ${selected ? "ring-2 ring-ring" : ""}`}
+      className={`rounded border border-border/60 min-h-9 ${selected ? "ring-2 ring-ring" : ""}`}
     >
       <AvailabilityChip day={day} inBlackout={day?.inBlackout ?? false} size="sm" />
     </button>
@@ -174,6 +174,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
     : people
 
   const noTeam = filteredPeople.filter((p) => p.teamIds.length === 0)
+  const noTeamSummary = teamHeaderSummary(noTeam, columns.map((i) => weekDates[i]))
 
   const editingPerson = editingWeekFor ? people.find((p) => p.id === editingWeekFor) : undefined
 
@@ -194,7 +195,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
             This week
           </Button>
           <span className="text-sm font-medium w-32 text-center">
-            {weekDates[0].slice(5)} – {weekDates[6].slice(5)}
+            {shortDate(weekDates[0])} – {shortDate(weekDates[6])}
           </span>
           <Button
             variant="outline"
@@ -227,7 +228,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
               <SelectContent>
                 {weekDates.map((d, i) => (
                   <SelectItem key={d} value={String(i)}>
-                    {weekdayAbbrev(d)} {d.slice(5)}
+                    {weekdayAbbrev(d)} {shortDate(d)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -259,7 +260,9 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
               <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} />
               <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
                 {columns.map((i) => (
-                  <div key={i}>{weekdayAbbrev(weekDates[i])} {weekDates[i].slice(5)}</div>
+                  <div key={i} className="rounded border border-border/60 py-1">
+                    {weekdayAbbrev(weekDates[i])} {shortDate(weekDates[i])}
+                  </div>
                 ))}
               </div>
             </div>
@@ -268,10 +271,12 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           {teams.map((team) => {
             const teamPeople = filteredPeople.filter((p) => p.teamIds.includes(team.id))
             if (teamPeople.length === 0) return null
+            const summary = teamHeaderSummary(teamPeople, columns.map((i) => weekDates[i]))
             return (
               <div key={team.id} className="space-y-2">
                 <h2 className="text-sm font-semibold">
-                  {team.name} — {teamHeaderSummary(teamPeople, columns.map((i) => weekDates[i]))}
+                  {team.name}
+                  {summary && ` — ${summary}`}
                 </h2>
                 <div className="space-y-1.5">
                   {teamPeople.map((p) => (
@@ -292,7 +297,10 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
 
           {noTeam.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-sm font-semibold">No team — {teamHeaderSummary(noTeam, columns.map((i) => weekDates[i]))}</h2>
+              <h2 className="text-sm font-semibold">
+                No team
+                {noTeamSummary && ` — ${noTeamSummary}`}
+              </h2>
               <div className="space-y-1.5">
                 {noTeam.map((p) => (
                   <PersonRow

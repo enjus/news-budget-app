@@ -598,3 +598,12 @@ const WEEKDAY_ABBREV_SUN_FIRST = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat
 export function weekdayAbbrev(dateStr: string): string {
   return WEEKDAY_ABBREV_SUN_FIRST[dateOnly(dateStr).getUTCDay()]
 }
+
+/** "YYYY-MM-DD" -> "M/D", no leading zeros — a compact date label (e.g. next
+ *  to a weekday abbreviation on the team schedule grid) where the zero-padded
+ *  "09-03" reads oddly. Not for anything that needs to sort or round-trip;
+ *  use toDateString()/dateOnly() for that. */
+export function shortDate(dateStr: string): string {
+  const [, month, day] = dateStr.split("-")
+  return `${Number(month)}/${Number(day)}`
+}
