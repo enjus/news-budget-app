@@ -1,0 +1,116 @@
+"use client"
+
+import { CalendarDays } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { toDateString } from "@/lib/utils"
+import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
+import type { CalendarMarker } from "@prisma/client"
+
+interface MonthCalendarProps {
+  /** First-of-month date, YYYY-MM-DD. */
+  monthStart: string
+  days: MyScheduleDay[]
+  markers: CalendarMarker[]
+  onDayClick: (date: string) => void
+  onWeekClick: (weekDates: string[]) => void
+}
+
+const WEEKDAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+function cellClasses(day: MyScheduleDay | undefined): string {
+  if (!day) return "bg-transparent"
+  if (day.split) return "bg-amber-100 dark:bg-amber-950/40"
+  if (day.status === "off" && day.reason === "regular") return "bg-muted text-muted-foreground"
+  if (day.status === "off" && day.reason === "holiday") return "bg-violet-100 dark:bg-violet-950/40"
+  if (day.status === "off" && day.reason === "availability") return "bg-rose-100 dark:bg-rose-950/40"
+  if (day.status === "unavailable") return "bg-amber-100 dark:bg-amber-950/40"
+  return "bg-transparent"
+}
+
+function cellLabel(day: MyScheduleDay | undefined): string {
+  if (!day) return ""
+  if (day.split) return "Split"
+  if (day.status === "off" && day.reason === "regular") return "Off"
+  if (day.status === "off" && day.reason === "holiday") return day.markerLabel
+  if (day.status === "off" && day.reason === "availability") return "Out"
+  if (day.status === "unavailable") return "Unavailable"
+  if (day.status === "working" && day.source === "availability") return "Working"
+  return ""
+}
+
+/** Generic month grid, taking resolved days/markers as props so it isn't
+ *  hardwired to the "me" view — Phase 3's team/absence views reuse it. */
+export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekClick }: MonthCalendarProps) {
+  const [year, month] = monthStart.split("-").map(Number)
+  const firstOfMonth = new Date(Date.UTC(year, month - 1, 1))
+  const startWeekday = firstOfMonth.getUTCDay()
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+
+  const dayByDate = Object.fromEntries(days.map((d) => [d.date, d]))
+
+  const cells: (string | null)[] = [
+    ...Array.from({ length: startWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => toDateString(new Date(Date.UTC(year, month - 1, i + 1)))),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const weeks: (string | null)[][] = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+
+  const holidayMarkers = markers.filter((m) => m.kind === "HOLIDAY")
+  const blackoutMarkers = markers.filter((m) => m.kind === "BLACKOUT")
+
+  return (
+    <div className="space-y-1">
+      {(holidayMarkers.length > 0 || blackoutMarkers.length > 0) && (
+        <div className="flex flex-wrap gap-2 pb-1">
+          {blackoutMarkers.map((m) => (
+            <span key={m.id} className="text-xs rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
+              {m.label}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="grid grid-cols-7 gap-1 text-xs text-muted-foreground text-center">
+        {WEEKDAY_HEADERS.map((h) => (
+          <div key={h} className="py-1">
+            {h}
+          </div>
+        ))}
+      </div>
+      <div className="space-y-1">
+        {weeks.map((week, i) => (
+          <div key={i} className="flex items-stretch gap-1">
+            <div className="grid grid-cols-7 gap-1 flex-1">
+              {week.map((date, j) =>
+                date ? (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => onDayClick(date)}
+                    className={`rounded-md border p-1.5 text-left text-xs min-h-14 hover:ring-2 hover:ring-ring transition-shadow ${cellClasses(dayByDate[date])}`}
+                  >
+                    <div className="font-medium">{Number(date.slice(8))}</div>
+                    <div className="truncate">{cellLabel(dayByDate[date])}</div>
+                  </button>
+                ) : (
+                  <div key={`empty-${j}`} />
+                )
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Edit week"
+              className="shrink-0 self-center"
+              onClick={() => onWeekClick(week.filter((d): d is string => d !== null))}
+              disabled={week.every((d) => d === null)}
+            >
+              <CalendarDays className="size-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

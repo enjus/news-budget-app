@@ -28,6 +28,8 @@ model User {
   createdVideos  Video[] @relation("videosCreated")
   comments       Comment[]
   markersCreated CalendarMarker[] @relation("markersCreated")
+  availabilityCreated Availability[] @relation("availabilityCreated")
+  availabilityUpdated Availability[] @relation("availabilityUpdated")
 
   @@index([appRole])
 }
@@ -59,6 +61,7 @@ model Person {
   teamMemberships  TeamMember[]
   commentMentions  CommentMention[]
   workSchedules    WorkSchedule[]
+  availability     Availability[]
 }
 
 // Per-weekday override on a Mon–Fri default. No rows at all = the standard
@@ -99,6 +102,35 @@ model CalendarMarker {
 
   @@index([startDate, endDate])
   @@index([kind])
+}
+
+// Explicit per-date overrides against a person's standing WorkSchedule
+// pattern — PTO, one-off working days, half days. See resolveDay() in
+// src/lib/schedule.ts for the full precedence order. The half-day invariant
+// (a date has either one FULL_DAY row or up to two half rows, never both) is
+// enforced at write time by the API, not by the schema.
+model Availability {
+  id       String   @id @default(cuid())
+  person   Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId String
+  date     DateTime // date-only, T00:00:00.000Z
+  // AvailabilitySegment: FULL_DAY | MORNING | AFTERNOON
+  segment  String   @default("FULL_DAY")
+  // AvailabilityStatus: OUT | WORKING | UNAVAILABLE
+  status   String
+  note     String?
+
+  createdByUserId String?
+  createdByUser   User?    @relation("availabilityCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedByUserId String?
+  updatedByUser   User?    @relation("availabilityUpdated", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([personId, date, segment])
+  @@index([date])
+  @@index([personId, date])
+  @@index([date, status])
 }
 
 model Team {

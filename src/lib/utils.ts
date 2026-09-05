@@ -506,3 +506,49 @@ export function diffFromDefaultWeek(
     return segment !== defaultSegment
   })
 }
+
+// ─── Staffing schedule (Phase 2) ───────────────────────────────────────────
+
+export const CALENDAR_MARKER_KIND_LABELS: Record<string, string> = {
+  HOLIDAY: "Holiday",
+  BLACKOUT: "Blackout",
+  NOTE: "Note",
+}
+
+export const AVAILABILITY_STATUS_LABELS: Record<string, string> = {
+  OUT: "Out",
+  WORKING: "Working",
+  UNAVAILABLE: "Unavailable",
+}
+
+export const AVAILABILITY_SEGMENT_LABELS: Record<string, string> = {
+  FULL_DAY: "Full day",
+  MORNING: "Morning",
+  AFTERNOON: "Afternoon / evening",
+}
+
+const SCHEDULE_EDITOR_ROLES = ["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR", "PRODUCER"] as const
+
+/** Can create/edit availability and shift assignments for anyone on the
+ *  roster — everyone except VIEWER. Deliberately not self-only: this
+ *  replaces a spreadsheet with equally-open edit rights (issue #19 §7),
+ *  not a locked-down permission model. See canManageRoster() above for the
+ *  narrower, admin-only calendar/roster surface. */
+export function canEditSchedule(role: string): boolean {
+  return (SCHEDULE_EDITOR_ROLES as readonly string[]).includes(role)
+}
+
+/** "YYYY-MM-DD" → date-only Date at T00:00:00.000Z. Inverse of toDateString(). */
+export function dateOnly(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00.000Z`)
+}
+
+/** Date-only Date → "YYYY-MM-DD", reading UTC fields — never local-time
+ *  methods (date.toLocaleDateString(), date-fns's format()), which would
+ *  shift the day for a browser clock set west of UTC. */
+export function toDateString(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const d = String(date.getUTCDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}

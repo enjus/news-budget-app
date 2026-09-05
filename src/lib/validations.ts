@@ -90,6 +90,83 @@ export const replaceWorkScheduleSchema = z.object({
   { message: "Duplicate weekday in days", path: ["days"] }
 );
 
+// ─── Staffing schedule (Phase 2) ────────────────────────────────────────────
+// Every schedule API takes and returns "YYYY-MM-DD" strings — Date objects
+// never cross the wire (src/lib/schedule.ts, dateOnly()/toDateString()).
+const dateOnlyString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
+
+export const AvailabilitySegmentEnum = z.enum(["FULL_DAY", "MORNING", "AFTERNOON"]);
+export const AvailabilityStatusEnum = z.enum(["OUT", "WORKING", "UNAVAILABLE"]);
+
+// POST /api/schedule/availability — one call expands to a date range (cap:
+// 180 days, enforced in the route since it depends on holiday/pattern lookups).
+export const createAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  startDate: dateOnlyString,
+  endDate: dateOnlyString,
+  segment: AvailabilitySegmentEnum.default("FULL_DAY"),
+  status: AvailabilityStatusEnum,
+  note: z.string().max(500).nullable().optional(),
+  // Resolves against the person's WorkSchedule pattern AND observed holidays —
+  // so a range doesn't burn a day on a standing day off or a holiday.
+  skipNonWorkingDays: z.boolean().default(false),
+}).refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+});
+
+// PATCH /api/schedule/availability/[id] — personId/date/segment are the row's
+// identity and aren't editable here; only status/note can change in place.
+export const updateAvailabilitySchema = z.object({
+  status: AvailabilityStatusEnum.optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+// One day's desired resolved value, for the one-off week editor's diff.
+export const weekAvailabilityDaySchema = z.object({
+  date: dateOnlyString,
+  segment: AvailabilitySegmentEnum,
+  status: AvailabilityStatusEnum,
+  note: z.string().max(500).nullable().optional(),
+});
+
+// PUT /api/schedule/availability/week — up to 14 rows to allow independent
+// AM/PM entries across a 7-day week.
+export const putWeekAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  days: z.array(weekAvailabilityDaySchema).max(14),
+});
+
+// POST/PATCH /api/schedule/markers — reuses CalendarMarkerKindEnum from
+// Phase 1 above; there is no separate MarkerKindEnum. The base object is
+// split out from createMarkerSchema's refinement so updateMarkerSchema can
+// call .partial() — Zod doesn't allow .partial() on a schema that already
+// carries a .refine().
+const markerFieldsSchema = z.object({
+  kind: CalendarMarkerKindEnum,
+  label: z.string().min(1, "Label is required").max(100),
+  startDate: dateOnlyString,
+  endDate: dateOnlyString,
+  note: z.string().max(500).nullable().optional(),
+  observed: z.boolean().default(true), // HOLIDAY only
+});
+
+export const createMarkerSchema = markerFieldsSchema.refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+});
+
+export const updateMarkerSchema = markerFieldsSchema.partial().refine(
+  (data) => !data.startDate || !data.endDate || data.endDate >= data.startDate,
+  { message: "End date must be on or after start date", path: ["endDate"] }
+);
+
+// POST /api/schedule/markers/seed-holidays — seeds the standard US federal
+// holiday set for a year as editable/deletable CalendarMarker rows.
+export const seedHolidaysSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+});
+
 // ─── Pub date / TBD cross-field validation ────────────────────────────────────
 // Shared by create/update Story and Video schemas: if a *PubDateTBD flag is
 // explicitly false, the matching *PubDate must be present. Without this, the
@@ -317,6 +394,12 @@ export const updateUserSchema = z.object({
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
 export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
 export type ReplaceWorkScheduleInput = z.infer<typeof replaceWorkScheduleSchema>;
+export type CreateAvailabilityInput = z.infer<typeof createAvailabilitySchema>;
+export type UpdateAvailabilityInput = z.infer<typeof updateAvailabilitySchema>;
+export type PutWeekAvailabilityInput = z.infer<typeof putWeekAvailabilitySchema>;
+export type CreateMarkerInput = z.infer<typeof createMarkerSchema>;
+export type UpdateMarkerInput = z.infer<typeof updateMarkerSchema>;
+export type SeedHolidaysInput = z.infer<typeof seedHolidaysSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;

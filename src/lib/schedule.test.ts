@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { resolveDay, type ResolveDayMarker, type ResolveDayWorkSchedule } from "./schedule"
-
-// All test dates are date-only instants (T00:00:00.000Z), matching how
-// CalendarMarker/WorkSchedule dates are actually stored and read.
-function dateOnly(iso: string): Date {
-  return new Date(`${iso}T00:00:00.000Z`)
-}
+import { dateOnly } from "./utils"
 
 function holidayMarker(overrides: Partial<ResolveDayMarker> = {}): ResolveDayMarker {
   return {
