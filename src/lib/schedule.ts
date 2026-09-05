@@ -441,6 +441,68 @@ export function resolveMarkerBands(
     .filter((s): s is MarkerBandSpan => s !== null)
 }
 
+// ─── Shifts (Phase 4) ───────────────────────────────────────────────────────
+
+export interface ShiftDay {
+  /** "YYYY-MM-DD" */
+  date: string
+  holiday: { id: string; label: string } | null
+}
+
+/**
+ * Shift days in a window = every Saturday, every Sunday, and every date
+ * covered by an observed HOLIDAY marker (issue #19 §6) — one row per date
+ * even when both conditions apply (a holiday landing on a weekend), with
+ * `holiday` set whenever a marker covers it. Shared by the API route so no
+ * client reimplements "Saturdays, Sundays, and observed holidays."
+ */
+export function shiftDaysInWindow(
+  startDate: Date,
+  endDate: Date,
+  holidayMarkers: ResolveDayMarker[]
+): ShiftDay[] {
+  const observedHolidays = holidayMarkers.filter((m) => m.kind === "HOLIDAY" && m.observed)
+  const days: ShiftDay[] = []
+  let cursor = new Date(startDate.getTime())
+  while (cursor.getTime() <= endDate.getTime()) {
+    const weekday = cursor.getUTCDay()
+    const time = cursor.getTime()
+    const holiday = observedHolidays.find((m) => m.startDate.getTime() <= time && time <= m.endDate.getTime())
+    if (weekday === 0 || weekday === 6 || holiday) {
+      days.push({
+        date: toDateString(cursor),
+        holiday: holiday ? { id: holiday.id, label: holiday.label } : null,
+      })
+    }
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+  }
+  return days
+}
+
+export type ShiftConflict = { kind: "out" } | { kind: "outsidePattern" }
+
+/**
+ * The two conflict cases from issue #19 §6 that are worth flagging when
+ * assigning a shift — built entirely on resolveDay()'s own output rather
+ * than re-deriving anything:
+ * - An explicit OUT day → {kind: "out"} (the assignee is booked off).
+ * - The standing pattern says this weekday is off (not a holiday) →
+ *   {kind: "outsidePattern"}. Naturally suppressed for someone whose
+ *   WorkSchedule already includes this weekend day, since resolveDay()
+ *   would then resolve the day as pattern-working (or holiday), never
+ *   off/regular — no extra check needed here.
+ * A holiday is context, not a conflict (that's the point of the shift day),
+ * and plain "working"/"unavailable" aren't conflicts either — the third
+ * case from §6 (holiday) needs no code, it's just the absence of a warning.
+ * For a split day, either half being a conflict makes the whole day one.
+ */
+export function detectShiftConflict(resolved: ResolvedDay): ShiftConflict | null {
+  const segments = resolved.split ? [resolved.am, resolved.pm] : [resolved]
+  if (segments.some((s) => s.status === "off" && s.reason === "availability")) return { kind: "out" }
+  if (segments.some((s) => s.status === "off" && s.reason === "regular")) return { kind: "outsidePattern" }
+  return null
+}
+
 /**
  * The standard US federal holiday set for a year — a *starting point* an
  * admin seeds via /admin/calendar and can then edit or delete per-holiday

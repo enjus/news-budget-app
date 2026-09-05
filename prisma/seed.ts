@@ -231,6 +231,28 @@ async function main() {
     },
   });
 
+  // ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
+  // Two upcoming Saturdays plus the holiday seeded above, exercising: a
+  // doubled role (two GA reporters the same day), an intentionally empty
+  // role (the "gap" UI state), and holiday coverage.
+  const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7;
+  const sat1 = daysUntilSaturday;
+  const sat2 = daysUntilSaturday + 7;
+  await prisma.shiftAssignment.createMany({
+    data: [
+      { date: dateOnly(sat1), shiftRole: "GA_REPORTER", personId: alice.id },
+      { date: dateOnly(sat1), shiftRole: "GA_REPORTER", personId: carol.id }, // doubled
+      { date: dateOnly(sat1), shiftRole: "EDITOR", personId: bob.id },
+      // SOCIAL_VIDEO_PRODUCER and VISUAL_JOURNALIST left unfilled on sat1
+      { date: dateOnly(sat2), shiftRole: "GA_REPORTER", personId: carol.id },
+      { date: dateOnly(sat2), shiftRole: "EDITOR", personId: frank.id },
+      { date: dateOnly(sat2), shiftRole: "SOCIAL_VIDEO_PRODUCER", personId: maya.id },
+      { date: dateOnly(sat2), shiftRole: "VISUAL_JOURNALIST", personId: david.id },
+      { date: dateOnly(5), shiftRole: "GA_REPORTER", personId: alice.id },
+      { date: dateOnly(5), shiftRole: "EDITOR", personId: sam.id },
+    ],
+  });
+
   // ─── Past 14 days: ~10 stories + 3 videos per day ─────────────────────────
 
   const pastStories: Array<{ id: string }> = [];

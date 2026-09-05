@@ -160,6 +160,23 @@ export const putWeekAvailabilitySchema = z.object({
   days: z.array(weekAvailabilityDaySchema).max(14),
 });
 
+// ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
+
+export const ShiftRoleEnum = z.enum(["GA_REPORTER", "EDITOR", "SOCIAL_VIDEO_PRODUCER", "VISUAL_JOURNALIST"]);
+
+// POST /api/schedule/shifts — assigns one person to one role slot on one
+// shift day. writeWorkingRow defaults true: the common case for keying in a
+// season is "this person is now working this day" (issue #19 §6), and the
+// route writes the matching Availability FULL_DAY/WORKING row alongside the
+// ShiftAssignment when set.
+export const createShiftAssignmentSchema = z.object({
+  date: dateOnlyString,
+  shiftRole: ShiftRoleEnum,
+  personId: z.string().cuid(),
+  note: z.string().max(500).nullable().optional(),
+  writeWorkingRow: z.boolean().default(true),
+});
+
 // POST/PATCH /api/schedule/markers — reuses CalendarMarkerKindEnum from
 // Phase 1 above; there is no separate MarkerKindEnum. The base object is
 // split out from createMarkerSchema's refinement so updateMarkerSchema can
@@ -428,6 +445,7 @@ export type PutWeekAvailabilityInput = z.infer<typeof putWeekAvailabilitySchema>
 export type CreateMarkerInput = z.infer<typeof createMarkerSchema>;
 export type UpdateMarkerInput = z.infer<typeof updateMarkerSchema>;
 export type SeedHolidaysInput = z.infer<typeof seedHolidaysSchema>;
+export type CreateShiftAssignmentInput = z.infer<typeof createShiftAssignmentSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;

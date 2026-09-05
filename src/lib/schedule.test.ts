@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { resolveDay, type ResolveDayMarker, type ResolveDayWorkSchedule } from "./schedule"
+import {
+  resolveDay,
+  shiftDaysInWindow,
+  detectShiftConflict,
+  type ResolveDayMarker,
+  type ResolveDayWorkSchedule,
+} from "./schedule"
 import { dateOnly } from "./utils"
 
 function holidayMarker(overrides: Partial<ResolveDayMarker> = {}): ResolveDayMarker {
@@ -199,5 +205,68 @@ describe("resolveDay", () => {
         process.env.TZ = originalTz
       }
     })
+  })
+})
+
+describe("shiftDaysInWindow", () => {
+  it("includes every Saturday and Sunday plus an observed holiday on a weekday, in order", () => {
+    // 2026-11-23 (Mon) .. 2026-11-29 (Sun) — Thanksgiving (Thu 11/26) inside.
+    const days = shiftDaysInWindow(dateOnly("2026-11-23"), dateOnly("2026-11-29"), [holidayMarker()])
+    expect(days.map((d) => d.date)).toEqual(["2026-11-26", "2026-11-28", "2026-11-29"])
+    expect(days.find((d) => d.date === "2026-11-26")?.holiday).toEqual({ id: "marker-1", label: "Thanksgiving" })
+    expect(days.find((d) => d.date === "2026-11-28")?.holiday).toBeNull()
+  })
+
+  it("doesn't duplicate a holiday that falls on a weekend", () => {
+    const marker = holidayMarker({ startDate: dateOnly("2026-11-28"), endDate: dateOnly("2026-11-28") })
+    const days = shiftDaysInWindow(dateOnly("2026-11-23"), dateOnly("2026-11-29"), [marker])
+    expect(days.map((d) => d.date)).toEqual(["2026-11-28", "2026-11-29"])
+    expect(days.find((d) => d.date === "2026-11-28")?.holiday).toEqual({ id: "marker-1", label: "Thanksgiving" })
+  })
+
+  it("ignores an unobserved holiday marker", () => {
+    const marker = holidayMarker({ observed: false })
+    const days = shiftDaysInWindow(dateOnly("2026-11-23"), dateOnly("2026-11-29"), [marker])
+    expect(days.map((d) => d.date)).toEqual(["2026-11-28", "2026-11-29"])
+  })
+
+  it("returns no days for a Mon-Fri-only window with no holiday", () => {
+    const days = shiftDaysInWindow(dateOnly("2026-08-31"), dateOnly("2026-09-04"), [])
+    expect(days).toEqual([])
+  })
+})
+
+describe("detectShiftConflict", () => {
+  it("flags an explicit OUT day as 'out'", () => {
+    const resolved = resolveDay(dateOnly("2026-09-05"), [{ date: "2026-09-05", segment: "FULL_DAY", status: "OUT" }], [], [])
+    expect(detectShiftConflict(resolved)).toEqual({ kind: "out" })
+  })
+
+  it("flags a plain weekend day (no standing weekend pattern) as 'outsidePattern'", () => {
+    // 2026-09-05 is a Saturday with no WorkSchedule override -> off/regular.
+    const resolved = resolveDay(dateOnly("2026-09-05"), [], [], [])
+    expect(detectShiftConflict(resolved)).toEqual({ kind: "outsidePattern" })
+  })
+
+  it("has no conflict for a Tuesday-Saturday person's standing Saturday shift", () => {
+    const workSchedule: ResolveDayWorkSchedule[] = [{ weekday: 6, segment: "FULL_DAY" }]
+    const resolved = resolveDay(dateOnly("2026-09-05"), [], workSchedule, [])
+    expect(detectShiftConflict(resolved)).toBeNull()
+  })
+
+  it("has no conflict for a holiday shift day", () => {
+    const resolved = resolveDay(dateOnly("2026-11-26"), [], [], [holidayMarker()])
+    expect(detectShiftConflict(resolved)).toBeNull()
+  })
+
+  it("flags a split day as 'out' when either half is an explicit OUT", () => {
+    const resolved = resolveDay(
+      dateOnly("2026-09-05"),
+      [{ date: "2026-09-05", segment: "MORNING", status: "OUT" }],
+      [],
+      []
+    )
+    expect(resolved.split).toBe(true)
+    expect(detectShiftConflict(resolved)).toEqual({ kind: "out" })
   })
 })

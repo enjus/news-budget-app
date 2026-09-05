@@ -30,6 +30,7 @@ model User {
   markersCreated CalendarMarker[] @relation("markersCreated")
   availabilityCreated Availability[] @relation("availabilityCreated")
   availabilityUpdated Availability[] @relation("availabilityUpdated")
+  shiftsCreated ShiftAssignment[] @relation("shiftsCreated")
 
   @@index([appRole])
 }
@@ -62,6 +63,7 @@ model Person {
   commentMentions  CommentMention[]
   workSchedules    WorkSchedule[]
   availability     Availability[]
+  shifts           ShiftAssignment[]
 }
 
 // Per-weekday override on a Mon–Fri default. No rows at all = the standard
@@ -131,6 +133,29 @@ model Availability {
   @@index([date])
   @@index([personId, date])
   @@index([date, status])
+}
+
+// Named role slots on shift days (weekends + observed holidays) — the
+// inverse of Availability: role slots that need people, not people
+// declaring status. No (date, shiftRole) uniqueness — two people can share
+// a role; the unique key only prevents double-assigning the same person.
+model ShiftAssignment {
+  id        String   @id @default(cuid())
+  date      DateTime // date-only, T00:00:00.000Z
+  // ShiftRole: GA_REPORTER | EDITOR | SOCIAL_VIDEO_PRODUCER | VISUAL_JOURNALIST
+  shiftRole String
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personId  String
+  note      String?
+
+  createdByUserId String?
+  createdByUser   User?   @relation("shiftsCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, shiftRole, personId])
+  @@index([date])
+  @@index([personId, date])
 }
 
 model Team {

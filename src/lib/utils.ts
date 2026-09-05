@@ -562,6 +562,17 @@ export function isoDateOnly(iso: string): string {
   return toDateString(new Date(iso))
 }
 
+// ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
+
+export const SHIFT_ROLE_LABELS: Record<string, string> = {
+  GA_REPORTER: "GA Reporter",
+  EDITOR: "Editor",
+  SOCIAL_VIDEO_PRODUCER: "Social/Video Producer",
+  VISUAL_JOURNALIST: "Visual Journalist",
+}
+
+export const SHIFT_ROLES = Object.keys(SHIFT_ROLE_LABELS)
+
 /** The Monday (UTC) on or before the given date-only string, for snapping a
  *  week-nav view (e.g. /schedule/teams) to its Monday–Sunday boundary. */
 export function mondayOf(dateStr: string): string {
