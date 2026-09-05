@@ -2,12 +2,8 @@
 
 import { useState } from "react"
 import { useShifts } from "@/lib/hooks/useShifts"
-import { toDateString, dateOnly, todayString } from "@/lib/utils"
+import { addDays, todayString } from "@/lib/utils"
 import { ShiftsView } from "./ShiftsView"
-
-function addDays(dateStr: string, days: number): string {
-  return toDateString(new Date(dateOnly(dateStr).getTime() + days * 24 * 60 * 60 * 1000))
-}
 
 /** Owns the date-range state and the SWR fetch; ShiftsView is a pure render —
  *  follows the page -> Wrapper -> View convention (issue #19 §5). Default

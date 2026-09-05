@@ -573,6 +573,11 @@ export const SHIFT_ROLE_LABELS: Record<string, string> = {
 
 export const SHIFT_ROLES = Object.keys(SHIFT_ROLE_LABELS)
 
+/** "YYYY-MM-DD" + a (possibly negative) day offset -> "YYYY-MM-DD". */
+export function addDays(dateStr: string, days: number): string {
+  return toDateString(new Date(dateOnly(dateStr).getTime() + days * 24 * 60 * 60 * 1000))
+}
+
 /** The Monday (UTC) on or before the given date-only string, for snapping a
  *  week-nav view (e.g. /schedule/teams) to its Monday–Sunday boundary. */
 export function mondayOf(dateStr: string): string {

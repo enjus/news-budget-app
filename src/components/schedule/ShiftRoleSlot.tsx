@@ -57,7 +57,12 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
         const err = await res.json()
         throw new Error(err.error ?? "Failed to assign shift")
       }
-      toast.success("Assigned")
+      const created = await res.json()
+      if (writeWorkingRow && created.workingRowSkipped) {
+        toast.warning("Assigned — left their existing availability entry for that day unchanged (it wasn't a plain working day).")
+      } else {
+        toast.success("Assigned")
+      }
       onSaved()
       reset()
       setOpen(false)

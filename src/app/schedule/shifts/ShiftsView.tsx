@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { ShiftRoleSlot } from "@/components/schedule/ShiftRoleSlot"
-import { SHIFT_ROLE_LABELS, SHIFT_ROLES, toDateString, dateOnly, todayString } from "@/lib/utils"
+import { SHIFT_ROLE_LABELS, SHIFT_ROLES, addDays, todayString } from "@/lib/utils"
 import type { ShiftDay, ShiftRosterPerson } from "@/lib/hooks/useShifts"
 
 interface ShiftsViewProps {
@@ -17,10 +17,6 @@ interface ShiftsViewProps {
   days: ShiftDay[]
   isLoading: boolean
   onSaved: () => void
-}
-
-function addDays(dateStr: string, days: number): string {
-  return toDateString(new Date(dateOnly(dateStr).getTime() + days * 24 * 60 * 60 * 1000))
 }
 
 function weekdayLabel(date: string): string {

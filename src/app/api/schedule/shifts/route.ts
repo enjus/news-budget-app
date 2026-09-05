@@ -37,18 +37,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Range too large — max ${MAX_RANGE_DAYS} days` }, { status: 400 });
     }
 
-    const { roster, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
-      startDate,
-      endDate,
-      ["HOLIDAY"]
-    );
+    const [{ roster, availabilityByPerson, workScheduleByPerson, markers }, assignments] = await Promise.all([
+      loadScheduleWindow(startDate, endDate, ["HOLIDAY"]),
+      prisma.shiftAssignment.findMany({
+        where: { date: { gte: startDate, lte: endDate } },
+        include: { person: { select: { id: true, name: true } } },
+      }),
+    ]);
 
     const shiftDays = shiftDaysInWindow(startDate, endDate, markers);
-
-    const assignments = await prisma.shiftAssignment.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
-      include: { person: { select: { id: true, name: true } } },
-    });
     const assignmentsByDate = new Map<string, typeof assignments>();
     for (const a of assignments) {
       const key = toDateString(a.date);
@@ -141,32 +138,46 @@ export async function POST(request: NextRequest) {
 
     const dateObj = dateOnly(date);
 
-    const assignment = await prisma.$transaction(async (tx) => {
+    const { assignment, workingRowSkipped } = await prisma.$transaction(async (tx) => {
       const created = await tx.shiftAssignment.create({
         data: { date: dateObj, shiftRole, personId, note: note ?? null, createdByUserId: session.user.id },
         include: { person: { select: { id: true, name: true } } },
       });
 
+      let skipped = false;
       if (writeWorkingRow) {
-        await tx.availability.deleteMany({
+        // Don't silently clobber an existing OUT/UNAVAILABLE entry (or one
+        // carrying a note) — that's the exact "lost notes, silent no-op" bug
+        // class already fixed once on this branch for the availability
+        // write path. Only overwrite when the existing rows are themselves
+        // already a plain, note-free WORKING day (or there's nothing there).
+        const existing = await tx.availability.findMany({
           where: { personId, date: dateObj, segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] } },
         });
-        await tx.availability.create({
-          data: {
-            personId,
-            date: dateObj,
-            segment: "FULL_DAY",
-            status: "WORKING",
-            createdByUserId: session.user.id,
-            updatedByUserId: session.user.id,
-          },
-        });
+        const conflicts = existing.some((r) => r.status !== "WORKING" || r.note);
+        if (conflicts) {
+          skipped = true;
+        } else {
+          await tx.availability.deleteMany({
+            where: { personId, date: dateObj, segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] } },
+          });
+          await tx.availability.create({
+            data: {
+              personId,
+              date: dateObj,
+              segment: "FULL_DAY",
+              status: "WORKING",
+              createdByUserId: session.user.id,
+              updatedByUserId: session.user.id,
+            },
+          });
+        }
       }
 
-      return created;
+      return { assignment: created, workingRowSkipped: skipped };
     });
 
-    return NextResponse.json(assignment, { status: 201 });
+    return NextResponse.json({ ...assignment, workingRowSkipped }, { status: 201 });
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "Already assigned to this shift" }, { status: 409 });
