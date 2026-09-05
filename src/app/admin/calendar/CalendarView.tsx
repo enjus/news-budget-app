@@ -42,6 +42,11 @@ export function CalendarView() {
     start: `${nextYear}-01-01`,
     end: `${nextYear}-12-31`,
   })
+  // The reminder is specifically about holidays/blackouts ("No holidays or
+  // blackout added..." below) — an unrelated NOTE marker (e.g. a "Q1
+  // planning day" reminder) must not silently suppress it just because
+  // *some* marker exists for next year.
+  const nextYearHolidayOrBlackout = nextYearMarkers.filter((m) => m.kind === "HOLIDAY" || m.kind === "BLACKOUT")
 
   const visibleMarkers = kindFilter === "ALL" ? markers : markers.filter((m) => m.kind === kindFilter)
 
@@ -121,7 +126,7 @@ export function CalendarView() {
         </div>
       </div>
 
-      {showNextYearPrompt && !nextYearLoading && nextYearMarkers.length === 0 && (
+      {showNextYearPrompt && !nextYearLoading && nextYearHolidayOrBlackout.length === 0 && (
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3">
           <p className="text-sm">
             No holidays or blackout added for {nextYear} yet — shifts get filled months ahead, so it's worth adding these soon.

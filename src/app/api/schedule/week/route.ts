@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dateOnly, toDateString } from "@/lib/utils";
-import { resolveDay, detectBlackoutOverlap, type AvailabilityEntry } from "@/lib/schedule";
+import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -25,9 +25,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "start must be a Monday" }, { status: 400 });
     }
 
-    const weekDates = Array.from({ length: 7 }, (_, i) =>
-      toDateString(new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000))
-    );
+    // A plain 7-day walk, delegated to the same tested date-range walker the
+    // availability write path uses rather than a third hand-rolled ms-based
+    // loop (unconditional here — skipNonWorkingDays only matters for a
+    // write, so workSchedule/markers are unused for this call).
+    const weekEnd = toDateString(new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000));
+    const weekDates = expandDateRange(start, weekEnd, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
     const endDate = dateOnly(weekDates[6]);
 
     const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
@@ -51,16 +54,7 @@ export async function GET(request: NextRequest) {
         const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers);
         const inBlackout = detectBlackoutOverlap([date], blackoutMarkers).length > 0;
         const rowsForDate = rows.filter((r) => toDateString(r.date) === date);
-        const note = resolved.split
-          ? null
-          : rowsForDate.find((r) => r.segment === "FULL_DAY")?.note ?? null;
-        // A split day can carry a note on either half — surfaced separately
-        // rather than nulled out, same fix as /api/people/[id]/availability's
-        // amNote/pmNote (that route's note-loss bug, fixed for "My schedule";
-        // the team grid needs the same fields to show half-day notes too).
-        const amNote = resolved.split ? rowsForDate.find((r) => r.segment === "MORNING")?.note ?? null : undefined;
-        const pmNote = resolved.split ? rowsForDate.find((r) => r.segment === "AFTERNOON")?.note ?? null : undefined;
-        return { date, ...resolved, note, amNote, pmNote, inBlackout };
+        return { date, ...resolved, ...resolveNotes(resolved, rowsForDate), inBlackout };
       });
 
       return {

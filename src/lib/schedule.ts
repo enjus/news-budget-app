@@ -182,6 +182,45 @@ export function resolveDay(
   return { split: false, ...resolveFromPattern(date, workSchedule, markers) }
 }
 
+// ─── Note extraction ────────────────────────────────────────────────────────
+
+export interface NoteRow {
+  segment: string // FULL_DAY | MORNING | AFTERNOON
+  note: string | null
+}
+
+export interface ResolvedNotes {
+  /** Whole-day note — only set (and only meaningful) when the day isn't split. */
+  note: string | null
+  /** Per-half notes — only set when the day is split; `undefined` otherwise,
+   *  matching MyScheduleDay's optional amNote/pmNote (no half-day concept to
+   *  attach a note to on a whole day). */
+  amNote?: string | null
+  pmNote?: string | null
+}
+
+/**
+ * Read a resolved day's note(s) off the same-date Availability rows a caller
+ * already has (it needed them to build the AvailabilityEntry[] resolveDay()
+ * consumed). Extracted after this exact "find the FULL_DAY/MORNING/AFTERNOON
+ * row, read its note depending on resolved.split" snippet had been
+ * copy-pasted across /api/schedule/day, /api/schedule/week,
+ * /api/schedule/export, and /api/people/[id]/availability — with a `split ?
+ * null : ...` variant that silently dropped split-day notes, fixed once
+ * already for the availability route and once more for week/route.ts as
+ * separate patches on this branch before this helper existed.
+ */
+export function resolveNotes(resolved: ResolvedDay, rowsForDate: NoteRow[]): ResolvedNotes {
+  if (!resolved.split) {
+    return { note: rowsForDate.find((r) => r.segment === "FULL_DAY")?.note ?? null }
+  }
+  return {
+    note: null,
+    amNote: rowsForDate.find((r) => r.segment === "MORNING")?.note ?? null,
+    pmNote: rowsForDate.find((r) => r.segment === "AFTERNOON")?.note ?? null,
+  }
+}
+
 // ─── Write-side helpers (Phase 2) ──────────────────────────────────────────
 // Pure functions the availability API routes build on. Kept here, alongside
 // resolveDay(), and unit-tested the same way — none of them touch Prisma or

@@ -1,9 +1,7 @@
 import useSWR from "swr"
+import type { ShiftConflictInfo } from "@/lib/schedule"
 
-export interface ShiftConflictInfo {
-  severity: "warning" | "note"
-  message: string
-}
+export type { ShiftConflictInfo }
 
 export interface ShiftRoleAssignment {
   id: string

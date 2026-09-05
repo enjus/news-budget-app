@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { dateOnly } from "@/lib/utils";
-import { resolveDay, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
+import { dateOnly, weekdayName } from "@/lib/utils";
+import { resolveDay, resolveNotes, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -22,10 +22,17 @@ export async function GET(request: NextRequest) {
     }
 
     const dateObj = dateOnly(date);
-    const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
-      dateObj,
-      dateObj
-    );
+    // Independent of each other — loadScheduleWindow() only needs the date
+    // range, shiftAssignment only needs dateObj — so they run concurrently
+    // rather than paying both round trips in series.
+    const [{ roster, teams, availabilityByPerson, workScheduleByPerson, markers }, shiftAssignments] =
+      await Promise.all([
+        loadScheduleWindow(dateObj, dateObj),
+        prisma.shiftAssignment.findMany({
+          where: { date: dateObj },
+          include: { person: { select: { id: true, name: true } } },
+        }),
+      ]);
     const holidayMarkers = markers.filter((m) => m.kind === "HOLIDAY");
 
     const people = roster.map((person) => {
@@ -33,29 +40,19 @@ export async function GET(request: NextRequest) {
       const entries: AvailabilityEntry[] = rows.map((r) => ({ date, segment: r.segment, status: r.status }));
       const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(person.id) ?? [], holidayMarkers);
 
-      const fullDayRow = rows.find((r) => r.segment === "FULL_DAY");
-      const amRow = rows.find((r) => r.segment === "MORNING");
-      const pmRow = rows.find((r) => r.segment === "AFTERNOON");
-
       return {
         id: person.id,
         name: person.name,
         teamIds: person.teamIds,
         resolved,
-        note: resolved.split ? null : fullDayRow?.note ?? null,
-        amNote: resolved.split ? amRow?.note ?? null : undefined,
-        pmNote: resolved.split ? pmRow?.note ?? null : undefined,
+        ...resolveNotes(resolved, rows),
       };
     });
 
     // Any shift assigned on this date, filled roles only (issue #19 §5
     // extension — an unfilled slot is a /schedule/shifts concern, not
     // something the absence board needs to surface).
-    const shiftAssignments = await prisma.shiftAssignment.findMany({
-      where: { date: dateObj },
-      include: { person: { select: { id: true, name: true } } },
-    });
-    const weekdayLabel = dateObj.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+    const weekdayLabel = weekdayName(date);
     const shifts = shiftAssignments.map((a) => {
       const rows = availabilityByPerson.get(a.personId) ?? [];
       const entries: AvailabilityEntry[] = rows.map((r) => ({ date, segment: r.segment, status: r.status }));

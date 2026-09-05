@@ -48,6 +48,14 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
     <div className="space-y-1">
       {(holidayMarkers.length > 0 || blackoutMarkers.length > 0) && (
         <div className="flex flex-wrap gap-2 pb-1">
+          {holidayMarkers.map((m) => (
+            <span
+              key={m.id}
+              className="text-xs rounded-full bg-violet-100 dark:bg-violet-950/40 px-2 py-0.5 text-violet-700 dark:text-violet-300"
+            >
+              {m.label}
+            </span>
+          ))}
           {blackoutMarkers.map((m) => (
             <span key={m.id} className="text-xs rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
               {m.label}

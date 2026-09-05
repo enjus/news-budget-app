@@ -599,6 +599,16 @@ export function weekdayAbbrev(dateStr: string): string {
   return WEEKDAY_ABBREV_SUN_FIRST[dateOnly(dateStr).getUTCDay()]
 }
 
+/** Full weekday name ("Saturday") for a date-only string, via getUTCDay()
+ *  against the same WEEKDAY_OPTIONS used by the work-schedule editor —
+ *  replaces the identical `date.toLocaleDateString("en-US", { weekday:
+ *  "long", timeZone: "UTC" })` Intl call duplicated in
+ *  /api/schedule/day and /api/schedule/shifts for the shift-conflict
+ *  sentence (describeShiftConflict()'s weekdayLabel argument). */
+export function weekdayName(dateStr: string): string {
+  return WEEKDAY_OPTIONS[dateOnly(dateStr).getUTCDay()].label
+}
+
 /** "YYYY-MM-DD" -> "M/D", no leading zeros — a compact date label (e.g. next
  *  to a weekday abbreviation on the team schedule grid) where the zero-padded
  *  "09-03" reads oddly. Not for anything that needs to sort or round-trip;

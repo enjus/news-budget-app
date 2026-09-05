@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftAssignmentSchema } from "@/lib/validations";
-import { canEditSchedule, dateOnly, toDateString, SHIFT_ROLES } from "@/lib/utils";
+import { canEditSchedule, dateOnly, toDateString, weekdayName, SHIFT_ROLES } from "@/lib/utils";
 import { resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
 
     const days = shiftDays.map((day) => {
       const forDate = assignmentsByDate.get(day.date) ?? [];
+      const weekdayLabel = weekdayName(day.date);
       const roles: Record<string, unknown[]> = {};
       for (const role of SHIFT_ROLES) {
         roles[role] = forDate
@@ -77,10 +78,6 @@ export async function GET(request: NextRequest) {
             }));
             const personWorkSchedule = workScheduleByPerson.get(a.personId) ?? [];
             const resolved = resolveDay(dateOnly(day.date), entries, personWorkSchedule, markers);
-            const weekdayLabel = new Date(`${day.date}T00:00:00.000Z`).toLocaleDateString("en-US", {
-              weekday: "long",
-              timeZone: "UTC",
-            });
             return {
               id: a.id,
               personId: a.personId,

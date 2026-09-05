@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dateOnly, toDateString } from "@/lib/utils";
-import { resolveDay, detectBlackoutOverlap, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
+import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
 import { loadScheduleWindow, type AvailabilityRow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -42,13 +42,12 @@ function statusLabel(resolved: ResolvedDay): string {
 // A split (half-day) date can carry a note on either half — surface both
 // rather than blanking the column, since this export is meant to be the
 // complete record (a half-day PTO note like "doctor appt AM" is exactly the
-// kind of detail someone exports the CSV to keep).
+// kind of detail someone exports the CSV to keep). Built on the same
+// resolveNotes() the other schedule routes use, then flattened to one
+// column for the CSV.
 function noteFor(resolved: ResolvedDay, rowsForDate: AvailabilityRow[]): string {
-  if (!resolved.split) {
-    return rowsForDate.find((r) => r.segment === "FULL_DAY")?.note ?? "";
-  }
-  const amNote = rowsForDate.find((r) => r.segment === "MORNING")?.note;
-  const pmNote = rowsForDate.find((r) => r.segment === "AFTERNOON")?.note;
+  const { note, amNote, pmNote } = resolveNotes(resolved, rowsForDate);
+  if (!resolved.split) return note ?? "";
   return [amNote && `AM: ${amNote}`, pmNote && `PM: ${pmNote}`].filter(Boolean).join(" / ");
 }
 
@@ -75,9 +74,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: `Range too large — max ${MAX_RANGE_DAYS} days` }, { status: 400 });
     }
 
-    const dates = Array.from({ length: dayCount }, (_, i) =>
-      toDateString(new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000))
-    );
+    // Delegated to the same tested range-walker the availability write path
+    // uses, rather than a second hand-rolled ms-based loop (unconditional
+    // here — skipNonWorkingDays only matters for a write).
+    const dates = expandDateRange(start, end, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
 
     const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
       startDate,

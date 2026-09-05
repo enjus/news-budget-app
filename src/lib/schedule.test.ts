@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   resolveDay,
+  resolveNotes,
   shiftDaysInWindow,
   detectShiftConflict,
   describeShiftConflict,
@@ -316,5 +317,47 @@ describe("mergeShiftDays", () => {
 
   it("returns nothing for an empty window with no assignments", () => {
     expect(mergeShiftDays([], [])).toEqual([])
+  })
+})
+
+describe("resolveNotes", () => {
+  it("reads a whole-day note off the FULL_DAY row", () => {
+    expect(
+      resolveNotes({ split: false, status: "off", reason: "availability", source: { date: "2026-09-05", segment: "FULL_DAY", status: "OUT" } }, [
+        { segment: "FULL_DAY", note: "Doctor appt" },
+      ])
+    ).toEqual({ note: "Doctor appt" })
+  })
+
+  it("returns note: null (not amNote/pmNote) when there's no FULL_DAY row for a whole day", () => {
+    expect(resolveNotes({ split: false, status: "working", source: "pattern" }, [])).toEqual({ note: null })
+  })
+
+  it("reads per-half notes for a split day instead of nulling them out", () => {
+    expect(
+      resolveNotes(
+        {
+          split: true,
+          am: { status: "off", reason: "availability", source: { date: "2026-09-05", segment: "MORNING", status: "OUT" } },
+          pm: { status: "working", source: "pattern" },
+        },
+        [
+          { segment: "MORNING", note: "Doctor appt" },
+          { segment: "AFTERNOON", note: null },
+        ]
+      )
+    ).toEqual({ note: null, amNote: "Doctor appt", pmNote: null })
+  })
+
+  it("doesn't fall back to a stale FULL_DAY row on a split day", () => {
+    // The write path clears the opposite-shape row on write, but resolveNotes
+    // itself must not read a FULL_DAY note for a split day even if one
+    // somehow lingered — the point of the split branch is per-half only.
+    expect(
+      resolveNotes(
+        { split: true, am: { status: "working", source: "pattern" }, pm: { status: "working", source: "pattern" } },
+        [{ segment: "FULL_DAY", note: "Stale" }]
+      )
+    ).toEqual({ note: null, amNote: null, pmNote: null })
   })
 })
