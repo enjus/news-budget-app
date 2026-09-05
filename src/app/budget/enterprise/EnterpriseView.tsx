@@ -17,7 +17,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn, bucketToUtcStamp } from "@/lib/utils"
-import type { EnterpriseDateGroup } from "@/types/index"
+import type { EnterpriseDateGroup, EnterpriseStoryItem } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -293,10 +293,12 @@ export function EnterpriseView() {
       }
 
       const sourceGroup = groups.find((g) => g.date === sourceDate)
+      let draggedStory: EnterpriseStoryItem | undefined
       if (sourceGroup) {
         if (isStory) {
           const story = sourceGroup.stories.find((x) => x.id === itemId)
           if (story) {
+            draggedStory = story
             const tg = newGroups.find((g) => g.date === targetDate)
             if (tg) tg.stories.push(story)
           }
@@ -339,6 +341,14 @@ export function EnterpriseView() {
           // the online date, since non-leadership editors can't see/fix print
           // date. Leave any existing print-date override alone; it stays TBD by
           // default for everyone else.
+          //
+          // If the item already carries an independent print-date override, the
+          // server will still bucket it by whichever of online/print is
+          // earliest, so this drop can revert once mutate() refetches. Warn
+          // instead of letting that happen silently.
+          if (draggedStory && !draggedStory.printPubDateTBD && draggedStory.printPubDate) {
+            toast.warning("This story has a print date override, so it may snap back — a director needs to update its print date to move it.")
+          }
         }
 
         // Videos don't have printPubDate fields
