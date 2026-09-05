@@ -40,6 +40,22 @@ describe("groupPeople", () => {
     expect(grouped.out).toEqual([])
     expect(grouped.regularlyOff).toEqual([])
   })
+
+  it("on a holiday, still lists a split day where only one half is an explicit WORKING/UNAVAILABLE override", () => {
+    const morningOnly = person("morning-only", {
+      split: true,
+      am: { status: "working", source: "availability" },
+      pm: { status: "off", reason: "holiday", markerId: "h1", markerLabel: "Thanksgiving" },
+    })
+    const bothHalvesOff = person("both-off", {
+      split: true,
+      am: { status: "off", reason: "holiday", markerId: "h1", markerLabel: "Thanksgiving" },
+      pm: { status: "off", reason: "availability", source: { date: "2026-11-26", segment: "AFTERNOON", status: "OUT" } },
+    })
+
+    const grouped = groupPeople([morningOnly, bothHalvesOff], true)
+    expect(grouped.workingOnHoliday.map((p) => p.id)).toEqual(["morning-only"])
+  })
 })
 
 describe("isObservedHoliday", () => {

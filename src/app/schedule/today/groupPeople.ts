@@ -5,6 +5,7 @@
 // src/lib/schedule.ts.
 
 import type { DaySchedulePerson } from "@/lib/hooks/useDaySchedule"
+import type { ResolvedSegment } from "@/lib/schedule"
 
 export interface GroupedDay {
   out: DaySchedulePerson[]
@@ -38,11 +39,15 @@ export function groupPeople(people: DaySchedulePerson[], isHoliday: boolean): Gr
       // standing pattern always loses to an observed holiday per
       // resolveDay()'s precedence order) — that includes a constrained
       // UNAVAILABLE override, since presence (even off-site) is still the
-      // exceptional thing the holiday view is surfacing.
-      const isPresent = !resolved.split && (
-        (resolved.status === "working" && resolved.source === "availability") ||
-        resolved.status === "unavailable"
-      )
+      // exceptional thing the holiday view is surfacing. Check both halves
+      // of a split day — someone with only a morning WORKING override (PM
+      // falling back to the holiday) is still scheduled and must not be
+      // dropped just because the day as a whole is split.
+      const isPresentSegment = (segment: ResolvedSegment) =>
+        (segment.status === "working" && segment.source === "availability") || segment.status === "unavailable"
+      const isPresent = resolved.split
+        ? isPresentSegment(resolved.am) || isPresentSegment(resolved.pm)
+        : isPresentSegment(resolved)
       if (isPresent) grouped.workingOnHoliday.push(person)
       continue
     }
