@@ -144,7 +144,7 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-semibold">Who&apos;s out today</h1>
+        <h1 className="text-xl font-semibold">Today</h1>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon-sm" onClick={() => onDateChange(shiftDate(date, -1))} aria-label="Previous day">
             <ChevronLeft className="size-4" />
