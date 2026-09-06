@@ -31,6 +31,13 @@ export type AssignmentRoleValue = "REPORTER" | "EDITOR" | "VIDEOGRAPHER" | "OTHE
 
 const ALL_ROLES: AssignmentRoleValue[] = ["REPORTER", "EDITOR", "VIDEOGRAPHER", "OTHER"]
 
+/** Role order/default for video assignment pickers — video assignments lead with
+ *  Videographer instead of Reporter. Shared by AssignmentSection (edit-mode,
+ *  parentType="video") and VideoForm (create-mode's pending-assignments picker)
+ *  so the two can't drift apart. */
+export const VIDEO_ROLE_PRIORITY: AssignmentRoleValue[] = ["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]
+export const VIDEO_DEFAULT_ROLE: AssignmentRoleValue = "VIDEOGRAPHER"
+
 const ROLE_LABELS: Record<AssignmentRoleValue, string> = {
   REPORTER: "Reporter",
   EDITOR: "Editor",

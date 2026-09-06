@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PersonBadge } from "@/components/people/PersonBadge"
-import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import { PersonPicker, VIDEO_ROLE_PRIORITY, VIDEO_DEFAULT_ROLE, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { PERSON_ROLE_LABELS, toAssignmentRole, displayName } from "@/lib/utils"
 import type { AssignmentWithPerson, VideoAssignmentWithPerson, Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -28,7 +28,7 @@ const ROLE_CONFIG: Record<
   { roles?: AssignmentRoleValue[]; defaultRole?: AssignmentRoleValue }
 > = {
   story: {},
-  video: { roles: ["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"], defaultRole: "VIDEOGRAPHER" },
+  video: { roles: VIDEO_ROLE_PRIORITY, defaultRole: VIDEO_DEFAULT_ROLE },
 }
 
 type AssignmentSectionProps =
