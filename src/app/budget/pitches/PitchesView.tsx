@@ -12,7 +12,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -150,6 +149,8 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   const [text, setText] = useState("")
   const [notes, setNotes] = useState("")
   const [evergreen, setEvergreen] = useState(false)
+  // Blank = let the server default to 30 days out (see /api/pitches).
+  const [expiresAt, setExpiresAt] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
   async function submit() {
@@ -159,7 +160,12 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
       const res = await fetch(apiPath("/api/pitches"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim(), notes: notes.trim() || null, evergreen }),
+        body: JSON.stringify({
+          text: text.trim(),
+          notes: notes.trim() || null,
+          evergreen,
+          expiresAt: !evergreen && expiresAt ? new Date(expiresAt + "T00:00:00").toISOString() : undefined,
+        }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -169,6 +175,7 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
       setText("")
       setNotes("")
       setEvergreen(false)
+      setExpiresAt("")
       setOpen(false)
       onFiled()
     } catch (err) {
@@ -189,9 +196,6 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>File a pitch</DialogTitle>
-          <DialogDescription>
-            What&apos;s the idea? One field — the rest gets sorted out when someone claims it.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -220,13 +224,28 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={evergreen} onCheckedChange={(v) => setEvergreen(v === true)} />
-            Evergreen — good any time, doesn&apos;t expire
-          </label>
-          {!evergreen && (
-            <p className="text-xs text-muted-foreground">Expires in 30 days unless claimed and extended.</p>
-          )}
+          <div className="space-y-1.5">
+            <Label>Shelf life</Label>
+            {!evergreen && (
+              <>
+                <Input
+                  id="pitch-expires"
+                  type="date"
+                  aria-label="Expires on (optional)"
+                  className="w-auto text-base"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Defaults to 30 days out if left blank. Extended automatically once claimed and sent to budget.
+                </p>
+              </>
+            )}
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={evergreen} onCheckedChange={(v) => setEvergreen(v === true)} />
+              Evergreen — good any time, doesn&apos;t expire
+            </label>
+          </div>
         </div>
 
         <DialogFooter>
