@@ -49,7 +49,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
         onlinePubDate: null,
         onlinePubDateTBD: true,
         // A story created outside the pitch flow never has pitchText set, but
-        // the pool UI (PitchRow, PitchBanner) renders pitchText as the item's
+        // the pool UI (PitchRow, PitchDetail) renders pitchText as the item's
         // title with no fallback — fall back to budgetLine so a released
         // story doesn't show up blank.
         pitchText: story.pitchText ?? story.budgetLine,

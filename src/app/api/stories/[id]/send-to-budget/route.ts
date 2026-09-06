@@ -13,9 +13,16 @@ type RouteContext = { params: Promise<{ id: string }> };
 const sendToBudgetSchema = updateStorySchemaBase.pick({ slug: true, budgetLine: true }).required();
 
 /** Send to budget — the heavier action r2/r3 originally called "claim" (issue
- *  #24 §4, r6). Requires an existing claim (assignment); rewrites the derived
- *  placeholder slug/budgetLine into real ones and flips onBudget. pitchText
- *  is untouched — it persists as provenance. */
+ *  #24 §4, r6). Rewrites the derived placeholder slug/budgetLine into real
+ *  ones and flips onBudget. pitchText is untouched — it persists as
+ *  provenance.
+ *
+ *  Deliberately does NOT require an existing claim, despite §8's original
+ *  text. An editor deeming something must-cover and putting it on the budget
+ *  before anyone's assigned is not a state this app treats as an error —
+ *  it's exactly what the "Unassigned" red chip on StoryCard exists to flag
+ *  and make actionable. Gating this on a claim just forced a placeholder
+ *  claim-then-unclaim round trip to reach a state the app already supports. */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
@@ -42,19 +49,13 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, pitchedAt: true, _count: { select: { assignments: true } } },
+      select: { onBudget: true, pitchedAt: true },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
     if (story.onBudget || story.pitchedAt === null) {
       return NextResponse.json({ error: "Only a pitch can be sent to budget" }, { status: 400 });
-    }
-    if (story._count.assignments === 0) {
-      return NextResponse.json(
-        { error: "Claim this pitch before sending it to budget" },
-        { status: 400 }
-      );
     }
 
     const updated = await prisma.story.update({

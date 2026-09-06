@@ -56,9 +56,18 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
   async function handleSendToBudget() {
     setSendingToBudget(true)
     try {
-      const res = await fetch(apiPath(`/api/videos/${video.id}/publish`), { method: "POST" })
+      const res = await fetch(apiPath(`/api/videos/${video.id}/publish`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: video.version }),
+      })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This video was modified by another user. Reloading…")
+          onUpdate()
+          return
+        }
         throw new Error(json?.error ?? "Failed to send to budget")
       }
       toast.success("Video sent to budget")

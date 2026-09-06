@@ -23,7 +23,6 @@ import { StoryForm, type StoryFormHandle } from "./StoryForm"
 import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { CommentSection } from "./CommentSection"
-import { PitchBanner } from "./PitchBanner"
 import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -82,9 +81,18 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
   async function handleSendToBudget() {
     setSendingToBudget(true)
     try {
-      const res = await fetch(apiPath(`/api/stories/${story.id}/publish`), { method: "POST" })
+      const res = await fetch(apiPath(`/api/stories/${story.id}/publish`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: story.version }),
+      })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This story was modified by another user. Reloading…")
+          onUpdate()
+          return
+        }
         throw new Error(json?.error ?? "Failed to send to budget")
       }
       toast.success("Story sent to budget")
@@ -281,7 +289,8 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         </div>
       </div>
 
-      {/* Draft banner — a pitch is visible to everyone, so it gets its own banner (§4/§6) */}
+      {/* Draft banner. A pitch (pitchedAt set) never reaches StoryDetail — see
+          StoryDetailWrapper, which routes those to PitchDetail instead (§6). */}
       {!story.onBudget && story.pitchedAt === null && (
         <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
@@ -301,10 +310,6 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
             </Button>
           </div>
         </div>
-      )}
-
-      {!story.onBudget && story.pitchedAt !== null && (
-        <PitchBanner story={story} onUpdate={onUpdate} />
       )}
 
       {/* Shelved countdown banner */}

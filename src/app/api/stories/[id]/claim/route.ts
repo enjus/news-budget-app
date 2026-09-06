@@ -12,7 +12,17 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /** Claim — the lightweight action (issue #24 §4, r6). Creates a StoryAssignment
  *  only; nothing else about the pitch moves. Send to budget (a separate route)
- *  is the heavier action that actually commits it. */
+ *  is the heavier action that actually commits it.
+ *
+ *  Single-claimant, enforced here: a pitch with an existing assignment 409s
+ *  rather than accumulating a second one. There's no product case for more
+ *  than one claimant on a pitch, and PitchDetail's UI (assignments[0] as "the"
+ *  claimant) silently loses track of a second one otherwise — this closes
+ *  that at the source instead of leaving it for the client to hide badly.
+ *  Best-effort against a true simultaneous race (check-then-create, not a DB
+ *  constraint or transaction lock) — consistent with the rest of the app,
+ *  which relies on optimistic `version` locking rather than pessimistic locks,
+ *  and good enough for this newsroom's concurrency. */
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
@@ -41,13 +51,23 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, pitchedAt: true },
+      select: {
+        onBudget: true,
+        pitchedAt: true,
+        assignments: { select: { person: { select: { name: true } } }, take: 1 },
+      },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
     if (story.onBudget || story.pitchedAt === null) {
       return NextResponse.json({ error: "Only an unclaimed pitch can be claimed" }, { status: 400 });
+    }
+    if (story.assignments.length > 0) {
+      return NextResponse.json(
+        { error: `Already claimed by ${story.assignments[0].person.name}` },
+        { status: 409 }
+      );
     }
 
     const person = await prisma.person.findUnique({ where: { id: personId } });

@@ -13,7 +13,7 @@ import type { PitchListItem } from "@/types"
 /** A lighter row for a pool item — no time, no visuals, no status chip worth
  *  showing. Shared by the pool page (/budget/pitches) and /me's pitch sections
  *  so claim/unclaim behave identically everywhere. Full role selection / claiming
- *  for someone else lives on the story detail page's PitchBanner. */
+ *  for someone else lives on the story detail page's PitchDetail. */
 export function PitchRow({ pitch, onUpdate }: { pitch: PitchListItem; onUpdate: () => void }) {
   const { data: session } = useSession()
   const [working, setWorking] = useState(false)
