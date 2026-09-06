@@ -26,17 +26,24 @@ export function PitchesView() {
   const { pitches, isLoading, mutate } = usePitches()
   const { data: session } = useSession()
   const currentUserId = session?.user?.id
+  const currentPersonId = session?.user?.personId
   const [query, setQuery] = useState("")
   const [mineOnly, setMineOnly] = useState(false)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return pitches.filter((p) => {
-      if (mineOnly && p.createdByUser?.id !== currentUserId) return false
+      if (mineOnly) {
+        // "Mine" = pitches I filed, or pitches I've claimed — either counts as
+        // mine, since claiming (not filing) is how most pitches end up "yours".
+        const filedByMe = p.createdByUser?.id === currentUserId
+        const claimedByMe = p.assignments.some((a) => a.person.id === currentPersonId)
+        if (!filedByMe && !claimedByMe) return false
+      }
       if (q && !p.pitchText?.toLowerCase().includes(q)) return false
       return true
     })
-  }, [pitches, query, mineOnly, currentUserId])
+  }, [pitches, query, mineOnly, currentUserId, currentPersonId])
 
   const claimed = filtered.filter((p) => p.assignments.length > 0)
     .sort((a, b) => compareExpiry(a.expiresAt, b.expiresAt))
