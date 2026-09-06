@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { updateStorySchema } from "@/lib/validations";
+import { updateStorySchemaBase } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
 import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const sendToBudgetSchema = updateStorySchema.pick({ slug: true, budgetLine: true }).required();
+const sendToBudgetSchema = updateStorySchemaBase.pick({ slug: true, budgetLine: true }).required();
 
 /** Send to budget — the heavier action r2/r3 originally called "claim" (issue
  *  #24 §4, r6). Requires an existing claim (assignment); rewrites the derived

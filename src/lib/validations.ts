@@ -135,7 +135,7 @@ export const createStorySchema = z.object({
   expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 }).superRefine(requirePubDatesWhenNotTBD);
 
-const updateStorySchemaBase = z.object({
+export const updateStorySchemaBase = z.object({
   slug: z
     .string()
     .min(1, "Slug is required")

@@ -10,6 +10,10 @@ export const dynamic = "force-dynamic"
  *  if nobody does. pitchedAt is deliberately not cleared, so an unarchived
  *  item returns to the pool rather than becoming an ownerless private draft
  *  (see the unshelve-while-still-expired handling in stories/[id]/route.ts).
+ *  A pitch with an active claim (assignments.length > 0) is excluded — someone
+ *  is actively working it, so it shouldn't vanish into Shelved mid-workflow;
+ *  send-to-budget clears pitchedAt/expiresAt when the claim is finally sent,
+ *  so a claimed pitch never lingers here past that.
  *  (issue #24 §7) */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
@@ -21,7 +25,13 @@ export async function GET(request: NextRequest) {
   const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
 
   const shelvedExpiredPitches = await prisma.story.updateMany({
-    where: { onBudget: false, pitchedAt: { not: null }, expiresAt: { lte: now }, status: { not: "SHELVED" } },
+    where: {
+      onBudget: false,
+      pitchedAt: { not: null },
+      expiresAt: { lte: now },
+      status: { not: "SHELVED" },
+      assignments: { none: {} },
+    },
     data: { status: "SHELVED", shelvedAt: now },
   })
 

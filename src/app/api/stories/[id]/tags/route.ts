@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
@@ -107,7 +107,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });

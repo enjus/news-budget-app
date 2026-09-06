@@ -25,17 +25,13 @@ import { STORY_STATUS_LABELS, todayString } from "@/lib/utils"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { DaysLeftBadge } from "@/components/budget/DaysLeftBadge"
 
-function DaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
+function ShelvedDaysLeftBadge({ shelvedAt }: { shelvedAt: string | Date | null }) {
   if (!shelvedAt) return null
   const daysShelved = differenceInDays(new Date(), new Date(shelvedAt))
   const daysLeft = Math.max(0, 90 - daysShelved)
-  const urgent = daysLeft <= 14
-  return (
-    <span className={`text-xs font-medium ${urgent ? "text-destructive" : "text-muted-foreground"}`}>
-      {daysLeft === 0 ? "Deletes soon" : `${daysLeft}d left`}
-    </span>
-  )
+  return <DaysLeftBadge daysLeft={daysLeft} labelZero="Deletes soon" />
 }
 
 export function ShelvedView() {
@@ -149,7 +145,7 @@ export function ShelvedView() {
                         {story.isEnterprise && (
                           <Badge variant="secondary" className="text-xs">Enterprise</Badge>
                         )}
-                        <DaysLeftBadge shelvedAt={story.shelvedAt} />
+                        <ShelvedDaysLeftBadge shelvedAt={story.shelvedAt} />
                       </div>
                       <p className="text-sm text-muted-foreground truncate">{story.budgetLine}</p>
                     </Link>
@@ -239,7 +235,7 @@ export function ShelvedView() {
                           {STORY_STATUS_LABELS["SHELVED"]}
                         </Badge>
                         <Badge variant="outline" className="text-xs">Video</Badge>
-                        <DaysLeftBadge shelvedAt={video.shelvedAt} />
+                        <ShelvedDaysLeftBadge shelvedAt={video.shelvedAt} />
                       </div>
                       <p className="text-sm text-muted-foreground truncate">{video.budgetLine}</p>
                     </Link>

@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ExternalLink, MessageSquare, Send, Trash2 } from "lucide-react"
+import { ExternalLink, MessageSquare, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -24,6 +24,7 @@ import { AssignmentSection } from "./AssignmentSection"
 import { VisualSection } from "./VisualSection"
 import { CommentSection } from "./CommentSection"
 import { PitchBanner } from "./PitchBanner"
+import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
@@ -288,36 +289,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
             creator and assigned users can see it until it&apos;s added to the budget.
           </p>
           <div className="flex shrink-0 items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                  disabled={deletingDraft}
-                >
-                  <Trash2 className="size-3" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    &ldquo;{story.slug}&rdquo; will be permanently deleted. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                    onClick={handleDeleteDraft}
-                  >
-                    Delete permanently
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <DeleteDraftDialog slug={story.slug} disabled={deletingDraft} onDelete={handleDeleteDraft} />
             <Button
               size="sm"
               className="gap-1"

@@ -5,24 +5,14 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
 import { format } from "date-fns"
-import { FileText, Video, Send, Info, Trash2 } from "lucide-react"
+import { FileText, Video, Send, Info } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import { useDrafts } from "@/lib/hooks/useDrafts"
 import { usePitches } from "@/lib/hooks/usePitches"
 import { PitchRow } from "@/components/budget/PitchRow"
+import { DeleteDraftDialog } from "@/components/story/DeleteDraftDialog"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
@@ -256,36 +246,7 @@ function DraftRow({
         {isPublishing ? "Sending..." : "Send to Budget"}
       </Button>
 
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-            disabled={isDeleting}
-            aria-label={`Delete draft ${type}`}
-          >
-            <Trash2 className="size-3" />
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete draft {type}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              &ldquo;{slug}&rdquo; will be permanently deleted. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={onDelete}
-            >
-              Delete permanently
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteDraftDialog slug={slug} disabled={isDeleting} onDelete={onDelete} compact />
     </div>
   )
 }

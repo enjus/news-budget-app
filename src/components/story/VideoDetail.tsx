@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ExternalLink, Send, Trash2 } from "lucide-react"
+import { ExternalLink, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
 import { VideoAssignmentSection } from "./VideoAssignmentSection"
 import { CommentSection } from "./CommentSection"
+import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { VideoWithComments } from "@/types/index"
@@ -176,6 +177,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           videoId={video.id}
           comments={video.comments}
           onUpdate={onUpdate}
+          hasAssignments={video.assignments.length > 0}
           readOnly
         />
       </div>
@@ -272,36 +274,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
             creator and assigned users can see it until it&apos;s added to the budget.
           </p>
           <div className="flex shrink-0 items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
-                  disabled={deletingDraft}
-                >
-                  <Trash2 className="size-3" />
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent size="sm">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    &ldquo;{video.slug}&rdquo; will be permanently deleted. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-white hover:bg-destructive/90"
-                    onClick={handleDeleteDraft}
-                  >
-                    Delete permanently
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <DeleteDraftDialog slug={video.slug} disabled={deletingDraft} onDelete={handleDeleteDraft} />
             <Button
               size="sm"
               className="gap-1"
@@ -337,6 +310,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         videoId={video.id}
         comments={video.comments}
         onUpdate={onUpdate}
+        hasAssignments={video.assignments.length > 0}
       />
 
       <Separator />
