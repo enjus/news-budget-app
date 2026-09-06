@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select"
 import {
   createStorySchema,
+  updateStorySchema,
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
@@ -84,8 +85,14 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateStoryInput>({
+    // Edit mode must validate against updateStorySchema, not createStorySchema:
+    // onBudget/sortOrder aren't real form fields, and createStorySchema's
+    // .default() for them (onBudget: true, sortOrder: 0) would otherwise get
+    // silently injected into every edit submission — flipping a pitch or draft
+    // onto the budget (no assignment, so not even a real "claim") and resetting
+    // its position in the column, on every single save.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(createStorySchema) as any,
+    resolver: zodResolver(isEdit ? updateStorySchema : createStorySchema) as any,
     defaultValues: story
       ? {
           slug: story.slug,
