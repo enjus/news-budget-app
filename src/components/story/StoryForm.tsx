@@ -148,6 +148,16 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   const notifyRef = useRef(false)
   const draftRef = useRef(false)
 
+  // The version the server actually has. Starts from the story prop but,
+  // unlike it, gets bumped in place by the auto-save effect below — so a
+  // later "Save Changes" sends the version the row is really on instead of
+  // the stale one from initial load, which the server would otherwise reject
+  // as a conflict (issue: pitch edits before send-to-budget losing changes).
+  const versionRef = useRef(story?.version)
+  useEffect(() => {
+    versionRef.current = story?.version
+  }, [story?.version])
+
   // Auto-save status, isEnterprise, aiContributed on change (edit mode only).
   // Does NOT call onSuccess — avoids remounting the form and losing unsaved text edits.
   const autoSaveMounted = useRef(false)
@@ -168,7 +178,11 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: watchedStatus, isEnterprise: watchedIsEnterprise, aiContributed: watchedAiContributed }),
     })
-      .then((res) => res.ok ? toast.success(message, { duration: 2000 }) : res.json().then((j) => { throw new Error(j?.error) }))
+      .then((res) => res.ok ? res.json() : res.json().then((j) => { throw new Error(j?.error) }))
+      .then((json) => {
+        if (typeof json?.version === "number") versionRef.current = json.version
+        toast.success(message, { duration: 2000 })
+      })
       .catch((err) => toast.error(err instanceof Error ? err.message : "Auto-save failed"))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedStatus, watchedIsEnterprise, watchedAiContributed])
@@ -235,9 +249,13 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
             : null,
       }
 
-      // Include version for optimistic locking on edits
-      if (isEdit && story?.version !== undefined) {
-        payload.version = story.version
+      // Include version for optimistic locking on edits. Read from versionRef,
+      // not story.version directly — the auto-save effect above can bump the
+      // server's real version behind this form's back (it deliberately skips
+      // onSuccess so it doesn't remount and drop unsaved edits), so story.version
+      // can be stale by the time the user hits Save.
+      if (isEdit && versionRef.current !== undefined) {
+        payload.version = versionRef.current
       }
 
       const url = apiPath(isEdit ? `/api/stories/${story!.id}` : "/api/stories")
