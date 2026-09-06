@@ -152,8 +152,6 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           parentId={video.id}
           assignments={video.assignments}
           onUpdate={onUpdate}
-          roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
-          defaultRole="VIDEOGRAPHER"
           readOnly
         />
 
@@ -274,8 +272,6 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         parentId={video.id}
         assignments={video.assignments}
         onUpdate={onUpdate}
-        roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
-        defaultRole="VIDEOGRAPHER"
       />
 
       <Separator />

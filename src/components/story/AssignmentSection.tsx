@@ -11,20 +11,41 @@ import { PERSON_ROLE_LABELS, toAssignmentRole, displayName } from "@/lib/utils"
 import type { AssignmentWithPerson, VideoAssignmentWithPerson, Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
-interface AssignmentSectionProps {
-  /** Which parent this section is attached to — determines the API path
-   *  (/api/stories/:id/assignments vs /api/videos/:id/assignments). Story
-   *  and video assignments share the same AssignmentRoleEnum, so everything
-   *  else about the two is identical. */
-  parentType: "story" | "video"
-  parentId: string
-  assignments: AssignmentWithPerson[] | VideoAssignmentWithPerson[]
-  onUpdate: () => void
-  readOnly?: boolean
-  /** Video assignments lead with Videographer instead of Reporter. */
-  roles?: AssignmentRoleValue[]
-  defaultRole?: AssignmentRoleValue
+// Explicit map, not `${parentType}s` string concatenation — "story" pluralizes
+// irregularly ("stories", not "storys") and the real route folder is
+// src/app/api/stories/[id]/assignments.
+const ASSIGNMENTS_BASE_PATH = {
+  story: "/api/stories",
+  video: "/api/videos",
+} as const
+
+// Video assignments lead with Videographer instead of Reporter; story
+// assignments use PersonPicker's own defaults (Reporter first). Keyed by
+// parentType here so every call site — read-only or editable — gets it for
+// free, rather than each caller repeating the same role list.
+const ROLE_CONFIG: Record<
+  keyof typeof ASSIGNMENTS_BASE_PATH,
+  { roles?: AssignmentRoleValue[]; defaultRole?: AssignmentRoleValue }
+> = {
+  story: {},
+  video: { roles: ["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"], defaultRole: "VIDEOGRAPHER" },
 }
+
+type AssignmentSectionProps =
+  | {
+      parentType: "story"
+      parentId: string
+      assignments: AssignmentWithPerson[]
+      onUpdate: () => void
+      readOnly?: boolean
+    }
+  | {
+      parentType: "video"
+      parentId: string
+      assignments: VideoAssignmentWithPerson[]
+      onUpdate: () => void
+      readOnly?: boolean
+    }
 
 export function AssignmentSection({
   parentType,
@@ -32,13 +53,12 @@ export function AssignmentSection({
   assignments,
   onUpdate,
   readOnly,
-  roles,
-  defaultRole,
 }: AssignmentSectionProps) {
   const { data: session } = useSession()
   const [isAdding, setIsAdding] = useState(false)
+  const { roles, defaultRole } = ROLE_CONFIG[parentType]
 
-  const assignmentsPath = apiPath(`/api/${parentType}s/${parentId}/assignments`)
+  const assignmentsPath = apiPath(`${ASSIGNMENTS_BASE_PATH[parentType]}/${parentId}/assignments`)
 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
     setIsAdding(true)
