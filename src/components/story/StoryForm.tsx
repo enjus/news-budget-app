@@ -24,7 +24,7 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toStoryAssignmentRole, cn, displayName, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toAssignmentRole, cn, displayName, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import type { StoryWithRelations } from "@/types/index"
@@ -423,7 +423,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
                     const res = await fetch(apiPath(`/api/people/${myPersonId}`))
                     if (!res.ok) throw new Error("Could not load your profile")
                     const person = await res.json()
-                    const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
+                    const role = toAssignmentRole(myDefaultRole) as AssignmentRoleValue
                     setPendingAssignments((prev) => [...prev, { person, role }])
                   } catch {
                     toast.error("Could not add you — profile not found")

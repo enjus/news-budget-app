@@ -7,26 +7,43 @@ import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PersonBadge } from "@/components/people/PersonBadge"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
-import { PERSON_ROLE_LABELS, toStoryAssignmentRole, displayName } from "@/lib/utils"
-import type { AssignmentWithPerson } from "@/types/index"
-import type { Person } from "@/types/index"
+import { PERSON_ROLE_LABELS, toAssignmentRole, displayName } from "@/lib/utils"
+import type { AssignmentWithPerson, VideoAssignmentWithPerson, Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
 interface AssignmentSectionProps {
-  storyId: string
-  assignments: AssignmentWithPerson[]
+  /** Which parent this section is attached to — determines the API path
+   *  (/api/stories/:id/assignments vs /api/videos/:id/assignments). Story
+   *  and video assignments share the same AssignmentRoleEnum, so everything
+   *  else about the two is identical. */
+  parentType: "story" | "video"
+  parentId: string
+  assignments: AssignmentWithPerson[] | VideoAssignmentWithPerson[]
   onUpdate: () => void
   readOnly?: boolean
+  /** Video assignments lead with Videographer instead of Reporter. */
+  roles?: AssignmentRoleValue[]
+  defaultRole?: AssignmentRoleValue
 }
 
-export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: AssignmentSectionProps) {
+export function AssignmentSection({
+  parentType,
+  parentId,
+  assignments,
+  onUpdate,
+  readOnly,
+  roles,
+  defaultRole,
+}: AssignmentSectionProps) {
   const { data: session } = useSession()
   const [isAdding, setIsAdding] = useState(false)
+
+  const assignmentsPath = apiPath(`/api/${parentType}s/${parentId}/assignments`)
 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
     setIsAdding(true)
     try {
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
+      const res = await fetch(assignmentsPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: person.id, role }),
@@ -47,7 +64,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
   async function handleRemove(personId: string, role: string) {
     try {
       const params = new URLSearchParams({ personId, role })
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments?${params}`), {
+      const res = await fetch(`${assignmentsPath}?${params}`, {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -71,8 +88,8 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
     if (!myPersonId || !myDefaultRole) return
     setIsAdding(true)
     try {
-      const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
+      const role = toAssignmentRole(myDefaultRole) as AssignmentRoleValue
+      const res = await fetch(assignmentsPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: myPersonId, role }),
@@ -116,6 +133,8 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
           <PersonPicker
             onSelect={handleAdd}
             excludeIds={assignedIds}
+            roles={roles}
+            defaultRole={defaultRole}
             label={isAdding ? "Adding..." : "Add person"}
           />
           {myPersonId && myDefaultRole && !alreadyAssignedMe && (

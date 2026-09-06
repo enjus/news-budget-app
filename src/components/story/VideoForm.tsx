@@ -35,7 +35,7 @@ import {
   type CreateVideoInput,
 } from "@/lib/validations"
 import { useSession } from "next-auth/react"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, displayName, todayString, toVideoAssignmentRole } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, displayName, todayString, toAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { apiPath } from "@/lib/api-path"
@@ -410,7 +410,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                     const res = await fetch(apiPath(`/api/people/${myPersonId}`))
                     if (!res.ok) throw new Error("Could not load your profile")
                     const person = await res.json()
-                    const role = toVideoAssignmentRole(myDefaultRole) as AssignmentRoleValue
+                    const role = toAssignmentRole(myDefaultRole) as AssignmentRoleValue
                     setPendingAssignments((prev) => [...prev, { person, role }])
                   } catch {
                     toast.error("Could not add you — profile not found")
