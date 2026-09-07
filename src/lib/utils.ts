@@ -297,29 +297,6 @@ export function toStoryAssignmentRole(defaultRole: string): string {
   return "OTHER"
 }
 
-const SLUG_MAX = 40
-
-/** Derive a placeholder slug for a filed pitch from its raw tip text.
- *  Deliberately unreadable — the pool never renders it (pitchText is what's
- *  shown); it exists only to satisfy Story.slug's required, [A-Z0-9 ]-only
- *  column until send-to-budget rewrites it with a real one. */
-export function deriveSlug(text: string, now = new Date()): string {
-  const cleaned = text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "") // drop combining marks (accents)
-    .toUpperCase()
-    .replace(/['’]/g, "")            // COUNCIL'S -> COUNCILS, not COUNCIL S
-    .replace(/[^A-Z0-9]+/g, " ")     // everything else -> space
-    .trim()
-
-  if (!cleaned) return `PITCH ${format(now, "yyyyMMdd")}` // no hyphens — must pass the slug regex
-  if (cleaned.length <= SLUG_MAX) return cleaned
-
-  const cut = cleaned.slice(0, SLUG_MAX + 1)
-  const lastSpace = cut.lastIndexOf(" ")
-  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cleaned.slice(0, SLUG_MAX)).trim()
-}
-
 /** Map a Person.defaultRole to a valid video assignment role (VIDEOGRAPHER|REPORTER|EDITOR|OTHER). */
 export function toVideoAssignmentRole(defaultRole: string): string {
   if (defaultRole === "VIDEOGRAPHER" || defaultRole === "REPORTER" || defaultRole === "EDITOR") return defaultRole
@@ -466,4 +443,27 @@ export function canCreateContent(role: string): boolean {
 /** Whether the People directory (nav item + page) is visible for this role. Hidden from VIEWER and PRODUCER. */
 export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
+}
+
+const SLUG_MAX = 40
+
+/** Derive a placeholder slug for a filed pitch from its raw tip text.
+ *  Deliberately unreadable — the pool never renders it (pitchText is what's
+ *  shown); it exists only to satisfy Story.slug's required, [A-Z0-9 ]-only
+ *  column until send-to-budget rewrites it with a real one. */
+export function deriveSlug(text: string, now = new Date()): string {
+  const cleaned = text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // drop combining marks (accents)
+    .toUpperCase()
+    .replace(/['’]/g, "")            // COUNCIL'S -> COUNCILS, not COUNCIL S
+    .replace(/[^A-Z0-9]+/g, " ")     // everything else -> space
+    .trim()
+
+  if (!cleaned) return `PITCH ${format(now, "yyyyMMdd")}` // no hyphens — must pass the slug regex
+  if (cleaned.length <= SLUG_MAX) return cleaned
+
+  const cut = cleaned.slice(0, SLUG_MAX + 1)
+  const lastSpace = cut.lastIndexOf(" ")
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cleaned.slice(0, SLUG_MAX)).trim()
 }
