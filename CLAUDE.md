@@ -21,7 +21,7 @@ If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a packa
 No test suite exists yet.
 
 **Before editing shared files** (API routes, `src/lib/*`, or the budget-view components `StoryCard.tsx`/`VideoCard.tsx`/`AgendaView.tsx`/`ColumnsView.tsx`/`EnterpriseView.tsx`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`, or all of the budget card components at once). If an open PR already touches your target file, run `gh pr diff <number>` to see exactly which lines — adjacent-line edits in the same JSX block usually merge cleanly, but do the check before assuming so.
-`npm run lint` lints `.claude/worktrees/*` too — expect a huge, mostly-unrelated problem count and a run past the default 120s timeout. Grep the output for your own edited file paths (excluding `worktrees/`) rather than reading the full summary.
+`npm run lint` ignores `.claude/worktrees/*` (`eslint.config.mjs` `globalIgnores`) — runs in seconds and reports only real source files.
 **Schema changes are deployed via `prisma db push`, not migrations.** `prisma/migrations/migration_lock.toml` is still stamped `provider = "sqlite"` from before the project moved to Postgres, and no migration has been added since — `prisma migrate dev`/`deploy` are effectively dead here. Before a schema change that drops or renames a column with existing data, write a one-off SQL backfill script to run *before* `db push` (see `prisma/manual-backfill-story-tags.sql` for the pattern) — there's no migration history to roll back to otherwise.
 
 ## Architecture Overview
@@ -136,6 +136,7 @@ No test suite exists yet.
 | `PersonRole` / `defaultRole` | REPORTER, EDITOR, PHOTOGRAPHER, VIDEOGRAPHER, GRAPHIC_DESIGNER, PUBLICATION_DESIGNER, OTHER |
 | `AssignmentRole` (`AssignmentRoleEnum` — shared by Story and Video assignments) | REPORTER, EDITOR, VIDEOGRAPHER, OTHER |
 | `VisualType` | PHOTO, GRAPHIC, MAP, VIDEO |
+| `ShiftRole` | GA_REPORTER, EDITOR, SOCIAL_VIDEO_PRODUCER, VISUAL_JOURNALIST |
 | `StoryStatus` / `VideoStatus` | DRAFT, SCHEDULED, PUBLISHED_ITERATING, PUBLISHED_FINAL, SHELVED |
 | `AppRole` (User) | ADMIN, LEADERSHIP, MANAGING_PRODUCER, SUPERVISOR, PRODUCER, VIEWER |
 | `TeamRole` | EDITOR, MEMBER |
@@ -235,12 +236,13 @@ Root layout (`src/app/layout.tsx`) wraps: `SessionProvider` → `ThemeProvider` 
 
 ### Prisma Seed (`prisma/seed.ts`)
 
-Seeds 15-day historical budget + enterprise stories extending 180 days forward.
+Seeds 15-day historical budget + enterprise stories extending 180 days forward, 9 staff members (2 linked to user accounts: Sam Okafor → `admin@newsroom.com`, Jamie Rivera → `director@newsroom.com`). All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`) via the seed helper `d(offsetDays, hour)`. Full staff roster and roles: see `prisma/seed.ts` directly.
 
-**9 staff members** (2 linked to user accounts):
-- Alice Chen (REPORTER), Bob Martinez (EDITOR), Carol Williams (REPORTER), David Kim (PHOTOGRAPHER), Elena Patel (GRAPHIC_DESIGNER), Frank Johnson (EDITOR), Maya Singh (VIDEOGRAPHER), Sam Okafor (EDITOR → `admin@newsroom.com`), Jamie Rivera (EDITOR → `director@newsroom.com`)
+### Staffing schedule (issue #19, dark-launched)
 
-**Date encoding**: All pub times stored as "newsroom time encoded as UTC" (e.g., 7:30 AM newsroom = `07:30:00.000Z`). The seed helper `d(offsetDays, hour)` constructs these dates.
+A layer tracking who's working, off, or half-day on any date, plus weekend/holiday shift roles — intended to eventually replace the PTO spreadsheet. Phases 1–4 are implemented; **there is no `TopNav` entry yet** — every route is reachable only by direct URL, and the spreadsheet stays the system of record until a later, separate commit adds the nav link.
+
+Full detail (models, `resolveDay()` precedence, permissions, API routes, SWR hooks, client routes, shared components) is in **[`docs/staffing-schedule.md`](docs/staffing-schedule.md)** — load it before touching anything under `src/lib/schedule.ts`, `src/app/api/schedule/**`, `src/app/api/people/[id]/(availability|work-schedule)`, `src/app/schedule/**`, `src/app/admin/calendar`, or `src/components/schedule/**`.
 
 ### Feature Flags (`src/lib/features.ts`)
 

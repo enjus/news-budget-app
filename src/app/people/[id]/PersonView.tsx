@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import { apiPath } from "@/lib/api-path"
+import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import Link from "next/link"
 import useSWR from "swr"
 import { useSession } from "next-auth/react"
 import { format } from "date-fns"
-import { toast } from "sonner"
-import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight, UserCheck, UserX } from "lucide-react"
+import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, displayName, todayString } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, canManageRoster, displayName, todayString } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAST_INITIAL_COUNT = 10
@@ -37,7 +37,15 @@ interface PersonViewProps {
 }
 
 interface PersonData {
-  person: { id: string; name: string; email: string | null; defaultRole: string; isActive: boolean }
+  person: {
+    id: string
+    name: string
+    email: string | null
+    defaultRole: string
+    isActive: boolean
+    isStaff: boolean
+    user: { id: string } | null
+  }
   items: PersonContentItem[]
 }
 
@@ -62,6 +70,7 @@ function formatItemDate(item: PersonContentItem): string {
 export function PersonView({ id }: PersonViewProps) {
   const { data: session } = useSession()
   const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
+  const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
@@ -70,34 +79,12 @@ export function PersonView({ id }: PersonViewProps) {
   const [openUpcoming, setOpenUpcoming] = useState(true)
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
-  const [togglingActive, setTogglingActive] = useState(false)
 
   const { data, isLoading, error, mutate } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
-
-  async function handleToggleActive() {
-    if (!data) return
-    setTogglingActive(true)
-    try {
-      const res = await fetch(apiPath(`/api/people/${id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !data.person.isActive }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Request failed (${res.status})`)
-      }
-      toast.success(data.person.isActive ? "Marked inactive" : "Marked active")
-      mutate()
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to update status")
-    } finally {
-      setTogglingActive(false)
-    }
-  }
+  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(id, mutate)
 
   if (error || (data && !data.items)) {
     return (
@@ -180,6 +167,15 @@ export function PersonView({ id }: PersonViewProps) {
                 Inactive
               </Badge>
             )}
+            {person.isStaff && (
+              <Badge variant="secondary">Staff</Badge>
+            )}
+            {person.isStaff && person.isActive && !person.user && (
+              <Badge variant="outline" className="gap-1 text-muted-foreground">
+                <TriangleAlert className="size-3" />
+                No linked account
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             {person.email && (
@@ -192,26 +188,40 @@ export function PersonView({ id }: PersonViewProps) {
           </div>
         </div>
 
-        {isAdmin && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={togglingActive}
-            onClick={handleToggleActive}
-          >
-            {person.isActive ? (
-              <>
-                <UserX className="size-4" />
-                Mark inactive
-              </>
-            ) : (
-              <>
-                <UserCheck className="size-4" />
-                Mark active
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex gap-2">
+          {canManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={togglingStaff}
+              onClick={() => toggleStaff(person.isStaff)}
+            >
+              <Briefcase className="size-4" />
+              {person.isStaff ? "Remove from staff" : "Add to staff"}
+            </Button>
+          )}
+
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={togglingActive}
+              onClick={() => toggleActive(person.isActive)}
+            >
+              {person.isActive ? (
+                <>
+                  <UserX className="size-4" />
+                  Mark inactive
+                </>
+              ) : (
+                <>
+                  <UserCheck className="size-4" />
+                  Mark active
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

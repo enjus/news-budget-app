@@ -444,3 +444,176 @@ export function canCreateContent(role: string): boolean {
 export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
+
+// ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
+
+/** Roster membership predicate for scheduling features — staff AND active.
+ *  Freelancers (isActive but not isStaff) are excluded from the roster but
+ *  remain assignable via PersonPicker/PersonSelect, which filter on isActive
+ *  only — unaffected by isStaff. */
+export const ROSTER_WHERE = { isStaff: true, isActive: true } as const
+
+/** Roles that can manage the roster (isStaff, WorkSchedule, the newsroom
+ *  calendar). Same role set as hasAdminAccess — a semantic alias, same
+ *  precedent as canEditPrint. */
+export function canManageRoster(role: string): boolean {
+  return hasAdminAccess(role)
+}
+
+export interface WeekdayOption {
+  value: number // 0 = Sunday … 6 = Saturday
+  label: string
+  abbrev: string
+}
+
+export const WEEKDAY_OPTIONS: WeekdayOption[] = [
+  { value: 0, label: "Sunday", abbrev: "Su" },
+  { value: 1, label: "Monday", abbrev: "Mo" },
+  { value: 2, label: "Tuesday", abbrev: "Tu" },
+  { value: 3, label: "Wednesday", abbrev: "We" },
+  { value: 4, label: "Thursday", abbrev: "Th" },
+  { value: 5, label: "Friday", abbrev: "Fr" },
+  { value: 6, label: "Saturday", abbrev: "Sa" },
+]
+
+export const WORK_SCHEDULE_SEGMENT_LABELS: Record<string, string> = {
+  FULL_DAY: "Working",
+  OFF: "Off",
+}
+
+/** Resolve a person's full 7-day standing pattern for the editor: Mon–Fri
+ *  default + any override rows. Shared by the editor UI and the write-back
+ *  diff so "show all 7, persist only what differs" lives in one place. */
+export function resolveWeekPattern(
+  overrides: { weekday: number; segment: string }[]
+): { weekday: number; segment: string }[] {
+  return WEEKDAY_OPTIONS.map(({ value: weekday }) => {
+    const override = overrides.find((o) => o.weekday === weekday)
+    if (override) return { weekday, segment: override.segment }
+    const defaultWorking = weekday >= 1 && weekday <= 5
+    return { weekday, segment: defaultWorking ? "FULL_DAY" : "OFF" }
+  })
+}
+
+/** Diff a resolved 7-day pattern back to only the rows differing from the
+ *  Mon–Fri default, for PATCH payloads to /api/people/[id]/work-schedule. */
+export function diffFromDefaultWeek(
+  resolved: { weekday: number; segment: string }[]
+): { weekday: number; segment: string }[] {
+  return resolved.filter(({ weekday, segment }) => {
+    const defaultWorking = weekday >= 1 && weekday <= 5
+    const defaultSegment = defaultWorking ? "FULL_DAY" : "OFF"
+    return segment !== defaultSegment
+  })
+}
+
+// ─── Staffing schedule (Phase 2) ───────────────────────────────────────────
+
+export const CALENDAR_MARKER_KIND_LABELS: Record<string, string> = {
+  HOLIDAY: "Holiday",
+  BLACKOUT: "Blackout",
+  NOTE: "Note",
+}
+
+export const AVAILABILITY_STATUS_LABELS: Record<string, string> = {
+  OUT: "Out",
+  WORKING: "Working",
+  UNAVAILABLE: "Unavailable",
+}
+
+export const AVAILABILITY_SEGMENT_LABELS: Record<string, string> = {
+  FULL_DAY: "Full day",
+  MORNING: "Morning",
+  AFTERNOON: "Afternoon / evening",
+}
+
+const SCHEDULE_EDITOR_ROLES = ["ADMIN", "LEADERSHIP", "MANAGING_PRODUCER", "SUPERVISOR", "PRODUCER"] as const
+
+/** Can create/edit availability and shift assignments for anyone on the
+ *  roster — everyone except VIEWER. Deliberately not self-only: this
+ *  replaces a spreadsheet with equally-open edit rights (issue #19 §7),
+ *  not a locked-down permission model. See canManageRoster() above for the
+ *  narrower, admin-only calendar/roster surface. */
+export function canEditSchedule(role: string): boolean {
+  return (SCHEDULE_EDITOR_ROLES as readonly string[]).includes(role)
+}
+
+/** "YYYY-MM-DD" → date-only Date at T00:00:00.000Z. Inverse of toDateString(). */
+export function dateOnly(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00.000Z`)
+}
+
+/** Date-only Date → "YYYY-MM-DD", reading UTC fields — never local-time
+ *  methods (date.toLocaleDateString(), date-fns's format()), which would
+ *  shift the day for a browser clock set west of UTC. */
+export function toDateString(date: Date): string {
+  const y = date.getUTCFullYear()
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0")
+  const d = String(date.getUTCDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
+// ─── Staffing schedule (Phase 3) ───────────────────────────────────────────
+
+/** A CalendarMarker's startDate/endDate arrive over the wire (SWR/fetch JSON)
+ *  as a full ISO datetime string, not a Date — this is the "YYYY-MM-DD" read
+ *  for that case. Prefer toDateString() when you already hold a Date. */
+export function isoDateOnly(iso: string): string {
+  return toDateString(new Date(iso))
+}
+
+// ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
+
+export const SHIFT_ROLE_LABELS: Record<string, string> = {
+  EDITOR: "Editor",
+  GA_REPORTER: "GA Reporter",
+  SOCIAL_VIDEO_PRODUCER: "Social/Video Producer",
+  VISUAL_JOURNALIST: "Visual Journalist",
+}
+
+export const SHIFT_ROLES = Object.keys(SHIFT_ROLE_LABELS)
+
+/** "YYYY-MM-DD" + a (possibly negative) day offset -> "YYYY-MM-DD". */
+export function addDays(dateStr: string, days: number): string {
+  return toDateString(new Date(dateOnly(dateStr).getTime() + days * 24 * 60 * 60 * 1000))
+}
+
+/** The Monday (UTC) on or before the given date-only string, for snapping a
+ *  week-nav view (e.g. /schedule/teams) to its Monday–Sunday boundary. */
+export function mondayOf(dateStr: string): string {
+  const d = dateOnly(dateStr)
+  const weekday = d.getUTCDay() // 0 = Sunday … 6 = Saturday
+  const diff = weekday === 0 ? -6 : 1 - weekday
+  return toDateString(new Date(d.getTime() + diff * 24 * 60 * 60 * 1000))
+}
+
+const WEEKDAY_ABBREV_SUN_FIRST = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+/** 3-letter weekday label for a date-only string, computed from the date
+ *  itself via getUTCDay() rather than a caller's assumed position in some
+ *  week array — safe regardless of whether that week starts on Monday or
+ *  Sunday, or is a partial (month-boundary) week. The one implementation
+ *  shared by WeekEditor and the team schedule grid, replacing two
+ *  independent, differently-ordered WEEKDAY_LABELS arrays. */
+export function weekdayAbbrev(dateStr: string): string {
+  return WEEKDAY_ABBREV_SUN_FIRST[dateOnly(dateStr).getUTCDay()]
+}
+
+/** Full weekday name ("Saturday") for a date-only string, via getUTCDay()
+ *  against the same WEEKDAY_OPTIONS used by the work-schedule editor —
+ *  replaces the identical `date.toLocaleDateString("en-US", { weekday:
+ *  "long", timeZone: "UTC" })` Intl call duplicated in
+ *  /api/schedule/day and /api/schedule/shifts for the shift-conflict
+ *  sentence (describeShiftConflict()'s weekdayLabel argument). */
+export function weekdayName(dateStr: string): string {
+  return WEEKDAY_OPTIONS[dateOnly(dateStr).getUTCDay()].label
+}
+
+/** "YYYY-MM-DD" -> "M/D", no leading zeros — a compact date label (e.g. next
+ *  to a weekday abbreviation on the team schedule grid) where the zero-padded
+ *  "09-03" reads oddly. Not for anything that needs to sort or round-trip;
+ *  use toDateString()/dateOnly() for that. */
+export function shortDate(dateStr: string): string {
+  const [, month, day] = dateStr.split("-")
+  return `${Number(month)}/${Number(day)}`
+}

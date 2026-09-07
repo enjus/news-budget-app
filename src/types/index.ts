@@ -85,6 +85,7 @@ export type CommentWithAuthor = Prisma.CommentGetPayload<{
 export type PersonWithCounts = Prisma.PersonGetPayload<{
   include: {
     _count: { select: { assignments: true; videoAssignments: true } };
+    user: { select: { id: true } };
   };
 }>;
 

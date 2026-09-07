@@ -3,7 +3,9 @@
 import { useState } from "react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
+import { Briefcase, Trash2, UserCheck, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,6 +15,17 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -26,9 +39,11 @@ import {
   createPersonSchema,
   type CreatePersonInput,
 } from "@/lib/validations"
-import { PERSON_ROLE_LABELS } from "@/lib/utils"
-import type { Person } from "@/types/index"
+import { PERSON_ROLE_LABELS, hasAdminAccess, canManageRoster, displayName } from "@/lib/utils"
+import type { PersonWithCounts } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
+import { WorkScheduleEditor } from "./WorkScheduleEditor"
 
 const ROLE_OPTIONS = [
   "REPORTER",
@@ -41,14 +56,25 @@ const ROLE_OPTIONS = [
 ] as const
 
 interface PersonFormProps {
-  person?: Person
+  person?: PersonWithCounts
   onSuccess: () => void
   trigger: React.ReactNode
 }
 
 export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
+  const { data: session } = useSession()
+  const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
+  const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [open, setOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const isEdit = !!person
+  const assignmentCount = person
+    ? (person._count?.assignments ?? 0) + (person._count?.videoAssignments ?? 0)
+    : 0
+  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(
+    person?.id ?? "",
+    onSuccess
+  )
 
   const {
     register,
@@ -95,6 +121,25 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
       onSuccess()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
+    }
+  }
+
+  async function handleDelete() {
+    if (!person) return
+    setDeleting(true)
+    try {
+      const res = await fetch(apiPath(`/api/people/${person.id}`), { method: "DELETE" })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json?.error ?? `Delete failed (${res.status})`)
+      }
+      toast.success(`${displayName(person.name)} deleted`)
+      setOpen(false)
+      onSuccess()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete person")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -192,17 +237,113 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
             )}
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => handleOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Person"}
-            </Button>
+          {/* Roster status — rarely-touched toggles, so they live here
+              rather than as always-visible row icons. Each fires its own
+              PATCH immediately (like WorkScheduleEditor below) instead of
+              folding into this form's submit, since they're gated by a
+              different permission (canManageRoster/hasAdminAccess) than the
+              name/email/role fields anyone with write access can edit. */}
+          {isEdit && (canManage || isAdmin) && (
+            <div className="flex flex-wrap gap-2 border-t pt-4">
+              {canManage && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={togglingStaff}
+                  onClick={() => toggleStaff(person!.isStaff)}
+                >
+                  <Briefcase className="size-4" />
+                  {person!.isStaff ? "Remove from staff" : "Add to staff"}
+                </Button>
+              )}
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={togglingActive}
+                  onClick={() => toggleActive(person!.isActive)}
+                >
+                  {person!.isActive ? (
+                    <>
+                      <UserX className="size-4" />
+                      Mark inactive
+                    </>
+                  ) : (
+                    <>
+                      <UserCheck className="size-4" />
+                      Mark active
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Regular work week — only for an existing staff member, and only
+              a roster manager can set it (canManageRoster gates the write at
+              the API layer too). Saves independently via its own button;
+              unrelated to this form's own submit. */}
+          {isEdit && person!.isStaff && canManage && (
+            <WorkScheduleEditor personId={person!.id} />
+          )}
+
+          <DialogFooter className="sm:justify-between">
+            {isEdit &&
+              (assignmentCount > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled
+                  title={`Cannot delete: has ${assignmentCount} assignment${assignmentCount !== 1 ? "s" : ""}`}
+                  className="cursor-not-allowed text-destructive opacity-40 sm:mr-auto"
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </Button>
+              ) : (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={deleting}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto"
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent size="sm">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {displayName(person!.name)}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this person.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction variant="destructive" onClick={handleDelete}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ))}
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Person"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

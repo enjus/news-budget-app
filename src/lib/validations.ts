@@ -67,6 +67,149 @@ export const createPersonSchema = z.object({
 export const updatePersonSchema = createPersonSchema.partial().extend({
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
+  // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
+  isStaff: z.boolean().optional(),
+});
+
+// ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
+export const WorkScheduleSegmentEnum = z.enum(["FULL_DAY", "OFF"]);
+export const CalendarMarkerKindEnum = z.enum(["HOLIDAY", "BLACKOUT", "NOTE"]);
+
+export const workScheduleDaySchema = z.object({
+  weekday: z.number().int().min(0).max(6),
+  segment: WorkScheduleSegmentEnum,
+});
+
+// Body for the work-schedule PATCH — only rows differing from the Mon–Fri
+// default are sent; the route replaces the person's whole WorkSchedule set
+// with exactly what's sent, so "no rows" means "back to Mon–Fri default."
+export const replaceWorkScheduleSchema = z.object({
+  days: z.array(workScheduleDaySchema).max(7),
+}).refine(
+  (data) => new Set(data.days.map((d) => d.weekday)).size === data.days.length,
+  { message: "Duplicate weekday in days", path: ["days"] }
+);
+
+// ─── Staffing schedule (Phase 2) ────────────────────────────────────────────
+// Every schedule API takes and returns "YYYY-MM-DD" strings — Date objects
+// never cross the wire (src/lib/schedule.ts, dateOnly()/toDateString()).
+const dateOnlyString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
+
+export const AvailabilitySegmentEnum = z.enum(["FULL_DAY", "MORNING", "AFTERNOON"]);
+export const AvailabilityStatusEnum = z.enum(["OUT", "WORKING", "UNAVAILABLE"]);
+
+// POST /api/schedule/availability — one call expands to a date range (cap:
+// 180 days, enforced in the route since it depends on holiday/pattern lookups).
+// `rows` (not a single segment/status) so a half-day preset that writes both
+// MORNING and AFTERNOON in one shot arrives as one atomic write — the route
+// clears every segment NOT present in `rows` for each date, so a stale
+// opposite-half row from an earlier preset can't survive a switch. A
+// single-row half-day write (e.g. "here in the morning") still correctly
+// clears the other half, since that segment is simply absent from `rows`.
+const availabilityRowSchema = z.object({
+  segment: AvailabilitySegmentEnum,
+  status: AvailabilityStatusEnum,
+});
+
+export const createAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  startDate: dateOnlyString,
+  endDate: dateOnlyString,
+  rows: z.array(availabilityRowSchema).min(1).max(2),
+  note: z.string().max(500).nullable().optional(),
+  // Resolves against the person's WorkSchedule pattern AND observed holidays —
+  // so a range doesn't burn a day on a standing day off or a holiday.
+  skipNonWorkingDays: z.boolean().default(false),
+}).refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+}).refine((data) => new Set(data.rows.map((r) => r.segment)).size === data.rows.length, {
+  message: "Duplicate segment in rows",
+  path: ["rows"],
+}).refine((data) => data.rows.length === 1 || !data.rows.some((r) => r.segment === "FULL_DAY"), {
+  message: "FULL_DAY cannot be combined with another segment",
+  path: ["rows"],
+});
+
+// PATCH /api/schedule/availability/[id] — personId/date/segment are the row's
+// identity and aren't editable here; only status/note can change in place.
+export const updateAvailabilitySchema = z.object({
+  status: AvailabilityStatusEnum.optional(),
+  note: z.string().max(500).nullable().optional(),
+});
+
+// One day's desired resolved value, for the one-off week editor's diff. A
+// `revert` row means "delete whatever override exists for this date and let
+// it fall back to the standing pattern/holiday baseline" — used instead of
+// guessing a FULL_DAY status client-side, which can't correctly express
+// reverting a split (AM/PM) day back to its true baseline.
+export const weekAvailabilityDaySchema = z.union([
+  z.object({ date: dateOnlyString, revert: z.literal(true) }),
+  z.object({
+    date: dateOnlyString,
+    segment: AvailabilitySegmentEnum,
+    status: AvailabilityStatusEnum,
+    note: z.string().max(500).nullable().optional(),
+  }),
+]);
+
+// PUT /api/schedule/availability/week — up to 14 rows to allow independent
+// AM/PM entries across a 7-day week.
+export const putWeekAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  days: z.array(weekAvailabilityDaySchema).max(14),
+});
+
+// ─── Staffing schedule (Phase 4) ───────────────────────────────────────────
+
+export const ShiftRoleEnum = z.enum(["GA_REPORTER", "EDITOR", "SOCIAL_VIDEO_PRODUCER", "VISUAL_JOURNALIST"]);
+
+// POST /api/schedule/shifts — assigns one person to one role slot on one
+// shift day. writeWorkingRow defaults true: the common case for keying in a
+// season is "this person is now working this day" (issue #19 §6), and the
+// route writes the matching Availability FULL_DAY/WORKING row alongside the
+// ShiftAssignment when set.
+export const createShiftAssignmentSchema = z.object({
+  date: dateOnlyString,
+  shiftRole: ShiftRoleEnum,
+  personId: z.string().cuid(),
+  note: z.string().max(500).nullable().optional(),
+  writeWorkingRow: z.boolean().default(true),
+});
+
+// POST/PATCH /api/schedule/markers — reuses CalendarMarkerKindEnum from
+// Phase 1 above; there is no separate MarkerKindEnum. The base object is
+// split out from createMarkerSchema's refinement so updateMarkerSchema can
+// call .partial() — Zod doesn't allow .partial() on a schema that already
+// carries a .refine().
+const markerFieldsSchema = z.object({
+  kind: CalendarMarkerKindEnum,
+  label: z.string().min(1, "Label is required").max(100),
+  startDate: dateOnlyString,
+  endDate: dateOnlyString,
+  note: z.string().max(500).nullable().optional(),
+  observed: z.boolean().default(true), // HOLIDAY only
+});
+
+export const createMarkerSchema = markerFieldsSchema.refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+});
+
+// This refine only catches an out-of-order pair when BOTH dates are sent in
+// the same PATCH — it can't see the row's stored other date, so a
+// single-field PATCH (e.g. only startDate) that would put the range out of
+// order against the *stored* endDate is validated in the route instead,
+// after loading the current row.
+export const updateMarkerSchema = markerFieldsSchema.partial().refine(
+  (data) => !data.startDate || !data.endDate || data.endDate >= data.startDate,
+  { message: "End date must be on or after start date", path: ["endDate"] }
+);
+
+// POST /api/schedule/markers/seed-holidays — seeds the standard US federal
+// holiday set for a year as editable/deletable CalendarMarker rows.
+export const seedHolidaysSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
 });
 
 // ─── Pub date / TBD cross-field validation ────────────────────────────────────
@@ -295,6 +438,14 @@ export const updateUserSchema = z.object({
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
 export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
+export type ReplaceWorkScheduleInput = z.infer<typeof replaceWorkScheduleSchema>;
+export type CreateAvailabilityInput = z.infer<typeof createAvailabilitySchema>;
+export type UpdateAvailabilityInput = z.infer<typeof updateAvailabilitySchema>;
+export type PutWeekAvailabilityInput = z.infer<typeof putWeekAvailabilitySchema>;
+export type CreateMarkerInput = z.infer<typeof createMarkerSchema>;
+export type UpdateMarkerInput = z.infer<typeof updateMarkerSchema>;
+export type SeedHolidaysInput = z.infer<typeof seedHolidaysSchema>;
+export type CreateShiftAssignmentInput = z.infer<typeof createShiftAssignmentSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
