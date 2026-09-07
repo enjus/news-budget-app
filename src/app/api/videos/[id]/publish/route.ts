@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, draftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +14,7 @@ const videoInclude = {
   _count: { select: { comments: true } },
 } as const;
 
-export async function POST(_request: NextRequest, { params }: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -27,9 +26,21 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
+    // Optional body: { version }, for optimistic locking — same pattern as
+    // PATCH /api/videos/[id] (and the mirrored story-side publish route).
+    // Optional (not requireJSON()'d) because an existing caller, MeView's
+    // "My Drafts" list, POSTs with no body at all — its list payload doesn't
+    // carry a video's version, so it can't send one.
+    let clientVersion: number | undefined;
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = await request.json().catch(() => ({}));
+      if (typeof body?.version === "number") clientVersion = body.version;
+    }
+
     const video = await prisma.video.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true },
+      select: draftGateSelect,
     });
 
     if (!video) {
@@ -40,14 +51,27 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Video is already on the budget" }, { status: 400 });
     }
 
-    // Only the creator or an admin can publish a draft
-    if (video.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Only the creator, an assignee, or an admin can publish a draft
+    if (blockedFromDraft(video, session.user)) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    }
+
+    if (clientVersion !== undefined) {
+      const conflict = await checkVersionConflict(
+        prisma.video,
+        id,
+        clientVersion,
+        { onBudget: true, version: { increment: 1 } },
+        "video"
+      );
+      if (conflict) return conflict;
+      const full = await prisma.video.findUnique({ where: { id }, include: videoInclude });
+      return NextResponse.json(full);
     }
 
     const updated = await prisma.video.update({
       where: { id },
-      data: { onBudget: true },
+      data: { onBudget: true, version: { increment: 1 } },
       include: videoInclude,
     });
 

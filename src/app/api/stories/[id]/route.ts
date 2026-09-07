@@ -1,11 +1,12 @@
 import { notifyStoryTeam } from "@/lib/notifications";
+import { addDays } from "date-fns";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
-import { canCreateContent, hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
+import { canCreateContent } from "@/lib/utils";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -18,6 +19,8 @@ const storyInclude = {
   videos: true,
   tags: true,
   comments: { include: commentInclude, orderBy: commentOrderBy },
+  // Filer's name — needed for the pitch detail banner's "Pitched by" line.
+  createdByUser: { select: { id: true, name: true } },
 } as const;
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
@@ -33,12 +36,11 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
-    // Off-budget drafts are only visible to their creator (or admins)
-    if (!story.onBudget) {
-      const session = await getServerSession(authOptions);
-      if (!session?.user || (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole))) {
-        return NextResponse.json({ error: "Story not found" }, { status: 404 });
-      }
+    // Off-budget drafts are only visible to their creator, assignees, or admins.
+    // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can read it.
+    const session = await getServerSession(authOptions);
+    if (blockedFromDraft(story, session?.user)) {
+      return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
     return NextResponse.json(story);
@@ -60,9 +62,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Block non-owners from editing off-budget drafts
-    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
-    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Block non-owners/non-assignees from editing off-budget drafts (pitches are exempt — public pool item)
+    const existing = await prisma.story.findUnique({
+      where: { id },
+      select: {
+        ...storyDraftGateSelect,
+        expiresAt: true,
+        status: true,
+      },
+    });
+    if (existing && blockedFromDraft(existing, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -77,6 +86,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     const { onlinePubDate, printPubDate, version: clientVersion, ...rest } = result.data;
+
+    // A pitch (pitchedAt set) has no real slug/budgetLine yet — only
+    // send-to-budget rewrites those and clears pitchedAt/expiresAt. Letting a
+    // plain PATCH flip onBudget:true here would publish it straight to the
+    // real budget while it still looks like a pitch (see the publish route's
+    // identical guard).
+    if (existing?.pitchedAt && rest.onBudget === true) {
+      return NextResponse.json(
+        { error: "Pitches must be sent to budget, not published directly" },
+        { status: 400 }
+      );
+    }
 
     // Build the update data, only including date fields if they were provided
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,6 +124,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     } else if (rest.status !== undefined) {
       // Moving out of SHELVED — reset the clock
       data.shelvedAt = null;
+      // A pitch that expired, got auto-shelved, and is now being unarchived is
+      // still expired — without this it would just re-shelve on the next cron
+      // run. Give it a fresh 30-day clock. Server-side so it can't be bypassed
+      // by a client unaware of the pool. Only applies to an actual SHELVED→
+      // unshelved transition — a routine re-save of an already-unshelved
+      // status must not silently extend expiresAt. (issue #24 §7)
+      if (
+        existing?.status === "SHELVED" &&
+        existing?.pitchedAt && existing?.expiresAt && existing.expiresAt <= new Date()
+      ) {
+        data.expiresAt = addDays(new Date(), 30);
+      }
     }
 
     // Always increment version on every update
@@ -110,18 +143,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     // If client sent a version, use optimistic locking to detect conflicts
     if (clientVersion !== undefined) {
-      const updated = await prisma.story.updateMany({
-        where: { id, version: clientVersion },
-        data,
-      });
-      if (updated.count === 0) {
-        const exists = await prisma.story.findUnique({ where: { id }, select: { id: true, version: true } });
-        if (!exists) return NextResponse.json({ error: "Story not found" }, { status: 404 });
-        return NextResponse.json(
-          { error: "This story was modified by another user. Please reload.", version: exists.version },
-          { status: 409 }
-        );
-      }
+      const conflict = await checkVersionConflict(prisma.story, id, clientVersion, data, "story");
+      if (conflict) return conflict;
       // Fetch the full updated record to return
       const story = await prisma.story.findUnique({
         where: { id },
@@ -175,9 +198,12 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Block non-owners from deleting off-budget drafts
-    const existing = await prisma.story.findUnique({ where: { id }, select: { onBudget: true, createdByUserId: true } });
-    if (existing && !existing.onBudget && existing.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // Block non-owners/non-assignees from deleting off-budget drafts (pitches are exempt — public pool item)
+    const existing = await prisma.story.findUnique({
+      where: { id },
+      select: storyDraftGateSelect,
+    });
+    if (existing && blockedFromDraft(existing, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 

@@ -29,15 +29,27 @@ export async function GET() {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
+    // "Your drafts" includes drafts you created and drafts you're assigned to —
+    // matches the visibility grant in blockedFromDraft() (src/lib/api-helpers.ts).
+    const { personId } = session.user;
+    const ownerOrAssignee = {
+      OR: [
+        { createdByUserId: session.user.id },
+        ...(personId ? [{ assignments: { some: { personId } } }] : []),
+      ],
+    };
+
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
-        where: { createdByUserId: session.user.id, onBudget: false },
+        // pitchedAt: null excludes pitches — they get their own "My pitches"
+        // section on /me, where the "private to you" framing here would be wrong.
+        where: { onBudget: false, pitchedAt: null, ...ownerOrAssignee },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
       }),
       VIDEOS_ENABLED
         ? prisma.video.findMany({
-            where: { createdByUserId: session.user.id, onBudget: false },
+            where: { onBudget: false, ...ownerOrAssignee },
             include: videoInclude,
             orderBy: { createdAt: "desc" },
           })

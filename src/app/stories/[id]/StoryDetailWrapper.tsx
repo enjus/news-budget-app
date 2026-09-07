@@ -1,6 +1,7 @@
 "use client"
 
 import { StoryDetail } from "@/components/story/StoryDetail"
+import { PitchDetail } from "@/components/story/PitchDetail"
 import { useStory } from "@/lib/hooks/useStory"
 import { Skeleton } from "@/components/ui/skeleton"
 import type { StoryWithRelations } from "@/types/index"
@@ -24,6 +25,14 @@ export function StoryDetailWrapper({ initialStory, storyId, readOnly }: StoryDet
         <Skeleton className="h-4 w-3/4" />
       </div>
     )
+  }
+
+  // A pitch (onBudget: false, pitchedAt set) gets its own lighter detail page
+  // instead of StoryDetail with a banner bolted on — see PitchDetail's docblock.
+  const isPitch = !current.onBudget && current.pitchedAt !== null
+
+  if (isPitch) {
+    return <PitchDetail story={current} onUpdate={() => mutate()} readOnly={readOnly} />
   }
 
   return <StoryDetail story={current} onUpdate={() => mutate()} readOnly={readOnly} />

@@ -16,6 +16,8 @@ export interface SearchResult {
   onlinePubDateTBD: boolean;
   /** Absolute days from today, for display; null = TBD */
   daysFromToday: number | null;
+  /** True for a pool item (onBudget:false, pitchedAt set) — always false for video results. */
+  isPitch: boolean;
 }
 
 export async function GET(request: NextRequest) {
@@ -40,23 +42,36 @@ export async function GET(request: NextRequest) {
       ],
     };
 
-    const textFilter = q
+    // Pitches never have pitchText null while a story is off-budget-with-pitchedAt-set, but
+    // Video has no pitchText column, so the two text filters diverge (issue #24 §6).
+    const storyTextFilter = q
+      ? {
+          OR: [
+            { slug: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { budgetLine: { contains: q, mode: Prisma.QueryMode.insensitive } },
+            { pitchText: { contains: q, mode: Prisma.QueryMode.insensitive } },
+          ],
+        }
+      : null;
+    const videoTextFilter = q
       ? { OR: [{ slug: { contains: q, mode: Prisma.QueryMode.insensitive } }, { budgetLine: { contains: q, mode: Prisma.QueryMode.insensitive } }] }
       : null;
 
     const videoWhere = VIDEOS_ENABLED ? {
       onBudget: true,
       status: { not: "SHELVED" },
-      AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
+      AND: videoTextFilter ? [videoTextFilter, dateFilter] : [dateFilter],
       ...(authorId ? { assignments: { some: { personId: authorId } } } : {}),
     } : null;
 
     const [stories, videos] = await Promise.all([
       prisma.story.findMany({
         where: {
-          onBudget: true,
+          // A pitch (onBudget:false, pitchedAt set) is included alongside on-budget
+          // stories — it's a public pool item, not a private draft.
+          OR: [{ onBudget: true }, { pitchedAt: { not: null } }],
           status: { not: "SHELVED" },
-          AND: textFilter ? [textFilter, dateFilter] : [dateFilter],
+          AND: storyTextFilter ? [storyTextFilter, dateFilter] : [dateFilter],
           ...(authorId
             ? { assignments: { some: { personId: authorId } } }
             : {}),
@@ -68,6 +83,8 @@ export async function GET(request: NextRequest) {
           status: true,
           onlinePubDate: true,
           onlinePubDateTBD: true,
+          onBudget: true,
+          pitchedAt: true,
         },
         take: 50,
       }),
@@ -105,6 +122,7 @@ export async function GET(request: NextRequest) {
         onlinePubDate: s.onlinePubDate ? s.onlinePubDate.toISOString() : null,
         onlinePubDateTBD: s.onlinePubDateTBD,
         daysFromToday: daysFrom(s.onlinePubDate, s.onlinePubDateTBD),
+        isPitch: !s.onBudget && s.pitchedAt != null,
       })),
       ...videos.map((v) => ({
         type: "video" as const,
@@ -115,6 +133,7 @@ export async function GET(request: NextRequest) {
         onlinePubDate: v.onlinePubDate ? v.onlinePubDate.toISOString() : null,
         onlinePubDateTBD: v.onlinePubDateTBD,
         daysFromToday: daysFrom(v.onlinePubDate, v.onlinePubDateTBD),
+        isPitch: false,
       })),
     ];
 

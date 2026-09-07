@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/command"
 import {
   createVideoSchema,
+  updateVideoSchema,
   type CreateVideoInput,
 } from "@/lib/validations"
 import { useSession } from "next-auth/react"
@@ -123,8 +124,13 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateVideoInput>({
+    // Edit mode must validate against updateVideoSchema, not createVideoSchema —
+    // onBudget isn't a real form field, and createVideoSchema's .default(true)
+    // for it would otherwise get silently injected into every edit submission,
+    // pushing an off-budget video draft onto the budget on every save. See the
+    // matching StoryForm fix for the full story-side version of this bug.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(createVideoSchema) as any,
+    resolver: zodResolver(isEdit ? updateVideoSchema : createVideoSchema) as any,
     defaultValues: video
       ? {
           slug: video.slug,

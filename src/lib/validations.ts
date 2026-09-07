@@ -132,9 +132,13 @@ export const createStorySchema = z.object({
   postUrl: optionalUrl,
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().default(true),
+  // expiresAt is deliberately absent here — it's pitch-pool shelf-life and has
+  // no meaning on an ordinary story creation; the pitch-only concept is
+  // validated by createPitchSchema instead. updateStorySchemaBase still
+  // accepts it, since PATCH is also how an existing pitch's expiry is edited.
 }).superRefine(requirePubDatesWhenNotTBD);
 
-const updateStorySchemaBase = z.object({
+export const updateStorySchemaBase = z.object({
   slug: z
     .string()
     .min(1, "Slug is required")
@@ -157,6 +161,17 @@ const updateStorySchemaBase = z.object({
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().optional(),
   version: z.number().int().optional(), // optimistic locking
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+  // pitchText is deliberately absent — write-once at filing, never client-editable after.
+});
+
+// ─── Pitch ────────────────────────────────────────────────────────────────────
+
+export const createPitchSchema = z.object({
+  text: z.string().trim().min(1, "Pitch text is required").max(500),
+  notes: z.string().max(5000).nullable().optional(),
+  evergreen: z.boolean().default(false),
+  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
 
 export const updateStorySchema = updateStorySchemaBase.superRefine(requirePubDatesWhenNotTBD);
@@ -309,3 +324,4 @@ export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type UpdateCommentInput = z.infer<typeof updateCommentSchema>;
+export type CreatePitchInput = z.infer<typeof createPitchSchema>;

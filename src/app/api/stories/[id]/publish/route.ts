@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasAdminAccess } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, storyDraftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +14,7 @@ const storyInclude = {
   videos: true,
 } as const;
 
-export async function POST(_request: NextRequest, { params }: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -27,9 +26,20 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
+    // Optional body: { version }, for optimistic locking — same pattern as
+    // PATCH /api/stories/[id]. Optional (not requireJSON()'d) because an
+    // existing caller, MeView's "My Drafts" list, POSTs with no body at all —
+    // its list payload doesn't carry a story's version, so it can't send one.
+    let clientVersion: number | undefined;
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = await request.json().catch(() => ({}));
+      if (typeof body?.version === "number") clientVersion = body.version;
+    }
+
     const story = await prisma.story.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true },
+      select: storyDraftGateSelect,
     });
 
     if (!story) {
@@ -40,14 +50,37 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story is already on the budget" }, { status: 400 });
     }
 
-    // Only the creator or an admin can publish a draft
-    if (story.createdByUserId !== session.user.id && !hasAdminAccess(session.user.appRole)) {
+    // A pitch (pitchedAt set) has no slug/budgetLine yet — only send-to-budget
+    // rewrites those and clears pitchedAt/expiresAt. Publishing it directly
+    // here would flip onBudget while leaving it looking like a pitch forever.
+    if (story.pitchedAt) {
+      return NextResponse.json(
+        { error: "Pitches must be sent to budget, not published directly" },
+        { status: 400 }
+      );
+    }
+
+    // Only the creator, an assignee, or an admin can publish a draft
+    if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+
+    if (clientVersion !== undefined) {
+      const conflict = await checkVersionConflict(
+        prisma.story,
+        id,
+        clientVersion,
+        { onBudget: true, version: { increment: 1 } },
+        "story"
+      );
+      if (conflict) return conflict;
+      const full = await prisma.story.findUnique({ where: { id }, include: storyInclude });
+      return NextResponse.json(full);
     }
 
     const updated = await prisma.story.update({
       where: { id },
-      data: { onBudget: true },
+      data: { onBudget: true, version: { increment: 1 } },
       include: storyInclude,
     });
 
