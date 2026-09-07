@@ -132,7 +132,10 @@ export const createStorySchema = z.object({
   postUrl: optionalUrl,
   workingDraftUrl: optionalUrl,
   onBudget: z.boolean().default(true),
-  expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
+  // expiresAt is deliberately absent here — it's pitch-pool shelf-life and has
+  // no meaning on an ordinary story creation; the pitch-only concept is
+  // validated by createPitchSchema instead. updateStorySchemaBase still
+  // accepts it, since PATCH is also how an existing pitch's expiry is edited.
 }).superRefine(requirePubDatesWhenNotTBD);
 
 export const updateStorySchemaBase = z.object({

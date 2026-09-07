@@ -273,7 +273,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
           )}
 
           {canDelete && (
-            <DeleteDraftDialog slug={story.slug} noun="pitch" disabled={deleting} onDelete={handleDelete} />
+            <DeleteDraftDialog slug={story.pitchText ?? story.slug} noun="pitch" disabled={deleting} onDelete={handleDelete} />
           )}
         </div>
       )}

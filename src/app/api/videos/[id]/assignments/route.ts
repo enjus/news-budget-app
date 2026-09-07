@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createVideoAssignmentSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, draftGateSelect } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
@@ -121,7 +121,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id: videoId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
     if (!video) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });

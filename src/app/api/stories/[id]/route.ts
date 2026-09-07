@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -66,10 +66,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const existing = await prisma.story.findUnique({
       where: { id },
       select: {
-        onBudget: true,
-        createdByUserId: true,
-        assignments: { select: { personId: true } },
-        pitchedAt: true,
+        ...storyDraftGateSelect,
         expiresAt: true,
         status: true,
       },
@@ -89,6 +86,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     const { onlinePubDate, printPubDate, version: clientVersion, ...rest } = result.data;
+
+    // A pitch (pitchedAt set) has no real slug/budgetLine yet — only
+    // send-to-budget rewrites those and clears pitchedAt/expiresAt. Letting a
+    // plain PATCH flip onBudget:true here would publish it straight to the
+    // real budget while it still looks like a pitch (see the publish route's
+    // identical guard).
+    if (existing?.pitchedAt && rest.onBudget === true) {
+      return NextResponse.json(
+        { error: "Pitches must be sent to budget, not published directly" },
+        { status: 400 }
+      );
+    }
 
     // Build the update data, only including date fields if they were provided
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,18 +143,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     // If client sent a version, use optimistic locking to detect conflicts
     if (clientVersion !== undefined) {
-      const updated = await prisma.story.updateMany({
-        where: { id, version: clientVersion },
-        data,
-      });
-      if (updated.count === 0) {
-        const exists = await prisma.story.findUnique({ where: { id }, select: { id: true, version: true } });
-        if (!exists) return NextResponse.json({ error: "Story not found" }, { status: 404 });
-        return NextResponse.json(
-          { error: "This story was modified by another user. Please reload.", version: exists.version },
-          { status: 409 }
-        );
-      }
+      const conflict = await checkVersionConflict(prisma.story, id, clientVersion, data, "story");
+      if (conflict) return conflict;
       // Fetch the full updated record to return
       const story = await prisma.story.findUnique({
         where: { id },
@@ -202,12 +201,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     // Block non-owners/non-assignees from deleting off-budget drafts (pitches are exempt — public pool item)
     const existing = await prisma.story.findUnique({
       where: { id },
-      select: {
-        onBudget: true,
-        createdByUserId: true,
-        assignments: { select: { personId: true } },
-        pitchedAt: true,
-      },
+      select: storyDraftGateSelect,
     });
     if (existing && blockedFromDraft(existing, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
+      select: storyDraftGateSelect,
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
@@ -65,13 +65,28 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
+      select: {
+        ...storyDraftGateSelect,
+        // Only used for the single-claimant 409 message below, on a pitch.
+        assignments: { select: { personId: true, person: { select: { name: true } } } },
+      },
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
     if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
+    }
+
+    // A pitch is single-claimant, same rule /claim enforces — this route is
+    // the generic "add an assignment" path and must not let a second
+    // claimant slip in behind the UI's back (PitchDetail/PitchRow only ever
+    // read assignments[0] as "the" claimant).
+    if (story.pitchedAt && story.assignments.length > 0) {
+      return NextResponse.json(
+        { error: `Already claimed by ${story.assignments[0].person.name}` },
+        { status: 409 }
+      );
     }
 
     const person = await prisma.person.findUnique({ where: { id: personId } });
@@ -121,7 +136,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
+      select: storyDraftGateSelect,
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });

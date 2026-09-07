@@ -171,7 +171,11 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
           text: text.trim(),
           notes: notes.trim() || null,
           evergreen,
-          expiresAt: !evergreen && expiresAt ? new Date(expiresAt + "T00:00:00").toISOString() : undefined,
+          // Parse as UTC midnight, not local midnight — pub/expiry dates in
+          // this app are newsroom time encoded as UTC (see CLAUDE.md), and
+          // parsing the bare "T00:00:00" as local time rolls the date back
+          // a day for anyone east of UTC.
+          expiresAt: !evergreen && expiresAt ? new Date(expiresAt + "T00:00:00.000Z").toISOString() : undefined,
         }),
       })
       if (!res.ok) {

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // privacy check every other Story child-resource route enforces.
     const existingVisual = await prisma.visual.findUnique({
       where: { id },
-      select: { story: { select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true } } },
+      select: { story: { select: storyDraftGateSelect } },
     });
     if (!existingVisual) {
       return NextResponse.json({ error: "Visual not found" }, { status: 404 });
@@ -90,7 +90,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const existingVisual = await prisma.visual.findUnique({
       where: { id },
-      select: { story: { select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true } } },
+      select: { story: { select: storyDraftGateSelect } },
     });
     if (!existingVisual) {
       return NextResponse.json({ error: "Visual not found" }, { status: 404 });

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVideoSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, prismaErrorCode, draftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Block non-owners/non-assignees from editing off-budget drafts
     const existingDraft = await prisma.video.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
     if (existingDraft && blockedFromDraft(existingDraft, session.user)) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
@@ -113,18 +113,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     // If client sent a version, use optimistic locking to detect conflicts
     if (clientVersion !== undefined) {
-      const updated = await prisma.video.updateMany({
-        where: { id, version: clientVersion },
-        data,
-      });
-      if (updated.count === 0) {
-        const exists = await prisma.video.findUnique({ where: { id }, select: { id: true, version: true } });
-        if (!exists) return NextResponse.json({ error: "Video not found" }, { status: 404 });
-        return NextResponse.json(
-          { error: "This video was modified by another user. Please reload.", version: exists.version },
-          { status: 409 }
-        );
-      }
+      const conflict = await checkVersionConflict(prisma.video, id, clientVersion, data, "video");
+      if (conflict) return conflict;
       const video = await prisma.video.findUnique({ where: { id }, include: videoInclude });
       return NextResponse.json(video);
     }
@@ -164,7 +154,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     // Block non-owners/non-assignees from deleting off-budget drafts
     const existingDraft = await prisma.video.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
     if (existingDraft && blockedFromDraft(existingDraft, session.user)) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });

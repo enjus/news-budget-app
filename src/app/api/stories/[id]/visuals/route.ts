@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, storyDraftGateSelect } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
+      select: storyDraftGateSelect,
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } }, pitchedAt: true },
+      select: storyDraftGateSelect,
     });
     if (!story) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });

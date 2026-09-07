@@ -226,7 +226,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           storyId={story.id}
           comments={story.comments}
           onUpdate={onUpdate}
-          hasAssignments={story.assignments.length > 0}
+          hasAssignments={story.assignments.length > 0 || story.visuals.length > 0}
           readOnly
         />
 

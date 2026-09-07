@@ -58,8 +58,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only a pitch can be sent to budget" }, { status: 400 });
     }
 
-    const updated = await prisma.story.update({
-      where: { id: storyId },
+    // Scoped on pitchedAt: { not: null } (the same predicate just checked
+    // above) so this can't silently clobber a concurrent write — most
+    // notably the purge-shelved cron, which can shelve this same pitch
+    // between the check above and this write if it's expired and unclaimed.
+    // If the cron wins the race, count is 0 and the pitch is now a real
+    // SHELVED off-budget item — the caller gets a clean error instead of a
+    // send-to-budget update silently landing on top of it.
+    const updated = await prisma.story.updateMany({
+      where: { id: storyId, pitchedAt: { not: null } },
       data: {
         slug: result.data.slug,
         budgetLine: result.data.budgetLine,
@@ -76,10 +83,21 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         shelvedAt: null,
         version: { increment: 1 },
       },
+    });
+
+    if (updated.count === 0) {
+      return NextResponse.json(
+        { error: "This pitch was just shelved (expired) and can no longer be sent to budget. Unshelve it first." },
+        { status: 409 }
+      );
+    }
+
+    const full = await prisma.story.findUnique({
+      where: { id: storyId },
       include: { assignments: { include: { person: true } } },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json(full);
   } catch (error: any) {
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });

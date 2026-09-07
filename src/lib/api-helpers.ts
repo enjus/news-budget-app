@@ -38,6 +38,57 @@ export function blockedFromDraft(
 }
 
 /**
+ * The exact `select` shape `blockedFromDraft()` requires, as a reusable
+ * constant instead of hand-retyping it at every call site (this drifted
+ * across 5 routes before `blockedFromDraft()` existed — see the comment
+ * above — and the select feeding it can drift the same way if it's not
+ * shared too). `draftGateSelect` covers Video (no pitch concept);
+ * `storyDraftGateSelect` adds `pitchedAt` for Story. Spread one of these
+ * into a route's own `select`/`select.story` object; add sibling fields
+ * (e.g. `expiresAt`, `status`) alongside the spread as needed.
+ */
+export const draftGateSelect = {
+  onBudget: true,
+  createdByUserId: true,
+  assignments: { select: { personId: true } },
+} as const
+
+export const storyDraftGateSelect = {
+  ...draftGateSelect,
+  pitchedAt: true,
+} as const
+
+/**
+ * Shared optimistic-locking conflict check, used by every route that accepts
+ * an optional client `version` on a Story/Video update (PATCH and the
+ * publish routes). Callers only reach this once `clientVersion !== undefined`
+ * — pass the Prisma model delegate (e.g. `prisma.story`), the record id, the
+ * client's version, the update `data`, and a lowercase noun ("story"/"video")
+ * for the error copy. Returns a 409/404 NextResponse to return immediately on
+ * conflict, or `null` when the update succeeded — the caller still does its
+ * own follow-up fetch (with its own `include`) to return the full record.
+ */
+export async function checkVersionConflict(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delegate: { updateMany: (args: any) => Promise<{ count: number }>; findUnique: (args: any) => Promise<{ id: string; version: number } | null> },
+  id: string,
+  clientVersion: number,
+  data: Record<string, unknown>,
+  noun: string
+): Promise<NextResponse | null> {
+  const updated = await delegate.updateMany({ where: { id, version: clientVersion }, data })
+  if (updated.count > 0) return null
+  const exists = await delegate.findUnique({ where: { id }, select: { id: true, version: true } })
+  if (!exists) {
+    return NextResponse.json({ error: `${noun[0].toUpperCase()}${noun.slice(1)} not found` }, { status: 404 })
+  }
+  return NextResponse.json(
+    { error: `This ${noun} was modified by another user. Please reload.`, version: exists.version },
+    { status: 409 }
+  )
+}
+
+/**
  * Apply rate limiting for a mutation (POST/PATCH/DELETE).
  * Returns a 429 Response if the limit is exceeded, or null if the request is allowed.
  */

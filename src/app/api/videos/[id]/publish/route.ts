@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
+import { checkWriteLimit, blockedFromDraft, draftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id },
-      select: { onBudget: true, createdByUserId: true, assignments: { select: { personId: true } } },
+      select: draftGateSelect,
     });
 
     if (!video) {
@@ -57,18 +57,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
 
     if (clientVersion !== undefined) {
-      const updated = await prisma.video.updateMany({
-        where: { id, version: clientVersion },
-        data: { onBudget: true, version: { increment: 1 } },
-      });
-      if (updated.count === 0) {
-        const exists = await prisma.video.findUnique({ where: { id }, select: { id: true, version: true } });
-        if (!exists) return NextResponse.json({ error: "Video not found" }, { status: 404 });
-        return NextResponse.json(
-          { error: "This video was modified by another user. Please reload.", version: exists.version },
-          { status: 409 }
-        );
-      }
+      const conflict = await checkVersionConflict(
+        prisma.video,
+        id,
+        clientVersion,
+        { onBudget: true, version: { increment: 1 } },
+        "video"
+      );
+      if (conflict) return conflict;
       const full = await prisma.video.findUnique({ where: { id }, include: videoInclude });
       return NextResponse.json(full);
     }
