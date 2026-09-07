@@ -175,7 +175,8 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         <Separator />
 
         <AssignmentSection
-          storyId={story.id}
+          parentType="story"
+          parentId={story.id}
           assignments={story.assignments}
           onUpdate={onUpdate}
           readOnly
@@ -308,7 +309,8 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
       <Separator />
 
       <AssignmentSection
-        storyId={story.id}
+        parentType="story"
+        parentId={story.id}
         assignments={story.assignments}
         onUpdate={onUpdate}
       />

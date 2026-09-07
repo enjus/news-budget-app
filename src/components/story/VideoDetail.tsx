@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
-import { VideoAssignmentSection } from "./VideoAssignmentSection"
+import { AssignmentSection } from "./AssignmentSection"
 import { CommentSection } from "./CommentSection"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
@@ -147,8 +147,9 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
 
         <Separator />
 
-        <VideoAssignmentSection
-          videoId={video.id}
+        <AssignmentSection
+          parentType="video"
+          parentId={video.id}
           assignments={video.assignments}
           onUpdate={onUpdate}
           readOnly
@@ -266,8 +267,9 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         </div>
       )}
 
-      <VideoAssignmentSection
-        videoId={video.id}
+      <AssignmentSection
+        parentType="video"
+        parentId={video.id}
         assignments={video.assignments}
         onUpdate={onUpdate}
       />

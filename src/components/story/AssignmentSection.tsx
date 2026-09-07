@@ -6,27 +6,64 @@ import { toast } from "sonner"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PersonBadge } from "@/components/people/PersonBadge"
-import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
-import { PERSON_ROLE_LABELS, toStoryAssignmentRole, displayName } from "@/lib/utils"
-import type { AssignmentWithPerson } from "@/types/index"
-import type { Person } from "@/types/index"
+import { PersonPicker, VIDEO_ROLE_PRIORITY, VIDEO_DEFAULT_ROLE, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import { PERSON_ROLE_LABELS, toAssignmentRole, displayName } from "@/lib/utils"
+import type { AssignmentWithPerson, VideoAssignmentWithPerson, Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
-interface AssignmentSectionProps {
-  storyId: string
-  assignments: AssignmentWithPerson[]
-  onUpdate: () => void
-  readOnly?: boolean
+// Explicit map, not `${parentType}s` string concatenation — "story" pluralizes
+// irregularly ("stories", not "storys") and the real route folder is
+// src/app/api/stories/[id]/assignments.
+const ASSIGNMENTS_BASE_PATH = {
+  story: "/api/stories",
+  video: "/api/videos",
+} as const
+
+// Video assignments lead with Videographer instead of Reporter; story
+// assignments use PersonPicker's own defaults (Reporter first). Keyed by
+// parentType here so every call site — read-only or editable — gets it for
+// free, rather than each caller repeating the same role list.
+const ROLE_CONFIG: Record<
+  keyof typeof ASSIGNMENTS_BASE_PATH,
+  { roles?: AssignmentRoleValue[]; defaultRole?: AssignmentRoleValue }
+> = {
+  story: {},
+  video: { roles: VIDEO_ROLE_PRIORITY, defaultRole: VIDEO_DEFAULT_ROLE },
 }
 
-export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: AssignmentSectionProps) {
+type AssignmentSectionProps =
+  | {
+      parentType: "story"
+      parentId: string
+      assignments: AssignmentWithPerson[]
+      onUpdate: () => void
+      readOnly?: boolean
+    }
+  | {
+      parentType: "video"
+      parentId: string
+      assignments: VideoAssignmentWithPerson[]
+      onUpdate: () => void
+      readOnly?: boolean
+    }
+
+export function AssignmentSection({
+  parentType,
+  parentId,
+  assignments,
+  onUpdate,
+  readOnly,
+}: AssignmentSectionProps) {
   const { data: session } = useSession()
   const [isAdding, setIsAdding] = useState(false)
+  const { roles, defaultRole } = ROLE_CONFIG[parentType]
+
+  const assignmentsPath = apiPath(`${ASSIGNMENTS_BASE_PATH[parentType]}/${parentId}/assignments`)
 
   async function handleAdd(person: Person, role: AssignmentRoleValue) {
     setIsAdding(true)
     try {
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
+      const res = await fetch(assignmentsPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: person.id, role }),
@@ -47,7 +84,7 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
   async function handleRemove(personId: string, role: string) {
     try {
       const params = new URLSearchParams({ personId, role })
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments?${params}`), {
+      const res = await fetch(`${assignmentsPath}?${params}`, {
         method: "DELETE",
       })
       if (!res.ok) {
@@ -71,8 +108,8 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
     if (!myPersonId || !myDefaultRole) return
     setIsAdding(true)
     try {
-      const role = toStoryAssignmentRole(myDefaultRole) as AssignmentRoleValue
-      const res = await fetch(apiPath(`/api/stories/${storyId}/assignments`), {
+      const role = toAssignmentRole(myDefaultRole) as AssignmentRoleValue
+      const res = await fetch(assignmentsPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ personId: myPersonId, role }),
@@ -116,6 +153,8 @@ export function AssignmentSection({ storyId, assignments, onUpdate, readOnly }: 
           <PersonPicker
             onSelect={handleAdd}
             excludeIds={assignedIds}
+            roles={roles}
+            defaultRole={defaultRole}
             label={isAdding ? "Adding..." : "Add person"}
           />
           {myPersonId && myDefaultRole && !alreadyAssignedMe && (

@@ -228,7 +228,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `layout/` | TopNav.tsx, SearchCommand.tsx (Cmd+K), BudgetTabNav.tsx |
 | `people/` | PersonBadge.tsx, PersonForm.tsx, PersonList.tsx, PersonPicker.tsx |
 | `providers/` | SWRProvider.tsx, SessionProvider.tsx, ThemeProvider.tsx |
-| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx, VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, VideoAssignmentSection.tsx, CommentSection.tsx, MentionTextarea.tsx |
+| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx (shared by story and video detail views — takes `parentType: "story" \| "video"`), VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, CommentSection.tsx, MentionTextarea.tsx |
 | `ui/` | 20+ shadcn/ui components (button, card, dialog, input, select, date-time-picker, etc.) |
 
 Root layout (`src/app/layout.tsx`) wraps: `SessionProvider` → `ThemeProvider` → `SWRProvider` → `TopNav` + `Toaster`.
