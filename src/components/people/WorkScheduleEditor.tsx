@@ -96,20 +96,31 @@ export function WorkScheduleEditor({ personId }: { personId: string }) {
                 key={wd.value}
                 type="button"
                 onClick={() => toggleDay(wd.value)}
+                title={WORK_SCHEDULE_SEGMENT_LABELS[day?.segment ?? "OFF"]}
                 className={cn(
-                  "flex flex-col items-center rounded-md border px-3 py-1.5 text-xs transition-colors",
+                  "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                   working
                     ? "border-transparent bg-secondary text-secondary-foreground"
                     : "border-input text-muted-foreground hover:bg-accent"
                 )}
               >
-                <span className="font-medium">{wd.abbrev}</span>
-                <span>{WORK_SCHEDULE_SEGMENT_LABELS[day?.segment ?? "OFF"]}</span>
+                {wd.abbrev}
               </button>
             )
           })}
         </div>
       )}
+
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-sm bg-secondary" />
+          Working
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-sm border border-input" />
+          Off
+        </span>
+      </div>
     </div>
   )
 }
