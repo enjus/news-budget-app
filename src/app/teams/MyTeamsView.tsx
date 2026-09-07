@@ -183,12 +183,12 @@ function TeamMembersView({ teamId }: { teamId: string }) {
   const today = todayString()
 
   function toggleMember(personId: string) {
-    const isExpanded = expandedMembers.includes(personId)
-    setPreferences({
-      expandedTeamMemberIds: isExpanded
-        ? expandedMembers.filter((id) => id !== personId)
-        : [...expandedMembers, personId],
-    })
+    const key = `${teamId}:${personId}`
+    setPreferences((prev) => ({
+      expandedTeamMemberIds: prev.expandedTeamMemberIds.includes(key)
+        ? prev.expandedTeamMemberIds.filter((id) => id !== key)
+        : [...prev.expandedTeamMemberIds, key],
+    }))
   }
 
   function toggleSection(key: string) {
@@ -281,7 +281,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
       {/* Members and their content */}
       <div className="space-y-4">
         {filteredMembers.map((mc) => {
-          const isCollapsed = !expandedMembers.includes(mc.person.id)
+          const isCollapsed = !expandedMembers.includes(`${teamId}:${mc.person.id}`)
           const Chevron = isCollapsed ? ChevronRight : ChevronDown
           const tbdKey = `${mc.person.id}:tbd`
           const pastKey = `${mc.person.id}:past`
