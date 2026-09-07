@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { addDays } from "date-fns"
-import { Send, UserMinus, UserPlus } from "lucide-react"
+import { CalendarPlus, Infinity as InfinityIcon, Send, UserMinus, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
@@ -54,6 +55,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
   const [working, setWorking] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [sendOpen, setSendOpen] = useState(false)
+  const [showOtherPicker, setShowOtherPicker] = useState(false)
   const [slug, setSlug] = useState(story.slug)
   const [budgetLine, setBudgetLine] = useState(story.budgetLine)
 
@@ -81,6 +83,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
     try {
       await post(`/api/stories/${story.id}/claim`, { personId, role })
       toast.success("Claimed")
+      setShowOtherPicker(false)
       onUpdate()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to claim")
@@ -188,92 +191,121 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         </p>
       </div>
 
-      {/* Actions — kept up top and prominent; this is what the page is for */}
+      {/* Actions — kept up top and prominent; this is what the page is for.
+          Left: the claim/expiry workflow (routine, reversible). Right: the
+          "graduate this pitch" action and delete, set apart the same way
+          StoryDetail's draft banner separates its own actions. */}
       {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/30 px-4 py-3">
-          {!claimant && (
-            <Button size="sm" className="gap-1" disabled={working} onClick={claimForSelf}>
-              <UserPlus className="size-3" />
-              Claim
-            </Button>
-          )}
-
-          {!claimant && (
-            <PersonPicker
-              label="Claim for someone else"
-              onSelect={(person, role) => claim(person.id, role)}
-            />
-          )}
-
-          {claimant && (claimedByMe || isElevated) && (
-            <Button size="sm" variant="outline" className="gap-1" disabled={working} onClick={unclaim}>
-              <UserMinus className="size-3" />
-              Unclaim
-            </Button>
-          )}
-
-          <Dialog open={sendOpen} onOpenChange={setSendOpen}>
-            <Button size="sm" variant={claimant ? "default" : "outline"} className="gap-1" onClick={() => setSendOpen(true)}>
-              <Send className="size-3" />
-              Send to Budget
-            </Button>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Send to budget</DialogTitle>
-                <DialogDescription>
-                  This pitch becomes a real story on the shared budget. Give it a real slug and
-                  budget line before it goes live.
-                  {!claimant && " Nobody's claimed it yet — it'll land unassigned, flagged the same way any unassigned budget item is."}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pd-slug">Slug</Label>
-                  <Input
-                    id="pd-slug"
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value.toUpperCase())}
-                    className="text-base"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="pd-budget">Budget Line</Label>
-                  <textarea
-                    id="pd-budget"
-                    value={budgetLine}
-                    onChange={(e) => setBudgetLine(e.target.value)}
-                    rows={3}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
-                <Button onClick={sendToBudget} disabled={working || !slug.trim() || !budgetLine.trim()}>
-                  {working ? "Sending..." : "Send to Budget"}
+        <div className="space-y-3 rounded-lg border border-dashed bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {!claimant && (
+                <Button size="sm" className="gap-1" disabled={working} onClick={claimForSelf}>
+                  <UserPlus className="size-3" />
+                  Claim
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              )}
 
-          {story.expiresAt && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={working}
-                onClick={() => patchExpiry(addDays(new Date(), 30).toISOString())}
-              >
-                Extend 30 days
-              </Button>
-              <Button size="sm" variant="ghost" disabled={working} onClick={() => patchExpiry(null)}>
-                Make evergreen
-              </Button>
-            </>
-          )}
+              {!claimant && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={working}
+                  onClick={() => setShowOtherPicker((v) => !v)}
+                >
+                  <UserPlus className="size-3" />
+                  Claim for someone else
+                </Button>
+              )}
 
-          {canDelete && (
-            <DeleteDraftDialog slug={story.pitchText ?? story.slug} noun="pitch" disabled={deleting} onDelete={handleDelete} />
+              {claimant && (claimedByMe || isElevated) && (
+                <Button size="sm" variant="outline" className="gap-1" disabled={working} onClick={unclaim}>
+                  <UserMinus className="size-3" />
+                  Unclaim
+                </Button>
+              )}
+
+              {story.expiresAt && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1"
+                    disabled={working}
+                    onClick={() => patchExpiry(addDays(new Date(), 30).toISOString())}
+                  >
+                    <CalendarPlus className="size-3" />
+                    Extend 30 days
+                  </Button>
+                  <Button size="sm" variant="ghost" className="gap-1" disabled={working} onClick={() => patchExpiry(null)}>
+                    <InfinityIcon className="size-3" />
+                    Make evergreen
+                  </Button>
+                </>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Dialog open={sendOpen} onOpenChange={setSendOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant={claimant ? "default" : "outline"} className="gap-1">
+                    <Send className="size-3" />
+                    Send to Budget
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Send to budget</DialogTitle>
+                    <DialogDescription>
+                      This pitch becomes a real story on the shared budget. Give it a real slug and
+                      budget line before it goes live.
+                      {!claimant && " Nobody's claimed it yet — it'll land unassigned, flagged the same way any unassigned budget item is."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pd-slug">Slug</Label>
+                      <Input
+                        id="pd-slug"
+                        value={slug}
+                        onChange={(e) => setSlug(e.target.value.toUpperCase())}
+                        className="text-base"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pd-budget">Budget Line</Label>
+                      <textarea
+                        id="pd-budget"
+                        value={budgetLine}
+                        onChange={(e) => setBudgetLine(e.target.value)}
+                        rows={3}
+                        className="w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
+                    <Button onClick={sendToBudget} disabled={working || !slug.trim() || !budgetLine.trim()}>
+                      {working ? "Sending..." : "Send to Budget"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {canDelete && (
+                <DeleteDraftDialog slug={story.pitchText ?? story.slug} noun="pitch" disabled={deleting} onDelete={handleDelete} />
+              )}
+            </div>
+          </div>
+
+          {!claimant && showOtherPicker && (
+            <div className="border-t pt-3">
+              <PersonPicker
+                label="Choose a person"
+                onSelect={(person, role) => claim(person.id, role)}
+              />
+            </div>
           )}
         </div>
       )}
