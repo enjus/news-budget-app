@@ -186,6 +186,12 @@ async function main() {
   await prisma.visual.deleteMany();
   await prisma.storyAssignment.deleteMany();
   await prisma.story.deleteMany();
+  // CalendarMarker has no FK to Person/User, so it isn't cascade-deleted by
+  // person.deleteMany() below — without this, every re-seed left prior runs'
+  // "Staff Holiday" row (dateOnly(5), relative to whatever day that run
+  // happened on) behind and added a new one, silently accumulating
+  // duplicate/stale HOLIDAY markers across reseeds.
+  await prisma.calendarMarker.deleteMany();
   await prisma.person.deleteMany();
 
   // ─── People ───────────────────────────────────────────────────────────────

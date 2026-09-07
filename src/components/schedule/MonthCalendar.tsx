@@ -1,28 +1,50 @@
 "use client"
 
-import { CalendarDays } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
 import { toDateString } from "@/lib/utils"
 import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
-import type { CalendarMarker } from "@prisma/client"
 
 interface MonthCalendarProps {
   /** First-of-month date, YYYY-MM-DD. */
   monthStart: string
   days: MyScheduleDay[]
-  markers: CalendarMarker[]
+  /** A single click (no drag) still goes through this, pre-filling the
+   *  picker's range to just that one day. */
   onDayClick: (date: string) => void
-  onWeekClick: (weekDates: string[]) => void
+  /** A drag across two or more days in the same week row. Dates are always
+   *  in chronological order regardless of drag direction. */
+  onRangeSelect: (dates: string[]) => void
 }
 
 const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-/** Generic month grid, taking resolved days/markers as props so it isn't
- *  hardwired to the "me" view — Phase 3's team/absence views reuse it.
+interface DragState {
+  weekIdx: number
+  startCol: number
+  endCol: number
+}
+
+/** Generic month grid, taking resolved days as a prop so it isn't hardwired
+ *  to the "me" view — Phase 3's team/absence views reuse it. Holiday/PTO
+ *  markers aren't rendered separately here: resolveDay() already bakes an
+ *  observed holiday's effect into each affected day (status "off", reason
+ *  "holiday"), and AvailabilityChip surfaces that inline via the day's own
+ *  markerLabel — a dateless list of marker labels above the grid would only
+ *  duplicate that, so this component never took a `markers` prop for it
+ *  (unlike MarkerBand, which /schedule/teams and /schedule/today use to
+ *  band a marker across the specific columns it covers on their flat weekly
+ *  grid — a month grid has no such single row to band across).
  *  Weeks are Monday–Sunday, matching the app's standard week (mondayOf(),
- *  the team schedule grid) — not JS's native Sunday-first getUTCDay(). */
-export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekClick }: MonthCalendarProps) {
+ *  the team schedule grid) — not JS's native Sunday-first getUTCDay().
+ *
+ *  Drag-to-select mirrors /schedule/teams' TeamsView (same mousedown/
+ *  mouseenter/window-mouseup pattern), scoped to one week row at a time —
+ *  a month grid wraps every 7 days, so there's no single flat strip to drag
+ *  across the way TeamsView has; continuing a drag across the row wrap
+ *  isn't supported; PresetPicker's own start/end date inputs cover that
+ *  rarer case (see MyScheduleView). */
+export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect }: MonthCalendarProps) {
   const [year, month] = monthStart.split("-").map(Number)
   const firstOfMonth = new Date(Date.UTC(year, month - 1, 1))
   // getUTCDay() is 0 = Sunday … 6 = Saturday; shift so 0 = Monday … 6 = Sunday
@@ -41,28 +63,38 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
   const weeks: (string | null)[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
 
-  const holidayMarkers = markers.filter((m) => m.kind === "HOLIDAY")
-  const blackoutMarkers = markers.filter((m) => m.kind === "BLACKOUT")
+  const [drag, setDrag] = useState<DragState | null>(null)
+
+  // A single window `mouseup` listener while dragging catches a release
+  // outside the grid entirely — per-cell mouseup would miss that.
+  useEffect(() => {
+    if (!drag) return
+    function onUp() {
+      setDrag((d) => {
+        if (d) {
+          const lo = Math.min(d.startCol, d.endCol)
+          const hi = Math.max(d.startCol, d.endCol)
+          const dates = weeks[d.weekIdx].slice(lo, hi + 1).filter((date): date is string => date !== null)
+          if (dates.length === 1) onDayClick(dates[0])
+          else if (dates.length > 1) onRangeSelect(dates)
+        }
+        return null
+      })
+    }
+    window.addEventListener("mouseup", onUp)
+    return () => window.removeEventListener("mouseup", onUp)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- weeks is derived fresh each render from stable props
+  }, [drag])
+
+  function handleMouseDown(weekIdx: number, col: number) {
+    setDrag({ weekIdx, startCol: col, endCol: col })
+  }
+  function handleMouseEnter(weekIdx: number, col: number) {
+    setDrag((d) => (d && d.weekIdx === weekIdx ? { ...d, endCol: col } : d))
+  }
 
   return (
     <div className="space-y-1">
-      {(holidayMarkers.length > 0 || blackoutMarkers.length > 0) && (
-        <div className="flex flex-wrap gap-2 pb-1">
-          {holidayMarkers.map((m) => (
-            <span
-              key={m.id}
-              className="text-xs rounded-full bg-violet-100 dark:bg-violet-950/40 px-2 py-0.5 text-violet-700 dark:text-violet-300"
-            >
-              {m.label}
-            </span>
-          ))}
-          {blackoutMarkers.map((m) => (
-            <span key={m.id} className="text-xs rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
-              {m.label}
-            </span>
-          ))}
-        </div>
-      )}
       <div className="grid grid-cols-7 gap-1 text-xs text-muted-foreground text-center">
         {WEEKDAY_HEADERS.map((h) => (
           <div key={h} className="py-1">
@@ -71,16 +103,21 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
         ))}
       </div>
       <div className="space-y-1">
-        {weeks.map((week, i) => (
-          <div key={i} className="flex items-stretch gap-1">
-            <div className="grid grid-cols-7 gap-1 flex-1">
-              {week.map((date, j) =>
+        {weeks.map((week, weekIdx) => {
+          const selectedRange =
+            drag && drag.weekIdx === weekIdx ? [Math.min(drag.startCol, drag.endCol), Math.max(drag.startCol, drag.endCol)] : null
+          return (
+            <div key={weekIdx} className="grid grid-cols-7 gap-1">
+              {week.map((date, col) =>
                 date ? (
                   <button
                     key={date}
                     type="button"
-                    onClick={() => onDayClick(date)}
-                    className="flex flex-col rounded-md border p-1.5 text-left text-xs h-16 overflow-hidden hover:ring-2 hover:ring-ring transition-shadow"
+                    onMouseDown={() => handleMouseDown(weekIdx, col)}
+                    onMouseEnter={() => handleMouseEnter(weekIdx, col)}
+                    className={`flex flex-col rounded-md border p-1.5 text-left text-xs h-16 overflow-hidden hover:ring-2 hover:ring-ring transition-shadow ${
+                      selectedRange !== null && col >= selectedRange[0] && col <= selectedRange[1] ? "ring-2 ring-ring" : ""
+                    }`}
                   >
                     <div className="font-medium shrink-0">{Number(date.slice(8))}</div>
                     <div className="flex-1 min-h-0 mt-0.5">
@@ -94,22 +131,12 @@ export function MonthCalendar({ monthStart, days, markers, onDayClick, onWeekCli
                     </div>
                   </button>
                 ) : (
-                  <div key={`empty-${j}`} />
+                  <div key={`empty-${col}`} />
                 )
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Edit week"
-              className="shrink-0 self-center"
-              onClick={() => onWeekClick(week.filter((d): d is string => d !== null))}
-              disabled={week.every((d) => d === null)}
-            >
-              <CalendarDays className="size-3.5" />
-            </Button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

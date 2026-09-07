@@ -6,9 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { MonthCalendar } from "@/components/schedule/MonthCalendar"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { useMySchedule } from "@/lib/hooks/useMySchedule"
-import { useCalendarMarkers } from "@/lib/hooks/useCalendarMarkers"
 import { todayString, toDateString, dateOnly } from "@/lib/utils"
 
 function monthBounds(monthStart: string): { start: string; end: string } {
@@ -22,11 +20,14 @@ export function MyScheduleView() {
   const { start, end } = monthBounds(monthStart)
 
   const { personId, days, isLoading, mutate } = useMySchedule(start, end)
-  const { markers } = useCalendarMarkers({ start, end })
   const dayByDate = useMemo(() => Object.fromEntries(days.map((d) => [d.date, d])), [days])
 
-  const [pickerDate, setPickerDate] = useState<string | null>(null)
-  const [editingWeek, setEditingWeek] = useState<string[] | null>(null)
+  // A single day click pre-fills both start/end to that date; a drag range
+  // pre-fills start/end to its span. Either way PresetPicker's own start/end
+  // date inputs remain editable, so widening or narrowing the range (or
+  // reaching across a month-grid row wrap, which the drag itself can't do —
+  // see MonthCalendar) is still one edit away, not a dead end.
+  const [picker, setPicker] = useState<{ dates: string[] } | null>(null)
 
   function shiftMonth(delta: number) {
     const [year, month] = monthStart.split("-").map(Number)
@@ -86,30 +87,23 @@ export function MyScheduleView() {
         <MonthCalendar
           monthStart={monthStart}
           days={days}
-          markers={markers}
-          onDayClick={setPickerDate}
-          onWeekClick={setEditingWeek}
+          onDayClick={(date) => setPicker({ dates: [date] })}
+          onRangeSelect={(dates) => setPicker({ dates })}
         />
       )}
 
-      {pickerDate && (
+      {picker && (
         <PresetPicker
           open
-          onOpenChange={(open) => !open && setPickerDate(null)}
+          onOpenChange={(open) => !open && setPicker(null)}
           personId={personId}
-          date={pickerDate}
-          initialDay={dayByDate[pickerDate]}
-          onSaved={() => mutate()}
-        />
-      )}
-
-      {editingWeek && (
-        <WeekEditor
-          open
-          onOpenChange={(open) => !open && setEditingWeek(null)}
-          personId={personId}
-          weekDates={editingWeek}
-          resolvedDays={days}
+          date={picker.dates[0]}
+          initialEndDate={picker.dates[picker.dates.length - 1]}
+          // Only meaningful for a single-day selection, matching
+          // /schedule/teams' rangePicker — a multi-day drag just never sees
+          // this since PresetPicker's revert button requires startDate ===
+          // endDate.
+          initialDay={picker.dates.length === 1 ? dayByDate[picker.dates[0]] : undefined}
           onSaved={() => mutate()}
         />
       )}
