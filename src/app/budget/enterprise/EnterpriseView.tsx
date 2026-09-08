@@ -17,7 +17,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn, bucketToUtcStamp } from "@/lib/utils"
-import type { EnterpriseDateGroup } from "@/types/index"
+import type { EnterpriseDateGroup, EnterpriseStoryItem } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 
@@ -293,10 +293,12 @@ export function EnterpriseView() {
       }
 
       const sourceGroup = groups.find((g) => g.date === sourceDate)
+      let draggedStory: EnterpriseStoryItem | undefined
       if (sourceGroup) {
         if (isStory) {
           const story = sourceGroup.stories.find((x) => x.id === itemId)
           if (story) {
+            draggedStory = story
             const tg = newGroups.find((g) => g.date === targetDate)
             if (tg) tg.stories.push(story)
           }
@@ -331,8 +333,21 @@ export function EnterpriseView() {
           patchBody = {
             onlinePubDateTBD: false,
             onlinePubDate: stamp,
-            printPubDateTBD: false,
-            printPubDate: stamp,
+          }
+          // Deliberately not touching printPubDate/printPubDateTBD here — see #61.
+          // Pinning print date to match the dragged-to week used to silently
+          // override this item's Enterprise Budget placement (getDateBucket()
+          // uses the earliest of online/print date) the next time someone edited
+          // the online date, since non-leadership editors can't see/fix print
+          // date. Leave any existing print-date override alone; it stays TBD by
+          // default for everyone else.
+          //
+          // If the item already carries an independent print-date override, the
+          // server will still bucket it by whichever of online/print is
+          // earliest, so this drop can revert once mutate() refetches. Warn
+          // instead of letting that happen silently.
+          if (draggedStory && !draggedStory.printPubDateTBD && draggedStory.printPubDate) {
+            toast.warning("This story has a print date override, so it may snap back — a director needs to update its print date to move it.")
           }
         }
 
@@ -372,9 +387,14 @@ export function EnterpriseView() {
     const defaultPubDateStr = group.date === "TBD"
       ? null
       : format(addDays(parseISO(group.date), 2), "yyyy-MM-dd") // default new stories to Wednesday of the week
+    // Print pub date is deliberately left unset here — see #61. Pre-pinning it
+    // to match the default online date locked in an Enterprise Budget
+    // placement that non-leadership editors couldn't see or fix if the online
+    // date changed later. It stays TBD by default (StoryForm's default) unless
+    // a director sets an explicit override.
     const newStoryHref = defaultPubDateStr === null
       ? "/stories/new?isEnterprise=true"
-      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&onlinePubDateTBD=false&printPubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&printPubDateTBD=false`
+      : `/stories/new?isEnterprise=true&onlinePubDate=${encodeURIComponent(new Date(`${defaultPubDateStr}T00:00:00`).toISOString())}&onlinePubDateTBD=false`
 
     return (
       <DroppableSection
