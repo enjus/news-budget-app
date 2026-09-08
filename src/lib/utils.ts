@@ -611,6 +611,7 @@ export function weekdayName(dateStr: string): string {
 export function shortDate(dateStr: string): string {
   const [, month, day] = dateStr.split("-")
   return `${Number(month)}/${Number(day)}`
+}
 const SLUG_MAX = 40
 
 /** Derive a placeholder slug for a filed pitch from its raw tip text.
