@@ -154,7 +154,10 @@ function TeamMembersView({ teamId }: { teamId: string }) {
   const { team, memberContent, isLoading } = useTeamContent(teamId)
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [collapsedMembers, setCollapsedMembers] = useState<Set<string>>(new Set())
+  // Members start collapsed by default; expanded state persists client-side
+  // (localStorage via usePreferences) across sessions.
+  const { preferences, setPreferences } = usePreferences()
+  const expandedMembers = preferences.expandedTeamMemberIds
   // Past and TBD sections start collapsed per member; Upcoming stays expanded.
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
@@ -180,12 +183,12 @@ function TeamMembersView({ teamId }: { teamId: string }) {
   const today = todayString()
 
   function toggleMember(personId: string) {
-    setCollapsedMembers((prev) => {
-      const next = new Set(prev)
-      if (next.has(personId)) next.delete(personId)
-      else next.add(personId)
-      return next
-    })
+    const key = `${teamId}:${personId}`
+    setPreferences((prev) => ({
+      expandedTeamMemberIds: prev.expandedTeamMemberIds.includes(key)
+        ? prev.expandedTeamMemberIds.filter((id) => id !== key)
+        : [...prev.expandedTeamMemberIds, key],
+    }))
   }
 
   function toggleSection(key: string) {
@@ -278,7 +281,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
       {/* Members and their content */}
       <div className="space-y-4">
         {filteredMembers.map((mc) => {
-          const isCollapsed = collapsedMembers.has(mc.person.id)
+          const isCollapsed = !expandedMembers.includes(`${teamId}:${mc.person.id}`)
           const Chevron = isCollapsed ? ChevronRight : ChevronDown
           const tbdKey = `${mc.person.id}:tbd`
           const pastKey = `${mc.person.id}:past`

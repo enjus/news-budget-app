@@ -12,6 +12,12 @@ export interface UserPreferences {
   teamsView: TeamsView
   /** Team IDs hidden from the Daily view's reporter-team filter. Empty = nothing hidden. */
   dailyExcludedTeamIds: string[]
+  /**
+   * `${teamId}:${personId}` keys expanded in the Team Members view.
+   * Empty = everyone collapsed (the default). Scoped per team so expanding a
+   * member on one team doesn't expand them on another team they also belong to.
+   */
+  expandedTeamMemberIds: string[]
 }
 
 const STORAGE_KEY = "news-budget-prefs"
@@ -22,6 +28,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   // "members" preserves the pre-redesign default landing view on /teams.
   teamsView: "members",
   dailyExcludedTeamIds: [],
+  expandedTeamMemberIds: [],
 }
 
 function readPreferences(): UserPreferences {
@@ -38,17 +45,25 @@ function readPreferences(): UserPreferences {
 export function usePreferences() {
   const [preferences, setPreferencesState] = useState<UserPreferences>(readPreferences)
 
-  const setPreferences = useCallback((updates: Partial<UserPreferences>) => {
-    setPreferencesState((prev) => {
-      const next = { ...prev, ...updates }
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        // localStorage unavailable — changes apply in-session only
-      }
-      return next
-    })
-  }, [])
+  const setPreferences = useCallback(
+    (
+      updates:
+        | Partial<UserPreferences>
+        | ((prev: UserPreferences) => Partial<UserPreferences>)
+    ) => {
+      setPreferencesState((prev) => {
+        const resolved = typeof updates === "function" ? updates(prev) : updates
+        const next = { ...prev, ...resolved }
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+        } catch {
+          // localStorage unavailable — changes apply in-session only
+        }
+        return next
+      })
+    },
+    []
+  )
 
   // Sync preferences across tabs via the storage event
   useEffect(() => {
