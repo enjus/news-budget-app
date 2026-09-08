@@ -291,15 +291,10 @@ export const ROLE_ABBREV: Record<string, string> = {
   PUBLICATION_DESIGNER: "PubOps",
 };
 
-/** Map a Person.defaultRole to a valid story assignment role (REPORTER|EDITOR|VIDEOGRAPHER|OTHER). */
-export function toStoryAssignmentRole(defaultRole: string): string {
+/** Map a Person.defaultRole to a valid assignment role (REPORTER|EDITOR|VIDEOGRAPHER|OTHER) —
+ *  shared by Story and Video assignments, which use the same AssignmentRoleEnum. */
+export function toAssignmentRole(defaultRole: string): string {
   if (defaultRole === "REPORTER" || defaultRole === "EDITOR" || defaultRole === "VIDEOGRAPHER") return defaultRole
-  return "OTHER"
-}
-
-/** Map a Person.defaultRole to a valid video assignment role (VIDEOGRAPHER|REPORTER|EDITOR|OTHER). */
-export function toVideoAssignmentRole(defaultRole: string): string {
-  if (defaultRole === "VIDEOGRAPHER" || defaultRole === "REPORTER" || defaultRole === "EDITOR") return defaultRole
   return "OTHER"
 }
 
@@ -616,4 +611,25 @@ export function weekdayName(dateStr: string): string {
 export function shortDate(dateStr: string): string {
   const [, month, day] = dateStr.split("-")
   return `${Number(month)}/${Number(day)}`
+const SLUG_MAX = 40
+
+/** Derive a placeholder slug for a filed pitch from its raw tip text.
+ *  Deliberately unreadable — the pool never renders it (pitchText is what's
+ *  shown); it exists only to satisfy Story.slug's required, [A-Z0-9 ]-only
+ *  column until send-to-budget rewrites it with a real one. */
+export function deriveSlug(text: string, now = new Date()): string {
+  const cleaned = text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // drop combining marks (accents)
+    .toUpperCase()
+    .replace(/['’]/g, "")            // COUNCIL'S -> COUNCILS, not COUNCIL S
+    .replace(/[^A-Z0-9]+/g, " ")     // everything else -> space
+    .trim()
+
+  if (!cleaned) return `PITCH ${format(now, "yyyyMMdd")}` // no hyphens — must pass the slug regex
+  if (cleaned.length <= SLUG_MAX) return cleaned
+
+  const cut = cleaned.slice(0, SLUG_MAX + 1)
+  const lastSpace = cut.lastIndexOf(" ")
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cleaned.slice(0, SLUG_MAX)).trim()
 }

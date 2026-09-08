@@ -266,7 +266,12 @@ export function SearchCommand() {
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span className="font-medium text-sm">{result.slug}</span>
-                          {result.status !== "DRAFT" && (
+                          {result.isPitch && (
+                            <span className="rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
+                              Pitch
+                            </span>
+                          )}
+                          {!result.isPitch && result.status !== "DRAFT" && (
                             <span className="rounded bg-secondary px-1 py-0.5 text-[10px] font-medium text-secondary-foreground">
                               {STORY_STATUS_LABELS[result.status] ?? result.status}
                             </span>

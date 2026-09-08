@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ExternalLink, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -19,8 +20,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
-import { VideoAssignmentSection } from "./VideoAssignmentSection"
+import { AssignmentSection } from "./AssignmentSection"
 import { CommentSection } from "./CommentSection"
+import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { VideoWithComments } from "@/types/index"
@@ -33,15 +35,39 @@ interface VideoDetailProps {
 }
 
 export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
+  const router = useRouter()
   const formRef = useRef<VideoFormHandle>(null)
   const [sendingToBudget, setSendingToBudget] = useState(false)
+  const [deletingDraft, setDeletingDraft] = useState(false)
+
+  async function handleDeleteDraft() {
+    setDeletingDraft(true)
+    try {
+      const res = await fetch(apiPath(`/api/videos/${video.id}`), { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete")
+      toast.success("Draft deleted")
+      router.push("/me")
+    } catch {
+      toast.error("Failed to delete draft. Please try again.")
+      setDeletingDraft(false)
+    }
+  }
 
   async function handleSendToBudget() {
     setSendingToBudget(true)
     try {
-      const res = await fetch(apiPath(`/api/videos/${video.id}/publish`), { method: "POST" })
+      const res = await fetch(apiPath(`/api/videos/${video.id}/publish`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version: video.version }),
+      })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
+        if (res.status === 409 && json?.version !== undefined) {
+          toast.error("This video was modified by another user. Reloading…")
+          onUpdate()
+          return
+        }
         throw new Error(json?.error ?? "Failed to send to budget")
       }
       toast.success("Video sent to budget")
@@ -147,8 +173,9 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
 
         <Separator />
 
-        <VideoAssignmentSection
-          videoId={video.id}
+        <AssignmentSection
+          parentType="video"
+          parentId={video.id}
           assignments={video.assignments}
           onUpdate={onUpdate}
           readOnly
@@ -160,6 +187,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           videoId={video.id}
           comments={video.comments}
           onUpdate={onUpdate}
+          hasAssignments={video.assignments.length > 0}
           readOnly
         />
       </div>
@@ -252,22 +280,27 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
       {!video.onBudget && (
         <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            This is a draft. Only you can see it.
+            This draft was created by {video.createdByUser?.name ?? "an unknown user"}. Only the
+            creator and assigned users can see it until it&apos;s added to the budget.
           </p>
-          <Button
-            size="sm"
-            className="gap-1"
-            disabled={sendingToBudget}
-            onClick={handleSendToBudget}
-          >
-            <Send className="size-3" />
-            {sendingToBudget ? "Sending..." : "Send to Budget"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <DeleteDraftDialog slug={video.slug} disabled={deletingDraft} onDelete={handleDeleteDraft} />
+            <Button
+              size="sm"
+              className="gap-1"
+              disabled={sendingToBudget}
+              onClick={handleSendToBudget}
+            >
+              <Send className="size-3" />
+              {sendingToBudget ? "Sending..." : "Send to Budget"}
+            </Button>
+          </div>
         </div>
       )}
 
-      <VideoAssignmentSection
-        videoId={video.id}
+      <AssignmentSection
+        parentType="video"
+        parentId={video.id}
         assignments={video.assignments}
         onUpdate={onUpdate}
       />
@@ -288,6 +321,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         videoId={video.id}
         comments={video.comments}
         onUpdate={onUpdate}
+        hasAssignments={video.assignments.length > 0}
       />
 
       <Separator />

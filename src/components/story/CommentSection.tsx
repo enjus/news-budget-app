@@ -23,6 +23,14 @@ interface CommentSectionProps {
   comments: CommentWithAuthor[]
   onUpdate: () => void
   readOnly?: boolean
+  /** Whether the item has anyone to notify yet — an assignee or, on stories,
+   *  a visual credit (the same roster `collectEmails()` builds server-side).
+   *  "Post and Notify All" emails that roster — with neither, it's empty, so
+   *  the button would post and silently notify nobody. Hidden rather than
+   *  disabled when false. Defaults true so existing callers that don't pass
+   *  it keep today's behavior. Despite the name, pass true if there's a
+   *  visual credit even with zero assignments. */
+  hasAssignments?: boolean
 }
 
 export function CommentSection({
@@ -31,6 +39,7 @@ export function CommentSection({
   comments,
   onUpdate,
   readOnly,
+  hasAssignments = true,
 }: CommentSectionProps) {
   const { data: session } = useSession()
 
@@ -245,15 +254,17 @@ export function CommentSection({
             >
               {isPosting ? "Posting..." : "Post"}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => handlePost(true)}
-              disabled={isPosting || !body.trim()}
-            >
-              Post and Notify All
-            </Button>
+            {hasAssignments && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handlePost(true)}
+                disabled={isPosting || !body.trim()}
+              >
+                Post and Notify All
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">
               Tagged people are emailed either way.
             </span>

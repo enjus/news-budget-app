@@ -32,12 +32,13 @@ import {
 } from "@/components/ui/command"
 import {
   createVideoSchema,
+  updateVideoSchema,
   type CreateVideoInput,
 } from "@/lib/validations"
 import { useSession } from "next-auth/react"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, displayName, todayString, toVideoAssignmentRole } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, cn, displayName, todayString, toAssignmentRole } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
-import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import { PersonPicker, VIDEO_ROLE_PRIORITY, VIDEO_DEFAULT_ROLE, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { apiPath } from "@/lib/api-path"
 interface StoryPickerItem { id: string; slug: string; budgetLine: string }
 import type { VideoWithRelations } from "@/types/index"
@@ -123,8 +124,13 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateVideoInput>({
+    // Edit mode must validate against updateVideoSchema, not createVideoSchema —
+    // onBudget isn't a real form field, and createVideoSchema's .default(true)
+    // for it would otherwise get silently injected into every edit submission,
+    // pushing an off-budget video draft onto the budget on every save. See the
+    // matching StoryForm fix for the full story-side version of this bug.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(createVideoSchema) as any,
+    resolver: zodResolver(isEdit ? updateVideoSchema : createVideoSchema) as any,
     defaultValues: video
       ? {
           slug: video.slug,
@@ -396,8 +402,8 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                 setPendingAssignments((prev) => [...prev, { person, role }])
               }
               excludeIds={assignedIds}
-              roles={["VIDEOGRAPHER", "REPORTER", "EDITOR", "OTHER"]}
-              defaultRole="VIDEOGRAPHER"
+              roles={VIDEO_ROLE_PRIORITY}
+              defaultRole={VIDEO_DEFAULT_ROLE}
               label="Add person"
             />
             {myPersonId && myDefaultRole && !alreadyAssignedMe && (
@@ -410,7 +416,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                     const res = await fetch(apiPath(`/api/people/${myPersonId}`))
                     if (!res.ok) throw new Error("Could not load your profile")
                     const person = await res.json()
-                    const role = toVideoAssignmentRole(myDefaultRole) as AssignmentRoleValue
+                    const role = toAssignmentRole(myDefaultRole) as AssignmentRoleValue
                     setPendingAssignments((prev) => [...prev, { person, role }])
                   } catch {
                     toast.error("Could not add you — profile not found")

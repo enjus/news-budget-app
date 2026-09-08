@@ -4,18 +4,19 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays } from "lucide-react"
+import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED } from "@/lib/features"
+import { VIDEOS_ENABLED, PITCHES_ENABLED } from "@/lib/features"
 
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
   { label: "Enterprise", href: "/budget/enterprise" },
+  { label: "Pitches", href: "/budget/pitches", flagged: true },
   { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
 ]
@@ -37,6 +38,7 @@ export function TopNav() {
   const { teams } = useMyTeams()
   const teamsLabel = teams.length === 1 ? teams[0].name : "Team"
   const navLinks = baseNavLinks.filter((link) => {
+    if (link.flagged && !PITCHES_ENABLED) return false
     if (link.adminOnly) return hasAdminAccess(appRole)
     return true
   })
@@ -73,17 +75,6 @@ export function TopNav() {
               )}
             >
               {teamsLabel}
-            </Link>
-          )}
-          {showPeople && (
-            <Link
-              href="/people"
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-              )}
-            >
-              People
             </Link>
           )}
           {(canCreate || myPersonId) && (
@@ -166,6 +157,15 @@ export function TopNav() {
                     </Link>
                   </>
                 )}
+                {showPeople && (
+                  <Link
+                    href="/people"
+                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <Users className="size-3.5" />
+                    People
+                  </Link>
+                )}
                 <Link
                   href="/settings"
                   className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -224,18 +224,6 @@ export function TopNav() {
                 )}
               >
                 {teamsLabel}
-              </Link>
-            )}
-            {showPeople && (
-              <Link
-                href="/people"
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                )}
-              >
-                People
               </Link>
             )}
             {(canCreate || myPersonId) && (
@@ -301,6 +289,16 @@ export function TopNav() {
                   Calendar
                 </Link>
               </>
+            )}
+            {showPeople && (
+              <Link
+                href="/people"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Users className="size-4" />
+                People
+              </Link>
             )}
             <Link
               href="/settings"
