@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck, Settings } from "lucide-react"
+import { Plus, Menu, X, LogOut, ShieldCheck, Settings, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
@@ -73,17 +73,6 @@ export function TopNav() {
               )}
             >
               {teamsLabel}
-            </Link>
-          )}
-          {showPeople && (
-            <Link
-              href="/people"
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-              )}
-            >
-              People
             </Link>
           )}
           {(canCreate || myPersonId) && (
@@ -159,6 +148,15 @@ export function TopNav() {
                     </Link>
                   </>
                 )}
+                {showPeople && (
+                  <Link
+                    href="/people"
+                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <Users className="size-3.5" />
+                    People
+                  </Link>
+                )}
                 <Link
                   href="/settings"
                   className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -219,18 +217,6 @@ export function TopNav() {
                 {teamsLabel}
               </Link>
             )}
-            {showPeople && (
-              <Link
-                href="/people"
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive(pathname, "/people") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                )}
-              >
-                People
-              </Link>
-            )}
             {(canCreate || myPersonId) && (
               <Link
                 href="/me"
@@ -286,6 +272,16 @@ export function TopNav() {
                   Teams
                 </Link>
               </>
+            )}
+            {showPeople && (
+              <Link
+                href="/people"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Users className="size-4" />
+                People
+              </Link>
             )}
             <Link
               href="/settings"
