@@ -291,15 +291,10 @@ export const ROLE_ABBREV: Record<string, string> = {
   PUBLICATION_DESIGNER: "PubOps",
 };
 
-/** Map a Person.defaultRole to a valid story assignment role (REPORTER|EDITOR|VIDEOGRAPHER|OTHER). */
-export function toStoryAssignmentRole(defaultRole: string): string {
+/** Map a Person.defaultRole to a valid assignment role (REPORTER|EDITOR|VIDEOGRAPHER|OTHER) —
+ *  shared by Story and Video assignments, which use the same AssignmentRoleEnum. */
+export function toAssignmentRole(defaultRole: string): string {
   if (defaultRole === "REPORTER" || defaultRole === "EDITOR" || defaultRole === "VIDEOGRAPHER") return defaultRole
-  return "OTHER"
-}
-
-/** Map a Person.defaultRole to a valid video assignment role (VIDEOGRAPHER|REPORTER|EDITOR|OTHER). */
-export function toVideoAssignmentRole(defaultRole: string): string {
-  if (defaultRole === "VIDEOGRAPHER" || defaultRole === "REPORTER" || defaultRole === "EDITOR") return defaultRole
   return "OTHER"
 }
 

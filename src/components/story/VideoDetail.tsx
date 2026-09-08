@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
 import { VideoForm, type VideoFormHandle } from "./VideoForm"
-import { VideoAssignmentSection } from "./VideoAssignmentSection"
+import { AssignmentSection } from "./AssignmentSection"
 import { CommentSection } from "./CommentSection"
 import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { differenceInDays } from "date-fns"
@@ -173,8 +173,9 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
 
         <Separator />
 
-        <VideoAssignmentSection
-          videoId={video.id}
+        <AssignmentSection
+          parentType="video"
+          parentId={video.id}
           assignments={video.assignments}
           onUpdate={onUpdate}
           readOnly
@@ -297,8 +298,9 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         </div>
       )}
 
-      <VideoAssignmentSection
-        videoId={video.id}
+      <AssignmentSection
+        parentType="video"
+        parentId={video.id}
         assignments={video.assignments}
         onUpdate={onUpdate}
       />
