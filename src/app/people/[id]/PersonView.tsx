@@ -6,8 +6,7 @@ import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import Link from "next/link"
 import useSWR from "swr"
 import { useSession } from "next-auth/react"
-import { format } from "date-fns"
-import { ArrowLeft, FileText, Video, ChevronDown, ChevronRight, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
+import { ArrowLeft, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -19,7 +18,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, hasAdminAccess, canManageRoster, displayName, todayString } from "@/lib/utils"
+import { CollapsibleSection, EmptySection } from "@/components/CollapsibleSection"
+import { ContentRow } from "@/components/budget/ContentItemRow"
+import {
+  PERSON_ROLE_LABELS,
+  STORY_STATUS_LABELS,
+  hasAdminAccess,
+  canManageRoster,
+  displayName,
+  todayString,
+  itemDateStr,
+  classifyContentItems,
+} from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 const PAST_INITIAL_COUNT = 10
@@ -50,22 +60,6 @@ interface PersonData {
 }
 
 const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
-
-function itemDateStr(item: PersonContentItem): string | null {
-  if (item.onlinePubDateTBD || !item.onlinePubDate) return null
-  const d = new Date(item.onlinePubDate)
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-}
-
-function formatItemDate(item: PersonContentItem): string {
-  if (item.onlinePubDateTBD || !item.onlinePubDate) return "TBD"
-  const d = new Date(item.onlinePubDate)
-  const fakeLocal = new Date(
-    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
-    d.getUTCHours(), d.getUTCMinutes()
-  )
-  return format(fakeLocal, "MMM d, yyyy · h:mm a")
-}
 
 export function PersonView({ id }: PersonViewProps) {
   const { data: session } = useSession()
@@ -125,20 +119,14 @@ export function PersonView({ id }: PersonViewProps) {
     return true
   })
 
-  const tbdItems = globalFiltered.filter((item) => item.onlinePubDateTBD || !item.onlinePubDate)
-  const upcomingItems = globalFiltered.filter((item) => {
-    const ds = itemDateStr(item)
-    return ds !== null && ds >= today
-  })
+  const { tbd: tbdItems, upcoming: upcomingItems, past: pastItemsAll } = classifyContentItems(globalFiltered, today)
   // Date range filter applies only to past
-  const pastItems = globalFiltered
-    .filter((item) => {
-      const ds = itemDateStr(item)
-      if (ds === null || ds >= today) return false
-      if (dateFrom && ds < dateFrom) return false
-      if (dateTo && ds > dateTo) return false
-      return true
-    })
+  const pastItems = pastItemsAll.filter((item) => {
+    const ds = itemDateStr(item)
+    if (dateFrom && ds! < dateFrom) return false
+    if (dateTo && ds! > dateTo) return false
+    return true
+  })
 
   const visiblePastItems = showAllPast
     ? pastItems
@@ -313,7 +301,7 @@ export function PersonView({ id }: PersonViewProps) {
 
       {/* Sections */}
       <div className="space-y-4">
-        <Section
+        <CollapsibleSection
           title="TBD"
           count={tbdItems.length}
           open={openTbd}
@@ -328,9 +316,9 @@ export function PersonView({ id }: PersonViewProps) {
               ))}
             </div>
           )}
-        </Section>
+        </CollapsibleSection>
 
-        <Section
+        <CollapsibleSection
           title="Upcoming"
           count={upcomingItems.length}
           open={openUpcoming}
@@ -345,9 +333,9 @@ export function PersonView({ id }: PersonViewProps) {
               ))}
             </div>
           )}
-        </Section>
+        </CollapsibleSection>
 
-        <Section
+        <CollapsibleSection
           title="Past"
           count={pastItems.length}
           open={openPast}
@@ -375,80 +363,8 @@ export function PersonView({ id }: PersonViewProps) {
               )}
             </div>
           )}
-        </Section>
+        </CollapsibleSection>
       </div>
     </div>
-  )
-}
-
-function Section({
-  title,
-  count,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string
-  count: number
-  open: boolean
-  onToggle: () => void
-  children: React.ReactNode
-}) {
-  const Chevron = open ? ChevronDown : ChevronRight
-  return (
-    <div>
-      <button
-        onClick={onToggle}
-        className="flex w-full items-center gap-1.5 pb-2 text-sm font-medium hover:text-foreground text-foreground/80 transition-colors"
-      >
-        <Chevron className="size-3.5 shrink-0" />
-        {title}
-        <span className="text-muted-foreground font-normal">({count})</span>
-      </button>
-      {open && children}
-    </div>
-  )
-}
-
-function EmptySection() {
-  return (
-    <p className="py-4 text-center text-sm text-muted-foreground">None</p>
-  )
-}
-
-function ContentRow({ item }: { item: PersonContentItem }) {
-  const href = item.type === "story" ? `/stories/${item.id}` : `/videos/${item.id}`
-  const Icon = item.type === "story" ? FileText : Video
-
-  return (
-    <Link
-      href={href}
-      className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-accent/50 transition-colors"
-    >
-      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{item.slug}</span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-            {PERSON_ROLE_LABELS[item.role] ?? item.role}
-          </Badge>
-          {item.status === "DRAFT" ? (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
-              Unpublished
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {STORY_STATUS_LABELS[item.status] ?? item.status}
-            </Badge>
-          )}
-        </div>
-        {item.budgetLine && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
-        )}
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {formatItemDate(item)}
-      </span>
-    </Link>
   )
 }

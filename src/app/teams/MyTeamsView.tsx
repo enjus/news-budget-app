@@ -2,8 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { format } from "date-fns"
-import { FileText, Video, ChevronDown, ChevronRight, Users, LayoutGrid, List } from "lucide-react"
+import { ChevronDown, ChevronRight, Users, LayoutGrid, List } from "lucide-react"
+import { CollapsibleSection } from "@/components/CollapsibleSection"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,8 +17,9 @@ import {
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
 import { usePreferences, type TeamsView } from "@/lib/hooks/usePreferences"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, displayName, todayString } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, displayName, todayString, classifyContentItems } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
+import { ContentRow } from "@/components/budget/ContentItemRow"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { TeamScheduleView } from "@/app/teams/TeamScheduleView"
 
@@ -27,22 +28,6 @@ const STATUS_OPTIONS = [
   { value: "PUBLISHED_ITERATING", label: STORY_STATUS_LABELS["PUBLISHED_ITERATING"] },
   { value: "PUBLISHED_FINAL", label: STORY_STATUS_LABELS["PUBLISHED_FINAL"] },
 ]
-
-function formatItemDate(item: PersonContentItem): string {
-  if (item.onlinePubDateTBD || !item.onlinePubDate) return "TBD"
-  const d = new Date(item.onlinePubDate)
-  const fakeLocal = new Date(
-    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
-    d.getUTCHours(), d.getUTCMinutes()
-  )
-  return format(fakeLocal, "MMM d, yyyy · h:mm a")
-}
-
-function itemDateStr(item: PersonContentItem): string | null {
-  if (item.onlinePubDateTBD || !item.onlinePubDate) return null
-  const d = new Date(item.onlinePubDate)
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`
-}
 
 export function MyTeamsView() {
   const { teams, isLoading: teamsLoading } = useMyTeams()
@@ -209,15 +194,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
       return true
     })
 
-    const tbdItems = filtered.filter((item) => item.onlinePubDateTBD || !item.onlinePubDate)
-    const upcomingItems = filtered.filter((item) => {
-      const ds = itemDateStr(item)
-      return ds !== null && ds >= today
-    })
-    const pastItems = filtered.filter((item) => {
-      const ds = itemDateStr(item)
-      return ds !== null && ds < today
-    })
+    const { tbd: tbdItems, upcoming: upcomingItems, past: pastItems } = classifyContentItems(filtered, today)
 
     return { ...mc, filtered, tbdItems, upcomingItems, pastItems }
   })
@@ -325,21 +302,35 @@ function TeamMembersView({ teamId }: { teamId: string }) {
                         <ContentSection title="Upcoming" items={mc.upcomingItems} />
                       )}
                       {mc.tbdItems.length > 0 && (
-                        <CollapsibleContentSection
+                        <CollapsibleSection
                           title="TBD"
-                          items={mc.tbdItems}
-                          expanded={expandedSections.has(tbdKey)}
+                          count={mc.tbdItems.length}
+                          open={expandedSections.has(tbdKey)}
                           onToggle={() => toggleSection(tbdKey)}
-                        />
+                          compact
+                        >
+                          <div className="space-y-1">
+                            {mc.tbdItems.map((item) => (
+                              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+                            ))}
+                          </div>
+                        </CollapsibleSection>
                       )}
                       {mc.pastItems.length > 0 && (
-                        <CollapsibleContentSection
+                        <CollapsibleSection
                           title="Past"
-                          items={mc.pastItems}
-                          expanded={expandedSections.has(pastKey)}
-                          onToggle={() => toggleSection(pastKey)}
+                          count={mc.pastItems.length}
                           truncated={mc.pastTruncated}
-                        />
+                          open={expandedSections.has(pastKey)}
+                          onToggle={() => toggleSection(pastKey)}
+                          compact
+                        >
+                          <div className="space-y-1">
+                            {mc.pastItems.map((item) => (
+                              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+                            ))}
+                          </div>
+                        </CollapsibleSection>
                       )}
                     </>
                   )}
@@ -363,87 +354,5 @@ function ContentSection({ title, items }: { title: string; items: PersonContentI
         ))}
       </div>
     </div>
-  )
-}
-
-function CollapsibleContentSection({
-  title,
-  items,
-  expanded,
-  onToggle,
-  truncated,
-}: {
-  title: string
-  items: PersonContentItem[]
-  expanded: boolean
-  onToggle: () => void
-  truncated?: boolean
-}) {
-  const Chevron = expanded ? ChevronDown : ChevronRight
-  return (
-    <div>
-      <button
-        onClick={onToggle}
-        className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 transition-colors"
-      >
-        <Chevron className="size-3 shrink-0" />
-        {title}
-        <span className="font-normal">
-          ({items.length}{truncated ? "+" : ""})
-        </span>
-        {truncated && (
-          <span
-            className="font-normal text-muted-foreground/70"
-            title="Older items exist but aren't shown here."
-          >
-            showing most recent
-          </span>
-        )}
-      </button>
-      {expanded && (
-        <div className="space-y-1">
-          {items.map((item) => (
-            <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ContentRow({ item }: { item: PersonContentItem }) {
-  const href = item.type === "story" ? `/stories/${item.id}` : `/videos/${item.id}`
-  const Icon = item.type === "story" ? FileText : Video
-
-  return (
-    <Link
-      href={href}
-      className="flex items-start gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
-    >
-      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{item.slug}</span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-            {PERSON_ROLE_LABELS[item.role] ?? item.role}
-          </Badge>
-          {item.status === "DRAFT" ? (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
-              Unpublished
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {STORY_STATUS_LABELS[item.status] ?? item.status}
-            </Badge>
-          )}
-        </div>
-        {item.budgetLine && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
-        )}
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {formatItemDate(item)}
-      </span>
-    </Link>
   )
 }
