@@ -97,6 +97,9 @@ model Story {
   postUrl          String?
   workingDraftUrl  String? // link to in-progress draft doc; hidden from cards once story is published
   onBudget         Boolean  @default(true)
+  pitchedAt        DateTime? // non-null → in the Pitches pool (onBudget must be false)
+  expiresAt        DateTime? // pitch shelf-life deadline; null = evergreen
+  pitchText        String?   // the tip as filed; write-once, never accepted by updateStorySchema
   createdByUserId  String?
   createdByUser    User?    @relation("storiesCreated", fields: [createdByUserId], references: [id], onDelete: SetNull)
   version          Int      @default(0) // optimistic locking — incremented on every PATCH
@@ -117,6 +120,8 @@ model Story {
   @@index([isEnterprise, status])
   @@index([onBudget, status])
   @@index([createdByUserId, onBudget])
+  @@index([pitchedAt])
+  @@index([pitchedAt, expiresAt])
 }
 
 model StoryAssignment {

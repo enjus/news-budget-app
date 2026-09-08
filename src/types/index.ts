@@ -17,6 +17,7 @@ export type StoryWithRelations = Prisma.StoryGetPayload<{
         mentions: { include: { person: { select: { id: true; name: true } } } };
       };
     };
+    createdByUser: { select: { id: true; name: true } };
   };
 }>;
 
@@ -48,6 +49,24 @@ export type StoryListItem = Prisma.StoryGetPayload<{
 // Alias kept for any consumers that referenced EnterpriseStoryItem directly.
 export type EnterpriseStoryItem = StoryListItem;
 
+// ─── Pitch types ─────────────────────────────────────────────────────────────
+
+// What /api/budget/pitches returns: an explicit select (not include), deliberately
+// excluding notes and budgetLine — contact details have no business in every
+// browser's memory for every open pitch. Keep in sync with the select in
+// src/app/api/budget/pitches/route.ts.
+export type PitchListItem = Prisma.StoryGetPayload<{
+  select: {
+    id: true;
+    pitchText: true;
+    expiresAt: true;
+    pitchedAt: true;
+    updatedAt: true;
+    createdByUser: { select: { id: true; name: true } };
+    assignments: { include: { person: { select: { id: true; name: true } } } };
+  };
+}>;
+
 // ─── Video types ─────────────────────────────────────────────────────────────
 
 export type VideoWithRelations = Prisma.VideoGetPayload<{
@@ -70,6 +89,7 @@ export type VideoWithComments = Prisma.VideoGetPayload<{
         mentions: { include: { person: { select: { id: true; name: true } } } };
       };
     };
+    createdByUser: { select: { id: true; name: true } };
   };
 }>;
 

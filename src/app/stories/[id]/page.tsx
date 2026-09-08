@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { canCreateContent } from "@/lib/utils"
+import { blockedFromDraft } from "@/lib/api-helpers"
 import { commentInclude, commentOrderBy } from "@/lib/comments"
 import { StoryDetailWrapper } from "./StoryDetailWrapper"
 
@@ -21,10 +22,12 @@ export default async function StoryPage({ params }: StoryPageProps) {
       videos: true,
       tags: true,
       comments: { include: commentInclude, orderBy: commentOrderBy },
+      createdByUser: { select: { id: true, name: true } },
     },
   })
 
-  if (!story) {
+  // Off-budget drafts are only visible to their creator, assignees, or admins
+  if (!story || blockedFromDraft(story, session?.user)) {
     notFound()
   }
 

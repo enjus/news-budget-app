@@ -11,11 +11,12 @@ import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED } from "@/lib/features"
+import { VIDEOS_ENABLED, PITCHES_ENABLED } from "@/lib/features"
 
 const baseNavLinks = [
   { label: "Daily", href: "/budget/daily" },
   { label: "Enterprise", href: "/budget/enterprise" },
+  { label: "Pitches", href: "/budget/pitches", flagged: true },
   { label: "Editions", href: "/budget/edition", adminOnly: true },
   { label: "Shelved", href: "/budget/shelved" },
 ]
@@ -37,6 +38,7 @@ export function TopNav() {
   const { teams } = useMyTeams()
   const teamsLabel = teams.length === 1 ? teams[0].name : "Team"
   const navLinks = baseNavLinks.filter((link) => {
+    if (link.flagged && !PITCHES_ENABLED) return false
     if (link.adminOnly) return hasAdminAccess(appRole)
     return true
   })

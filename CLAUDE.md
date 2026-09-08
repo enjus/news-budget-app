@@ -53,7 +53,7 @@ No test suite exists yet.
 
 **Optimistic drag-and-drop**: dnd-kit updates local SWR cache immediately on drop; server PATCH confirms persistence. `sortOrder` field on Story/Video drives ordering.
 
-**Off-budget draft privacy is per-route, not centralized**: Story/Video routes gate access with `blockedFromDraft(parent, session?.user)` (`src/lib/api-helpers.ts`) → 404 if true. There's no shared middleware enforcing this — `blockedFromDraft()` only covers the boolean gate itself; every route touching a Story/Video or its child resources (comments, visuals, assignments, tags) must still replicate its own `findUnique` selecting `onBudget`/`createdByUserId` and call the helper explicitly. This drifted across 5 routes before `blockedFromDraft()` existed (all fixed in one pass), so don't assume a new route has it just because sibling routes do — check.
+**Off-budget draft privacy is per-route, not centralized**: Story/Video routes gate access with `blockedFromDraft(parent, session?.user)` (`src/lib/api-helpers.ts`) → 404 if true. A draft is visible and writable to its creator, anyone assigned to it (`StoryAssignment`/`VideoAssignment.personId` matched against `session.user.personId`), and admins — visual credits are deliberately excluded from this check for simplicity, unlike `collectEmails()`'s notification recipients. There's no shared middleware enforcing this — `blockedFromDraft()` only covers the boolean gate itself; every route touching a Story/Video or its child resources (comments, visuals, assignments, tags) must still replicate its own `findUnique` selecting `onBudget`/`createdByUserId`/`assignments: { select: { personId: true } }` and call the helper explicitly. This drifted across 5 routes before `blockedFromDraft()` existed (all fixed in one pass), so don't assume a new route has it just because sibling routes do — check. The "My Drafts" list on `/me` (`/api/drafts`) matches this same grant — it's `createdByUserId` OR assigned-to-you, not creator-only — but `/api/people/[id]/content` still excludes drafts entirely (filters `onBudget: true`), so an assignee only sees a draft in "My Drafts", not in "My Assigned Content".
 
 **TBD content**: Items without a publication time have `onlinePubDateTBD: true` and float in a TBD bucket. A `TBD_CAP` (500) prevents unbounded queries.
 
@@ -157,11 +157,11 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/stories/[id]/assignments` | GET/POST | Story staff assignments |
 | `/api/stories/[id]/tags` | GET/POST/DELETE | Story editorial-tag indicators |
 | `/api/stories/[id]/visuals` | GET/POST | Story visuals |
-| `/api/stories/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator or admin only |
+| `/api/stories/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator, assignee, or admin only |
 | `/api/videos` | GET/POST | List/create videos |
 | `/api/videos/[id]` | GET/PUT/DELETE | Video CRUD |
 | `/api/videos/[id]/assignments` | GET/POST | Video staff assignments |
-| `/api/videos/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator or admin only |
+| `/api/videos/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator, assignee, or admin only |
 | `/api/visuals/[id]` | PUT/DELETE | Update/delete individual visual |
 | `/api/stories/[id]/comments` | GET/POST | Story comments; POST body `{ body, mentionIds?, notifyAll? }` |
 | `/api/videos/[id]/comments` | GET/POST | Video comments (same shape) |
