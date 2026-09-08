@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck, Settings, Users } from "lucide-react"
+import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
@@ -148,6 +148,13 @@ export function TopNav() {
                       <ShieldCheck className="size-3.5" />
                       Teams
                     </Link>
+                    <Link
+                      href="/admin/calendar"
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <CalendarDays className="size-3.5" />
+                      Calendar
+                    </Link>
                   </>
                 )}
                 {showPeople && (
@@ -272,6 +279,14 @@ export function TopNav() {
                 >
                   <ShieldCheck className="size-4" />
                   Teams
+                </Link>
+                <Link
+                  href="/admin/calendar"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <CalendarDays className="size-4" />
+                  Calendar
                 </Link>
               </>
             )}
