@@ -8,7 +8,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Plus, X, AlertTriangle, Info } from "lucide-react"
+import { Plus, X, AlertTriangle, Info, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -34,6 +34,10 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
   const [note, setNote] = useState("")
   const [writeWorkingRow, setWriteWorkingRow] = useState(true)
   const [saving, setSaving] = useState(false)
+
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editingNoteValue, setEditingNoteValue] = useState("")
+  const [savingNote, setSavingNote] = useState(false)
 
   const assignedIds = new Set(assignments.map((a) => a.personId))
   const available = roster.filter((p) => !assignedIds.has(p.id))
@@ -80,10 +84,50 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
         const err = await res.json()
         throw new Error(err.error ?? "Failed to remove assignment")
       }
-      toast.success("Removed")
+      const result = await res.json()
+      // TODO: once schedule views support deep-linking to a specific
+      // person/date, link the warning toast straight there instead of
+      // just naming "check accuracy".
+      if (result.availabilityReverted) {
+        toast.success("Removed from shift. Schedule reverted to default.")
+      } else {
+        toast.warning("Removed from shift. Schedule unchanged — check accuracy.")
+      }
       onSaved()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove assignment")
+    }
+  }
+
+  function startEditNote(a: ShiftRoleAssignment) {
+    setEditingNoteId(a.id)
+    setEditingNoteValue(a.note ?? "")
+  }
+
+  function cancelEditNote() {
+    setEditingNoteId(null)
+    setEditingNoteValue("")
+  }
+
+  async function handleSaveNote(id: string) {
+    setSavingNote(true)
+    try {
+      const res = await fetch(apiPath(`/api/schedule/shifts/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: editingNoteValue.trim() || null }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? "Failed to update note")
+      }
+      toast.success("Note updated")
+      cancelEditNote()
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update note")
+    } finally {
+      setSavingNote(false)
     }
   }
 
@@ -151,31 +195,66 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
         <p className="text-xs text-amber-700 dark:text-amber-400">Unfilled</p>
       ) : (
         <ul className="space-y-1">
-          {assignments.map((a) => (
-            <li key={a.id} className="flex items-center justify-between gap-1 text-sm">
-              <span className="flex items-center gap-1 min-w-0">
-                {a.conflict && (
-                  <span title={a.conflict.message}>
-                    {a.conflict.severity === "warning" ? (
-                      <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
-                    ) : (
-                      <Info className="size-3.5 shrink-0 text-amber-500" />
-                    )}
-                  </span>
-                )}
-                <span className="truncate">{displayName(a.name)}</span>
-                {a.note && <span className="truncate text-xs text-muted-foreground">— {a.note}</span>}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${a.name}`}
-                onClick={() => handleRemove(a.id)}
-              >
-                <X className="size-3.5" />
-              </Button>
-            </li>
-          ))}
+          {assignments.map((a) =>
+            editingNoteId === a.id ? (
+              <li key={a.id} className="flex items-center gap-1 text-sm">
+                <span className="truncate shrink-0">{displayName(a.name)}</span>
+                <Input
+                  value={editingNoteValue}
+                  onChange={(e) => setEditingNoteValue(e.target.value)}
+                  placeholder="Note"
+                  className="h-6 text-base px-1.5"
+                  autoFocus
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 px-2"
+                  onClick={() => handleSaveNote(a.id)}
+                  disabled={savingNote}
+                >
+                  {savingNote ? "Saving..." : "Save"}
+                </Button>
+                <Button variant="ghost" size="sm" className="shrink-0 px-2" onClick={cancelEditNote}>
+                  Cancel
+                </Button>
+              </li>
+            ) : (
+              <li key={a.id} className="flex items-center justify-between gap-1 text-sm">
+                <span className="flex items-center gap-1 min-w-0">
+                  {a.conflict && (
+                    <span title={a.conflict.message}>
+                      {a.conflict.severity === "warning" ? (
+                        <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
+                      ) : (
+                        <Info className="size-3.5 shrink-0 text-amber-500" />
+                      )}
+                    </span>
+                  )}
+                  <span className="truncate">{displayName(a.name)}</span>
+                  {a.note && <span className="truncate text-xs text-muted-foreground">— {a.note}</span>}
+                </span>
+                <span className="flex items-center shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Edit note for ${a.name}`}
+                    onClick={() => startEditNote(a)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${a.name}`}
+                    onClick={() => handleRemove(a.id)}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </span>
+              </li>
+            )
+          )}
         </ul>
       )}
     </div>

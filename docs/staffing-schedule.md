@@ -27,7 +27,7 @@ A layer tracking who's working, off, or half-day on any date, plus weekend/holid
 | `/api/schedule/export?start=&end=` | GET | CSV of the whole roster's resolved schedule over a range |
 | `/api/schedule/shifts?start=&end=` | GET | Shift days in a window (weekends + observed holidays, plus any ad-hoc date that already has an assignment — see `mergeShiftDays()`), each with its 4 role slots, assignees, and conflict warnings, plus the roster for the assign-picker |
 | `/api/schedule/shifts` | POST | Assign a person to a `(date, shiftRole)` slot on **any** date, not only a derived shift day — `writeWorkingRow` (default true) also writes the matching `Availability` `FULL_DAY`/`WORKING` row, but skips it (returning `workingRowSkipped: true`) rather than clobbering an existing entry that isn't already a plain, note-free `WORKING` day |
-| `/api/schedule/shifts/[id]` | DELETE | Remove one shift assignment — any date, including a standing weekend/holiday one (does not touch any `Availability` row written alongside it) |
+| `/api/schedule/shifts/[id]` | PATCH/DELETE | PATCH edits the note in place (date/shiftRole/personId aren't editable this way). DELETE removes the assignment — any date, including a standing weekend/holiday one — and reverts the `Availability` row written alongside it (falls back to the standing pattern/holiday baseline) when that row is still a plain, note-free `WORKING` row and no other `ShiftAssignment` for the same person/date remains; otherwise it's left untouched, same as before this existed |
 
 **SWR hooks** (`src/lib/hooks/`): `useMySchedule`, `useCalendarMarkers`, `useDaySchedule`, `useWeekSchedule`, `useShifts`.
 

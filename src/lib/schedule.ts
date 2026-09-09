@@ -567,6 +567,19 @@ export function mergeShiftDays(derivedDays: ShiftDay[], assignedDates: string[])
   return merged.sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/**
+ * Whether a person's Availability rows for one date are exactly what a
+ * plain "mark as working" write produces — either no rows at all, or rows
+ * that are all WORKING with no note. Shared by POST /api/schedule/shifts
+ * (safe to overwrite without clobbering something else) and DELETE
+ * .../shifts/[id] (safe to revert on removal — an empty set isn't
+ * revertible since there's nothing to undo, so callers that need "exists
+ * and is plain" must additionally check rows.length > 0).
+ */
+export function isPlainWorkingSet(rows: { status: string; note: string | null }[]): boolean {
+  return rows.every((r) => r.status === "WORKING" && !r.note)
+}
+
 export type ShiftConflict = { kind: "out" } | { kind: "outsidePattern" }
 
 /**

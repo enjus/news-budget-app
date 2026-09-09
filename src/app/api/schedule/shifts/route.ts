@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftAssignmentSchema } from "@/lib/validations";
 import { canEditSchedule, dateOnly, toDateString, weekdayName, SHIFT_ROLES } from "@/lib/utils";
-import { resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, type AvailabilityEntry } from "@/lib/schedule";
+import { resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, isPlainWorkingSet, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         const existing = await tx.availability.findMany({
           where: { personId, date: dateObj, segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] } },
         });
-        const conflicts = existing.some((r) => r.status !== "WORKING" || r.note);
+        const conflicts = !isPlainWorkingSet(existing);
         if (conflicts) {
           skipped = true;
         } else {
