@@ -8,7 +8,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Plus, X, AlertTriangle, Info, Pencil } from "lucide-react"
+import { Plus, X, AlertTriangle, Info, Pencil, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -197,27 +197,36 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
         <ul className="space-y-1">
           {assignments.map((a) =>
             editingNoteId === a.id ? (
-              <li key={a.id} className="flex items-center gap-1 text-sm">
-                <span className="truncate shrink-0">{displayName(a.name)}</span>
-                <Input
-                  value={editingNoteValue}
-                  onChange={(e) => setEditingNoteValue(e.target.value)}
-                  placeholder="Note"
-                  className="h-6 text-base px-1.5"
-                  autoFocus
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0 px-2"
-                  onClick={() => handleSaveNote(a.id)}
-                  disabled={savingNote}
-                >
-                  {savingNote ? "Saving..." : "Save"}
-                </Button>
-                <Button variant="ghost" size="sm" className="shrink-0 px-2" onClick={cancelEditNote}>
-                  Cancel
-                </Button>
+              <li key={a.id} className="space-y-1 text-sm">
+                <span className="truncate block">{displayName(a.name)}</span>
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={editingNoteValue}
+                    onChange={(e) => setEditingNoteValue(e.target.value)}
+                    placeholder="Note"
+                    className="h-6 text-base px-1.5 flex-1 min-w-0"
+                    autoFocus
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label="Save note"
+                    onClick={() => handleSaveNote(a.id)}
+                    disabled={savingNote}
+                  >
+                    <Check className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0"
+                    aria-label="Cancel"
+                    onClick={cancelEditNote}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
               </li>
             ) : (
               <li key={a.id} className="flex items-center justify-between gap-1 text-sm">
