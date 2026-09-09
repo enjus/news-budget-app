@@ -65,7 +65,7 @@ function AgendaDayRow({ dateKey, label, isToday, itemIds, count, hideHeader, siz
     <div className="space-y-2">
       {!hideHeader && (
         <div className={cn("flex items-center", isLg ? "gap-2.5" : "gap-2")}>
-          <h3 className={cn(isLg ? "text-lg" : "text-sm", "font-semibold", isToday && "text-primary")}>{label}</h3>
+          <h3 className={cn(isLg ? "text-base" : "text-sm", "font-semibold", isToday && "text-primary")}>{label}</h3>
           {isToday && (
             <span className={cn(
               "rounded-full bg-primary/10 font-medium text-primary",
