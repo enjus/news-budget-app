@@ -229,38 +229,44 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
                 </div>
               </li>
             ) : (
-              <li key={a.id} className="flex items-center justify-between gap-1 text-sm">
-                <span className="flex items-center gap-1 min-w-0">
-                  {a.conflict && (
-                    <span title={a.conflict.message}>
-                      {a.conflict.severity === "warning" ? (
-                        <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
-                      ) : (
-                        <Info className="size-3.5 shrink-0 text-amber-500" />
-                      )}
-                    </span>
-                  )}
-                  <span className="truncate">{displayName(a.name)}</span>
-                  {a.note && <span className="truncate text-xs text-muted-foreground">— {a.note}</span>}
-                </span>
-                <span className="flex items-center shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Edit note for ${a.name}`}
-                    onClick={() => startEditNote(a)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remove ${a.name}`}
-                    onClick={() => handleRemove(a.id)}
-                  >
-                    <X className="size-3.5" />
-                  </Button>
-                </span>
+              <li key={a.id} className="space-y-0.5 text-sm">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="flex items-center gap-1 min-w-0">
+                    {a.conflict && (
+                      <span title={a.conflict.message}>
+                        {a.conflict.severity === "warning" ? (
+                          <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
+                        ) : (
+                          <Info className="size-3.5 shrink-0 text-amber-500" />
+                        )}
+                      </span>
+                    )}
+                    <span className="truncate">{displayName(a.name)}</span>
+                  </span>
+                  <span className="flex items-center shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Edit note for ${a.name}`}
+                      onClick={() => startEditNote(a)}
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Remove ${a.name}`}
+                      onClick={() => handleRemove(a.id)}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </span>
+                </div>
+                {a.note && (
+                  <p className="truncate text-xs text-muted-foreground" title={a.note}>
+                    {a.note}
+                  </p>
+                )}
               </li>
             )
           )}
