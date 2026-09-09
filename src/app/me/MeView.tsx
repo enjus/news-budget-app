@@ -108,7 +108,7 @@ function DraftsSection() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Drafts</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Drafts</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
@@ -119,7 +119,7 @@ function DraftsSection() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-medium text-muted-foreground">My Drafts</h2>
+      <h2 className="text-sm font-semibold text-foreground">My Drafts</h2>
 
       {!isEmpty && (
         <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -211,7 +211,7 @@ function DraftRow({
         <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">{slug}</span>
+            <span className="text-sm font-semibold">{slug}</span>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-dashed">
               Draft
             </Badge>
@@ -258,7 +258,7 @@ function MyPitchesSections() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Pitches</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Pitches</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
     )
@@ -273,7 +273,7 @@ function MyPitchesSections() {
     <div className="space-y-6">
       {myPitches.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
             My Pitches <span className="ml-1 text-xs font-normal">({myPitches.length})</span>
           </h2>
           <div className="space-y-1">
@@ -286,7 +286,7 @@ function MyPitchesSections() {
 
       {myClaimed.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
             My Claimed Pitches <span className="ml-1 text-xs font-normal">({myClaimed.length})</span>
           </h2>
           <div className="space-y-1">
@@ -319,7 +319,7 @@ function AssignedContentSection({ personId }: { personId: string }) {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
@@ -332,7 +332,7 @@ function AssignedContentSection({ personId }: { personId: string }) {
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
         <div className="rounded-lg border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">No content assigned to you.</p>
         </div>
@@ -344,7 +344,7 @@ function AssignedContentSection({ personId }: { personId: string }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-medium text-muted-foreground">My Assigned Content</h2>
+      <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
 
       <CollapsibleSection title="TBD" count={tbd.length} open={openTbd} onToggle={() => setOpenTbd((v) => !v)}>
         {tbd.length === 0 ? (

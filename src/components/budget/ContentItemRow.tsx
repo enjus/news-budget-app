@@ -32,7 +32,7 @@ export function ContentRow({
       <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{item.slug}</span>
+          <span className="font-semibold">{item.slug}</span>
           <Badge variant="outline" className="text-[10px] px-1.5 py-0">
             {PERSON_ROLE_LABELS[item.role] ?? item.role}
           </Badge>
@@ -45,17 +45,19 @@ export function ContentRow({
               {STORY_STATUS_LABELS[item.status] ?? item.status}
             </Badge>
           )}
-          {isToday && (
-            <Badge className="text-[10px] px-1.5 py-0">Today</Badge>
-          )}
         </div>
         {item.budgetLine && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
         )}
       </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {formatItemDate(item)}
-      </span>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {isToday && (
+          <Badge className="text-[10px] px-1.5 py-0">Today</Badge>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {formatItemDate(item)}
+        </span>
+      </div>
     </Link>
   )
 }
