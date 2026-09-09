@@ -88,7 +88,7 @@ function DroppableSection({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="size-4 text-muted-foreground" />
-          <h3 className="font-semibold">{label}</h3>
+          <h3 className="text-base font-semibold">{label}</h3>
           <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium text-foreground/70">
             {count}
           </span>

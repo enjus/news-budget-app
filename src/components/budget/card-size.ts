@@ -2,6 +2,10 @@
 // "lg" bumps type/icon/spacing for meeting-room readability (Daily Agenda, Enterprise).
 // Add a new token here when a new className needs a size split — don't hand-write
 // an isLg ternary in the card files, or StoryCard/VideoCard will drift out of sync.
+// Keep every "lg" text size exactly one Tailwind step above its "default" ([10px]
+// -> xs -> sm -> base -> lg) — a two-step jump (e.g. text-xs -> text-base) is what
+// made the first pass of this scale read as oversized and out of step with the
+// rest of the app; AgendaView.tsx's day-header size prop follows the same rule.
 export type CardSize = "default" | "lg"
 
 export const CARD_SIZE: Record<CardSize, {
@@ -55,16 +59,16 @@ export const CARD_SIZE: Record<CardSize, {
     title: "text-base",
     badge: "text-xs px-2 py-0.5",
     actionIcon: "size-4",
-    body: "text-base text-foreground/70",
+    body: "text-sm text-foreground/70",
     metaRow: "text-xs text-muted-foreground",
     metaIcon: "size-3.5",
-    pubRow: "text-sm",
+    pubRow: "text-xs",
     pubLabel: "text-foreground/80",
     pubValue: "text-foreground/70",
-    caption: "text-sm text-foreground/70",
+    caption: "text-xs text-foreground/70",
     chip: "px-1.5 py-0.5 text-[10px]",
     chipIcon: "size-2.5",
-    statusText: "text-sm",
+    statusText: "text-xs",
     statusMuted: "text-foreground/70",
   },
 }
