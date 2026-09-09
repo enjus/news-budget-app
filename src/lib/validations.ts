@@ -177,6 +177,12 @@ export const createShiftAssignmentSchema = z.object({
   writeWorkingRow: z.boolean().default(true),
 });
 
+// PATCH /api/schedule/shifts/[id] — date/shiftRole/personId are the row's
+// identity and aren't editable here; only note can change in place.
+export const updateShiftAssignmentSchema = z.object({
+  note: z.string().max(500).nullable(),
+});
+
 // POST/PATCH /api/schedule/markers — reuses CalendarMarkerKindEnum from
 // Phase 1 above; there is no separate MarkerKindEnum. The base object is
 // split out from createMarkerSchema's refinement so updateMarkerSchema can
@@ -461,6 +467,7 @@ export type CreateMarkerInput = z.infer<typeof createMarkerSchema>;
 export type UpdateMarkerInput = z.infer<typeof updateMarkerSchema>;
 export type SeedHolidaysInput = z.infer<typeof seedHolidaysSchema>;
 export type CreateShiftAssignmentInput = z.infer<typeof createShiftAssignmentSchema>;
+export type UpdateShiftAssignmentInput = z.infer<typeof updateShiftAssignmentSchema>;
 export type CreateStoryInput = z.infer<typeof createStorySchema>;
 export type UpdateStoryInput = z.infer<typeof updateStorySchema>;
 export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;

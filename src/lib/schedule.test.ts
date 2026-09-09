@@ -6,6 +6,7 @@ import {
   detectShiftConflict,
   describeShiftConflict,
   mergeShiftDays,
+  isPlainWorkingSet,
   type ResolveDayMarker,
   type ResolveDayWorkSchedule,
 } from "./schedule"
@@ -291,6 +292,36 @@ describe("describeShiftConflict", () => {
       severity: "note",
       message: "Saturday is outside Chen's normal schedule.",
     })
+  })
+})
+
+describe("isPlainWorkingSet", () => {
+  it("is true for an empty set", () => {
+    expect(isPlainWorkingSet([])).toBe(true)
+  })
+
+  it("is true for one or more note-free WORKING rows", () => {
+    expect(isPlainWorkingSet([{ status: "WORKING", note: null }])).toBe(true)
+    expect(
+      isPlainWorkingSet([
+        { status: "WORKING", note: null },
+        { status: "WORKING", note: null },
+      ])
+    ).toBe(true)
+  })
+
+  it("is false when any row isn't WORKING", () => {
+    expect(isPlainWorkingSet([{ status: "OUT", note: null }])).toBe(false)
+    expect(
+      isPlainWorkingSet([
+        { status: "WORKING", note: null },
+        { status: "UNAVAILABLE", note: null },
+      ])
+    ).toBe(false)
+  })
+
+  it("is false when any row carries a note, even if WORKING", () => {
+    expect(isPlainWorkingSet([{ status: "WORKING", note: "swapped with Rivera" }])).toBe(false)
   })
 })
 
