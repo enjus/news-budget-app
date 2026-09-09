@@ -9,6 +9,7 @@ npm run dev              # Dev server at http://localhost:3000 (Turbopack)
 npm run build            # Production build (prisma generate + next build — does NOT push schema)
 npm run start            # Production server
 npm run lint             # ESLint
+npm test                 # vitest run — unit tests (see below)
 
 npx prisma studio        # Database browser UI
 npx prisma db seed       # Re-seed (runs prisma/seed.ts via ts-node)
@@ -18,7 +19,7 @@ npx prisma generate      # Regenerate Prisma client (runs automatically via post
 
 If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a package that *is* in `package.json` (e.g. `nodemailer`), `node_modules` has drifted — run `npm install` first.
 
-No test suite exists yet.
+**Vitest** was added in the staffing schedule work (issue #19, PR #68) specifically to cover `resolveDay()`'s date-precedence logic and the range-write helpers in `schedule-writes.ts` — pure functions with enough branching (explicit override vs. standing pattern vs. holiday, half-day splits, collision clearing) that eyeballing a diff isn't enough to trust it. `vitest.config.mts` runs in `node` environment with `vite-tsconfig-paths` so `@/` imports resolve the same as in the app. Coverage is narrow and deliberate, not a general suite: `src/lib/schedule.test.ts`, `src/lib/schedule-writes.test.ts`, `src/app/schedule/today/groupPeople.test.ts`. This is a **departure from the org-wide CLAUDE.md's "don't suggest adding test infrastructure" guidance** — that guidance is scoped to personal single-user tools, and this app is multi-user (real auth/roles/admin/teams in active use), so it doesn't apply here; the rest of the app (API routes, components) still leans on `npm run build`/`tsc --noEmit` as the primary correctness check. Follow the existing tests' pattern (pure-function unit tests, no DB/network mocking) if adding more — don't stand up a broader test harness (component tests, API route tests, `msw`, etc.) without the user asking.
 
 **Before editing shared files** (API routes, `src/lib/*`, or the budget-view components `StoryCard.tsx`/`VideoCard.tsx`/`AgendaView.tsx`/`ColumnsView.tsx`/`EnterpriseView.tsx`): run `gh pr list --state open` — this repo often has several feature branches in flight that rewrite the same file (e.g. `*/content/route.ts`, or all of the budget card components at once). If an open PR already touches your target file, run `gh pr diff <number>` to see exactly which lines — adjacent-line edits in the same JSX block usually merge cleanly, but do the check before assuming so.
 `npm run lint` ignores `.claude/worktrees/*` (`eslint.config.mjs` `globalIgnores`) — runs in seconds and reports only real source files.
@@ -65,6 +66,10 @@ No test suite exists yet.
 
 **Inactive people (`Person.isActive`)**: Deactivating a Person hides them from pickers for new assignments/stories but keeps their historical assignments, visuals, and comment mentions intact — nothing is deleted or reassigned. Less obvious: `collectEmails()` (`src/lib/notifications.ts`) and `listComments()`/`createComment()` (`src/lib/comments.ts`) both select `isActive` and filter inactive people out of notification recipient sets, even if they're still assigned/credited/mentioned on the item. So an inactive person can remain visible on a story's team list while silently receiving no emails about it.
 
+**Pitches (issue #24, dark-launched behind `PITCHES_ENABLED`)**: a newsroom-wide pool for tips and unassigned stories, built entirely on the `Story` model — a pitch is just `onBudget: false` with `pitchedAt` set (see the field list below); there's no separate Pitch table. Filing (`POST /api/pitches`) takes one field (`text`) and server-derives everything else: a placeholder `slug`/`budgetLine`, `status: DRAFT`, and `expiresAt` (30 days out unless `evergreen` or an explicit date). Claiming is deliberately split into two actions of different weight: `POST /api/stories/[id]/claim` just creates a `StoryAssignment` (single-claimant, enforced with a 409 rather than a DB constraint — good enough for this newsroom's concurrency, consistent with the app's optimistic-locking style elsewhere) and `POST /api/stories/[id]/unclaim` removes it; neither touches `onBudget`/`pitchedAt`. `POST /api/stories/[id]/send-to-budget` is the heavier action — it rewrites the placeholder `slug`/`budgetLine` into real ones and flips `onBudget: true`, clearing `pitchedAt`/`expiresAt` (`pitchText` persists as provenance). It deliberately does *not* require an existing claim — an editor can send an unclaimed pitch straight to budget, same as any other unassigned story. The `purge-shelved` cron auto-shelves expired, unclaimed pitches but leaves `pitchedAt` set so they stay recoverable via the story detail page's unarchive flow (a claimed pitch is excluded from that sweep). `GET /api/budget/pitches` uses an explicit `select` rather than `include` — pitch notes may carry a tipster's contact details, which shouldn't sit in every browser's memory for every open pitch.
+
+**Dark-launch rule for Pitches**: staying dark-launched means more than the `PITCHES_ENABLED` nav gate — no other tool or page (search, `/me`, dashboards, etc.) should surface pitch content or pitch-specific UI until Pitches gets its `TopNav` entry. When touching a shared surface, check whether it already renders pitches unconditionally before adding more.
+
 **All API routes force-dynamic**: Every route file exports `export const dynamic = 'force-dynamic'` to disable Next.js caching.
 
 **Database schema sync is deliberate, not automatic**: `npm run build` only runs `prisma generate` (regenerate client types) — it does **not** push or migrate the database schema. Production (VPS) applies schema changes explicitly via `npx prisma db push` as a manual deploy step (see `docs/aws-vps-deployment.md` §7). Vercel deployments use a separate `vercel-build` script (`scripts/vercel-build-db-sync.js`) that runs `prisma db push --accept-data-loss` automatically, but **only when `VERCEL_ENV === 'preview'`** — production-on-Vercel and anything else skips it. This exists because Vercel preview databases have no other way to pick up schema changes; if story/video saves start failing on a preview deploy with a generic 500, check whether the preview DB is missing recently added columns first.
@@ -92,7 +97,7 @@ No test suite exists yet.
 |-------|-----------|
 | **User** | `id`, `email` (unique), `name`, `passwordHash` (nullable — SSO-only users have none), `appRole` (ADMIN\|LEADERSHIP\|MANAGING_PRODUCER\|SUPERVISOR\|PRODUCER\|VIEWER), `personId` (optional FK → Person) |
 | **Person** | `id`, `name`, `email` (unique), `defaultRole` (REPORTER\|EDITOR\|PHOTOGRAPHER\|VIDEOGRAPHER\|GRAPHIC_DESIGNER\|PUBLICATION_DESIGNER\|OTHER), `isActive` (default true — see "Inactive people" design decision above) |
-| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed` (compliance flag, stays boolean), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `workingDraftUrl` (link to in-progress draft doc; hidden from cards once the story is published), `createdByUserId` (FK → User), `version` (optimistic locking) |
+| **Story** | `id`, `slug`, `budgetLine`, `isEnterprise`, `status` (DRAFT\|SCHEDULED\|PUBLISHED_ITERATING\|PUBLISHED_FINAL\|SHELVED), `onlinePubDate`, `onlinePubDateTBD`, `printPubDate`, `printPubDateTBD`, `notes`, `wordCount`, `notifyTeam`, `aiContributed` (compliance flag, stays boolean), `onBudget`, `sortOrder`, `shelvedAt`, `postUrl`, `workingDraftUrl` (link to in-progress draft doc; hidden from cards once the story is published), `pitchedAt` (non-null → in the Pitches pool; `onBudget` must be false — see "Pitches" design decision above), `expiresAt` (pitch shelf-life deadline; null = evergreen), `pitchText` (the tip as filed; write-once, never accepted by `updateStorySchema`), `createdByUserId` (FK → User), `version` (optimistic locking) |
 | **StoryTag** | `id`, `storyId`, `tag` (StoryTagEnum: HERE_IS_OREGON\|CONTENT_REMIX\|SUMMER_FOCUS\|OREGON_INSIGHT\|VIDEO_POTENTIAL\|PUSHED — editorial indicators; add new ones by extending the enum + `INDICATOR_OPTIONS` in `src/lib/utils.ts`, no migration needed), unique on `(storyId, tag)` |
 | **StoryAssignment** | `storyId`, `personId`, `role` (REPORTER\|EDITOR\|VIDEOGRAPHER\|OTHER — same shared `AssignmentRoleEnum` as VideoAssignment) — composite unique on all three |
 | **Visual** | `storyId`, `type` (PHOTO\|GRAPHIC\|MAP), `description`, `personId` (optional) |
@@ -159,6 +164,11 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/stories/[id]/tags` | GET/POST/DELETE | Story editorial-tag indicators |
 | `/api/stories/[id]/visuals` | GET/POST | Story visuals |
 | `/api/stories/[id]/publish` | POST | Promote an off-budget draft onto the budget (`onBudget: true`); creator, assignee, or admin only |
+| `/api/pitches` | POST | File a pitch (creates a `Story` with `pitchedAt` set, `onBudget: false`) |
+| `/api/budget/pitches` | GET | List the active Pitches pool (any authenticated user) |
+| `/api/stories/[id]/claim` | POST | Claim a pitch (creates a `StoryAssignment`; single-claimant, 409 if already claimed) |
+| `/api/stories/[id]/unclaim` | POST | Drop a claim (self, or anyone with elevated access removing someone else's) |
+| `/api/stories/[id]/send-to-budget` | POST | Promote a pitch onto the real budget (rewrites `slug`/`budgetLine`, clears `pitchedAt`/`expiresAt`) |
 | `/api/videos` | GET/POST | List/create videos |
 | `/api/videos/[id]` | GET/PUT/DELETE | Video CRUD |
 | `/api/videos/[id]/assignments` | GET/POST | Video staff assignments |
@@ -179,7 +189,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/api/admin/teams/[id]/members/[memberId]` | PUT/DELETE | Update/remove a team member (admin only) |
 | `/api/teams/[id]/content` | GET | Content assigned to a team |
 | `/api/teams/my` | GET | Teams the current user belongs to |
-| `/api/cron/purge-shelved` | GET | Purge stories/videos shelved 90+ days (requires `Authorization: Bearer CRON_SECRET`) |
+| `/api/cron/purge-shelved` | GET | Shelve expired, unclaimed pitches (`pitchedAt` kept for recovery), then purge stories/videos shelved 90+ days (requires `Authorization: Bearer CRON_SECRET`) |
 
 ### SWR Hooks (`src/lib/hooks/`)
 
@@ -194,6 +204,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `useMyTeams()` | Fetch teams the current user belongs to |
 | `useTeams()` | Fetch all teams (admin use) |
 | `useTeamContent(teamId)` | Fetch content assigned to a team |
+| `usePitches()` | Fetch the active Pitches pool |
 
 **SWR hooks return `[]`/`undefined` while loading, not just when empty** — code deriving "is this id still valid" from a hook's list (e.g. `usePeople()`) must check the hook's `isLoading` flag first, or a cold cache reads as "nothing exists" and can silently strip valid state (e.g. mention pruning in `MentionTextarea.tsx`).
 
@@ -207,6 +218,7 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | `/budget/enterprise` | Enterprise stories/videos grouped by week |
 | `/budget/edition` | Print edition view |
 | `/budget/shelved` | Shelved content (auto-deletes after 90 days) |
+| `/budget/pitches` | Pitches pool — file, claim/unclaim, send to budget (nav entry gated behind `PITCHES_ENABLED`; reachable by direct URL either way) |
 | `/stories/new` | Create new story |
 | `/stories/[id]` | Story detail/edit with assignments, visuals, linked videos |
 | `/videos/new` | Create new video |
@@ -224,12 +236,12 @@ All routes return `400` (Zod validation), `404` (not found), `409` (P2002 unique
 | Directory | Key Components |
 |-----------|--------------|
 | `auth/` | LoginForm.tsx |
-| `budget/` | StoryCard.tsx, VideoCard.tsx, ColumnsView.tsx, AgendaView.tsx (shared by Daily and Team schedule views) |
+| `budget/` | StoryCard.tsx, VideoCard.tsx, ColumnsView.tsx, AgendaView.tsx (shared by Daily and Team schedule views), PitchRow.tsx, PitchExpiryBadge.tsx |
 | `dnd/` | DndProvider.tsx, SortableCard.tsx |
 | `layout/` | TopNav.tsx, SearchCommand.tsx (Cmd+K), BudgetTabNav.tsx |
 | `people/` | PersonBadge.tsx, PersonForm.tsx, PersonList.tsx, PersonPicker.tsx |
 | `providers/` | SWRProvider.tsx, SessionProvider.tsx, ThemeProvider.tsx |
-| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx (shared by story and video detail views — takes `parentType: "story" \| "video"`), VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, CommentSection.tsx, MentionTextarea.tsx |
+| `story/` | StoryDetail.tsx, StoryForm.tsx, AssignmentSection.tsx (shared by story and video detail views — takes `parentType: "story" \| "video"`), VisualSection.tsx, StoryVideoSection.tsx, VideoDetail.tsx, VideoForm.tsx, CommentSection.tsx, MentionTextarea.tsx, PitchDetail.tsx |
 | `ui/` | 20+ shadcn/ui components (button, card, dialog, input, select, date-time-picker, etc.) |
 
 Root layout (`src/app/layout.tsx`) wraps: `SessionProvider` → `ThemeProvider` → `SWRProvider` → `TopNav` + `Toaster`.
@@ -249,6 +261,7 @@ Full detail (models, `resolveDay()` precedence, permissions, API routes, SWR hoo
 | Flag | Env var | Default | Effect when `false` |
 |------|---------|---------|---------------------|
 | `VIDEOS_ENABLED` | `NEXT_PUBLIC_VIDEOS_ENABLED` | `true` | Hides all standalone video UI: "New Video" buttons, the Videos toggle on the daily view, the shelved-videos section, video results in search, and video rows in Me/Teams views. `/videos/new` and `/videos/[id]` redirect to `/`. Videos linked to stories remain in the DB but are not surfaced. |
+| `PITCHES_ENABLED` | `NEXT_PUBLIC_PITCHES_ENABLED` | `false` | Hides the "Pitches" nav entry only. The API routes and `/budget/pitches` page still work directly by URL — this flag exists to keep the feature isolated from the nav while it's still being built out (issue #24), not to actually gate access. |
 
 **Important**: `NEXT_PUBLIC_VIDEOS_ENABLED` is baked into the client bundle at build time. Toggling it requires a full rebuild — changing the env var in a hosting dashboard and redeploying without a rebuild will update server-side redirects but leave the client UI unchanged.
 
