@@ -162,6 +162,66 @@ export function todayString(): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Minimal shape needed to classify/format a "content item" by its online pub
+ *  date — satisfied by PersonContentItem (see /api/people/[id]/content) and
+ *  anything shaped like it (draft stories/videos, etc). */
+export interface DatedContentItem {
+  onlinePubDate: string | null;
+  onlinePubDateTBD: boolean;
+  slug: string;
+}
+
+/** A dated item's online pub date as "YYYY-MM-DD", or null if TBD/unset.
+ *  Pub dates are "newsroom time encoded as UTC" (see dateToBucket), so this
+ *  reads UTC fields rather than converting time zones. */
+export function itemDateStr(item: Pick<DatedContentItem, "onlinePubDate" | "onlinePubDateTBD">): string | null {
+  if (item.onlinePubDateTBD || !item.onlinePubDate) return null;
+  const d = new Date(item.onlinePubDate);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** Format a dated item's online pub date for display in a content list row
+ *  (e.g. "Sep 12, 2026 · 7:30 AM"), or "TBD". Same UTC-as-newsroom-time
+ *  convention as itemDateStr/formatPubDate. */
+export function formatItemDate(item: Pick<DatedContentItem, "onlinePubDate" | "onlinePubDateTBD">): string {
+  if (item.onlinePubDateTBD || !item.onlinePubDate) return "TBD";
+  const d = new Date(item.onlinePubDate);
+  const fakeLocal = new Date(
+    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
+    d.getUTCHours(), d.getUTCMinutes()
+  );
+  return format(fakeLocal, "MMM d, yyyy · h:mm a");
+}
+
+/** Split a list of dated content items into TBD / Upcoming / Past buckets,
+ *  each pre-sorted for display:
+ *   - tbd: alphabetical by slug
+ *   - upcoming: soonest-first (ascending) — what's due next belongs on top
+ *   - past: most-recent-first (descending)
+ *  `today` should be todayString() so classification and callers agree on
+ *  the Pacific-time "today" boundary used across the budget views. */
+export function classifyContentItems<T extends DatedContentItem>(
+  items: T[],
+  today: string
+): { tbd: T[]; upcoming: T[]; past: T[] } {
+  const tbd: T[] = [];
+  const upcoming: T[] = [];
+  const past: T[] = [];
+
+  for (const item of items) {
+    const ds = itemDateStr(item);
+    if (ds === null) tbd.push(item);
+    else if (ds >= today) upcoming.push(item);
+    else past.push(item);
+  }
+
+  tbd.sort((a, b) => a.slug.localeCompare(b.slug));
+  upcoming.sort((a, b) => new Date(a.onlinePubDate!).getTime() - new Date(b.onlinePubDate!).getTime());
+  past.sort((a, b) => new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime());
+
+  return { tbd, upcoming, past };
+}
+
 /** Format a real instant (e.g. a comment's createdAt) in Pacific Time.
  *  Unlike formatPubDate, this must NOT read UTC fields — pub dates are
  *  "newsroom time encoded as UTC" but timestamps are genuine instants, so we

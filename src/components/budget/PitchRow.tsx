@@ -64,7 +64,7 @@ export function PitchRow({ pitch, onUpdate }: { pitch: PitchListItem; onUpdate: 
   return (
     <div className="flex items-start gap-3 rounded-lg border px-3 py-2.5">
       <Link href={`/stories/${pitch.id}`} className="min-w-0 flex-1 hover:underline">
-        <p className="text-sm">{pitch.pitchText}</p>
+        <p className="text-sm font-medium">{pitch.pitchText}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Pitched by {pitch.createdByUser?.name ?? "Unknown"}</span>
           {claimant && <span>· Claimed by {claimant.name}</span>}

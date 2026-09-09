@@ -4,8 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
-import { format } from "date-fns"
-import { FileText, Video, Send, Info } from "lucide-react"
+import { FileText, Video, Send, Info, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -13,21 +12,20 @@ import { useDrafts } from "@/lib/hooks/useDrafts"
 import { usePitches } from "@/lib/hooks/usePitches"
 import { PitchRow } from "@/components/budget/PitchRow"
 import { DeleteDraftDialog } from "@/components/story/DeleteDraftDialog"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, canCreateContent } from "@/lib/utils"
+import { CollapsibleSection, EmptySection } from "@/components/CollapsibleSection"
+import { ContentRow } from "@/components/budget/ContentItemRow"
+import {
+  STORY_STATUS_LABELS,
+  canCreateContent,
+  canViewPeople,
+  classifyContentItems,
+  formatItemDate,
+  todayString,
+} from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
-
-function formatItemDate(date: string | null | undefined, tbd: boolean): string {
-  if (tbd || !date) return "TBD"
-  const d = new Date(date)
-  const fakeLocal = new Date(
-    d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(),
-    d.getUTCHours(), d.getUTCMinutes()
-  )
-  return format(fakeLocal, "MMM d, yyyy · h:mm a")
-}
 
 export function MeView() {
   const { data: session } = useSession()
@@ -43,7 +41,7 @@ export function MeView() {
 
       {canCreate && <MyPitchesSections />}
 
-      {myPersonId && <MyContentSection personId={myPersonId} />}
+      {myPersonId && <AssignedContentSection personId={myPersonId} />}
 
       {!canCreate && !myPersonId && (
         <div className="rounded-lg border bg-card p-12 text-center">
@@ -110,7 +108,7 @@ function DraftsSection() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Drafts</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Drafts</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
@@ -121,7 +119,7 @@ function DraftsSection() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-sm font-medium text-muted-foreground">My Drafts</h2>
+      <h2 className="text-sm font-semibold text-foreground">My Drafts</h2>
 
       {!isEmpty && (
         <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -213,7 +211,7 @@ function DraftRow({
         <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">{slug}</span>
+            <span className="text-sm font-semibold">{slug}</span>
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-dashed">
               Draft
             </Badge>
@@ -228,7 +226,7 @@ function DraftRow({
           )}
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">
-          {formatItemDate(date, dateTBD)}
+          {formatItemDate({ onlinePubDate: date, onlinePubDateTBD: dateTBD })}
         </span>
       </Link>
 
@@ -260,7 +258,7 @@ function MyPitchesSections() {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Pitches</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Pitches</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
       </div>
     )
@@ -275,7 +273,7 @@ function MyPitchesSections() {
     <div className="space-y-6">
       {myPitches.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
             My Pitches <span className="ml-1 text-xs font-normal">({myPitches.length})</span>
           </h2>
           <div className="space-y-1">
@@ -288,7 +286,7 @@ function MyPitchesSections() {
 
       {myClaimed.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-sm font-semibold text-foreground">
             My Claimed Pitches <span className="ml-1 text-xs font-normal">({myClaimed.length})</span>
           </h2>
           <div className="space-y-1">
@@ -302,15 +300,26 @@ function MyPitchesSections() {
   )
 }
 
-function MyContentSection({ personId }: { personId: string }) {
-  const { data, isLoading } = useSWR<{ person: { id: string; name: string }; items: PersonContentItem[] }>(
-    `/api/people/${personId}/content`
-  )
+function AssignedContentSection({ personId }: { personId: string }) {
+  const { data: session } = useSession()
+  const canLinkToProfile = canViewPeople(session?.user?.appRole ?? "")
+
+  const { data, isLoading } = useSWR<{
+    person: { id: string; name: string }
+    items: PersonContentItem[]
+    pastTruncated?: boolean
+  }>(`/api/people/${personId}/content?cap=1`)
+
+  // TBD is collapsed by default here (unlike /people/[id]) — on your own
+  // page, what's actively coming up matters more than the unscheduled backlog.
+  const [openTbd, setOpenTbd] = useState(false)
+  const [openUpcoming, setOpenUpcoming] = useState(true)
+  const [openPast, setOpenPast] = useState(true)
 
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
@@ -323,7 +332,7 @@ function MyContentSection({ personId }: { personId: string }) {
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
         <div className="rounded-lg border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">No content assigned to you.</p>
         </div>
@@ -331,54 +340,67 @@ function MyContentSection({ personId }: { personId: string }) {
     )
   }
 
-  return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-medium text-muted-foreground">
-        My Assigned Content
-        <span className="ml-2 text-xs font-normal">({items.length})</span>
-      </h2>
-      <div className="space-y-1">
-        {items.map((item) => (
-          <AssignedContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function AssignedContentRow({ item }: { item: PersonContentItem }) {
-  const href = item.type === "story" ? `/stories/${item.id}` : `/videos/${item.id}`
-  const Icon = item.type === "story" ? FileText : Video
+  const { tbd, upcoming, past } = classifyContentItems(items, todayString())
 
   return (
-    <Link
-      href={href}
-      className="flex items-start gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent/50 transition-colors"
-    >
-      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{item.slug}</span>
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-            {PERSON_ROLE_LABELS[item.role] ?? item.role}
-          </Badge>
-          {item.status === "DRAFT" ? (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
-              Unpublished
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-              {STORY_STATUS_LABELS[item.status] ?? item.status}
-            </Badge>
-          )}
-        </div>
-        {item.budgetLine && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
+    <div className="space-y-4">
+      <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
+
+      <CollapsibleSection title="TBD" count={tbd.length} open={openTbd} onToggle={() => setOpenTbd((v) => !v)}>
+        {tbd.length === 0 ? (
+          <EmptySection />
+        ) : (
+          <div className="space-y-1">
+            {tbd.map((item) => (
+              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+            ))}
+          </div>
         )}
-      </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
-        {formatItemDate(item.onlinePubDate, item.onlinePubDateTBD)}
-      </span>
-    </Link>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Upcoming"
+        count={upcoming.length}
+        open={openUpcoming}
+        onToggle={() => setOpenUpcoming((v) => !v)}
+      >
+        {upcoming.length === 0 ? (
+          <EmptySection />
+        ) : (
+          <div className="space-y-1">
+            {upcoming.map((item) => (
+              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} highlightToday />
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Past"
+        count={past.length}
+        truncated={data?.pastTruncated}
+        open={openPast}
+        onToggle={() => setOpenPast((v) => !v)}
+      >
+        {past.length === 0 ? (
+          <EmptySection />
+        ) : (
+          <div className="space-y-1">
+            {past.map((item) => (
+              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+            ))}
+            {data?.pastTruncated && canLinkToProfile && (
+              <Link
+                href={`/people/${personId}`}
+                className="flex items-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                View full history
+                <ArrowRight className="size-3" />
+              </Link>
+            )}
+          </div>
+        )}
+      </CollapsibleSection>
+    </div>
   )
 }
