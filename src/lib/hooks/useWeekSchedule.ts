@@ -14,6 +14,7 @@ export interface WeekSchedulePerson {
   id: string
   name: string
   teamIds: string[]
+  teamRoles: { teamId: string; role: string }[]
   days: WeekScheduleDay[]
 }
 

@@ -14,6 +14,10 @@ export interface RosterMember {
   id: string
   name: string
   teamIds: string[]
+  /** Role per team membership (EDITOR|MEMBER) — a person can be an editor on
+   *  one team and a plain member on another, so this is keyed by team, not
+   *  global. Added for /schedule/teams' "editors at the top" ordering. */
+  teamRoles: { teamId: string; role: string }[]
 }
 
 export type AvailabilityRow = {
@@ -73,7 +77,7 @@ export async function loadScheduleWindow(
       select: {
         id: true,
         name: true,
-        teamMemberships: { select: { team: { select: { id: true, name: true } } } },
+        teamMemberships: { select: { role: true, team: { select: { id: true, name: true } } } },
       },
       orderBy: { name: "asc" },
     }),
@@ -97,12 +101,20 @@ export async function loadScheduleWindow(
   const teams = new Map<string, { id: string; name: string }>()
   const rosterOut: RosterMember[] = roster.map((person) => {
     for (const tm of person.teamMemberships) teams.set(tm.team.id, tm.team)
-    return { id: person.id, name: person.name, teamIds: person.teamMemberships.map((tm) => tm.team.id) }
+    return {
+      id: person.id,
+      name: person.name,
+      teamIds: person.teamMemberships.map((tm) => tm.team.id),
+      teamRoles: person.teamMemberships.map((tm) => ({ teamId: tm.team.id, role: tm.role })),
+    }
   })
 
   return {
     roster: rosterOut,
-    teams: Array.from(teams.values()),
+    // Alphabetical, not insertion order — insertion order was just an
+    // accident of which team the name-sorted roster's first member happens
+    // to belong to, and reshuffled whenever the roster changed.
+    teams: Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name)),
     availabilityByPerson: groupByPerson(availabilityRows),
     workScheduleByPerson: groupByPerson(workSchedule),
     markers,
