@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
         id: person.id,
         name: person.name,
         teamIds: person.teamIds,
+        teamRoles: person.teamRoles,
         days,
       };
     });

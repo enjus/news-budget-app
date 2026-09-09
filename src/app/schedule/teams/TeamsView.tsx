@@ -55,6 +55,10 @@ export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: strin
   return parts.join(", ")
 }
 
+function isEditorOf(person: WeekSchedulePerson, teamId: string): boolean {
+  return person.teamRoles.some((tr) => tr.teamId === teamId && tr.role === "EDITOR")
+}
+
 interface DragState {
   personId: string
   startIdx: number
@@ -288,7 +292,15 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           </div>
 
           {teams.map((team) => {
-            const teamPeople = filteredPeople.filter((p) => p.teamIds.includes(team.id))
+            // Editors surface first for at-a-glance "who's in charge here";
+            // within each group, order stays whatever filteredPeople already
+            // has it in (name-sorted, from the roster query) — a plain
+            // .sort() would be unstable-safe here anyway, but relying on
+            // Array.prototype.sort's stability keeps it a one-line partition
+            // rather than a second name comparison.
+            const teamPeople = filteredPeople
+              .filter((p) => p.teamIds.includes(team.id))
+              .sort((a, b) => Number(isEditorOf(b, team.id)) - Number(isEditorOf(a, team.id)))
             if (teamPeople.length === 0) return null
             const summary = teamHeaderSummary(teamPeople, columns.map((i) => weekDates[i]))
             return (
