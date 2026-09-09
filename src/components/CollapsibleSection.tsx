@@ -39,7 +39,7 @@ export function CollapsibleSection({
       >
         <Chevron className={compact ? "size-3 shrink-0" : "size-3.5 shrink-0"} />
         {title}
-        <span className="font-normal">
+        <span className="text-muted-foreground font-normal">
           ({count}{truncated ? "+" : ""})
         </span>
         {truncated && (

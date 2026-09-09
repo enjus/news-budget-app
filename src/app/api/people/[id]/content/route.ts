@@ -101,11 +101,14 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         ...videoAssignments.map(toVideoItem),
       ];
 
-      // TBD first (alpha by slug), then reverse chronological
+      // TBD first (alpha by slug), then reverse chronological. A null date
+      // counts as TBD here too, matching itemDateStr().
       items.sort((a, b) => {
-        if (a.onlinePubDateTBD && b.onlinePubDateTBD) return a.slug.localeCompare(b.slug);
-        if (a.onlinePubDateTBD) return -1;
-        if (b.onlinePubDateTBD) return 1;
+        const aTbd = a.onlinePubDateTBD || !a.onlinePubDate;
+        const bTbd = b.onlinePubDateTBD || !b.onlinePubDate;
+        if (aTbd && bTbd) return a.slug.localeCompare(b.slug);
+        if (aTbd) return -1;
+        if (bTbd) return 1;
         return new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime();
       });
 
@@ -116,11 +119,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     // cap each, mirroring /api/teams/[id]/content's per-member convention.
     const todayStart = new Date(`${todayString()}T00:00:00Z`);
 
+    // A row with onlinePubDateTBD:false and onlinePubDate:null shouldn't occur
+    // through the API (requirePubDateField enforces the pairing at create/update
+    // time) but legacy/out-of-band data can still have it. Treat it as TBD here
+    // too, matching itemDateStr()'s `onlinePubDateTBD || !onlinePubDate` — the
+    // OR below is what lets it land in the upcoming/TBD query rather than
+    // disappearing (it can never match the past query's `onlinePubDate: {lt}`).
     const [storyUpcoming, storyPast, visualUpcoming, visualPast, videoUpcoming, videoPast] = await Promise.all([
       prisma.storyAssignment.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }] },
+          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { story: { select: storySelect } },
         take: TBD_CAP,
@@ -138,7 +147,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.visual.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }] },
+          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { story: { select: storySelect } },
         // Dedupe distinct (story, type) credits at the DB level before `take`.
@@ -158,7 +167,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.videoAssignment.findMany({
         where: {
           personId: id,
-          video: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }] },
+          video: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { video: { select: storySelect } },
         take: TBD_CAP,
@@ -174,15 +183,17 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       }),
     ]);
 
+    // visualUpcoming/visualPast are already distinct on (storyId, type) at the
+    // DB level (see `distinct` above), so no further JS-level dedupe is needed.
     const upcomingItems: PersonContentItem[] = [
       ...storyUpcoming.map(toStoryItem),
-      ...dedupeVisualCredits(visualUpcoming).map((v) => toStoryItem({ role: v.type, story: v.story })),
+      ...visualUpcoming.map((v) => toStoryItem({ role: v.type, story: v.story })),
       ...videoUpcoming.map(toVideoItem),
     ];
 
     const mergedPast: PersonContentItem[] = [
       ...storyPast.map(toStoryItem),
-      ...dedupeVisualCredits(visualPast).map((v) => toStoryItem({ role: v.type, story: v.story })),
+      ...visualPast.map((v) => toStoryItem({ role: v.type, story: v.story })),
       ...videoPast.map(toVideoItem),
     ].sort((a, b) => new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime());
 
@@ -191,11 +202,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     const items: PersonContentItem[] = [...upcomingItems, ...pastItems];
 
-    // TBD first (alpha by slug), then reverse chronological
+    // TBD first (alpha by slug), then reverse chronological. A null date counts
+    // as TBD here too, matching itemDateStr() — it can only ever appear in
+    // `items` via the upcoming/TBD queries above, but treat it defensively.
     items.sort((a, b) => {
-      if (a.onlinePubDateTBD && b.onlinePubDateTBD) return a.slug.localeCompare(b.slug);
-      if (a.onlinePubDateTBD) return -1;
-      if (b.onlinePubDateTBD) return 1;
+      const aTbd = a.onlinePubDateTBD || !a.onlinePubDate;
+      const bTbd = b.onlinePubDateTBD || !b.onlinePubDate;
+      if (aTbd && bTbd) return a.slug.localeCompare(b.slug);
+      if (aTbd) return -1;
+      if (bTbd) return 1;
       return new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime();
     });
 
