@@ -14,8 +14,6 @@ const storyInclude = {
   _count: { select: { comments: true } },
 } as const;
 
-const TBD_CAP = 500;
-
 function localDateStr(date: Date): string {
   const y = date.getUTCFullYear();
   const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -29,25 +27,16 @@ export async function GET() {
     const windowStart = new Date(now);
     windowStart.setDate(now.getDate() - 90);
 
-    const [datedStories, tbdStories] = await Promise.all([
-      prisma.story.findMany({
-        where: {
-          onBudget: true,
-          status: { not: "SHELVED" },
-          printPubDateTBD: false,
-          printPubDate: { gte: windowStart },
-        },
-        include: storyInclude,
-        orderBy: [{ printPubDate: "asc" }, { createdAt: "asc" }],
-      }) as unknown as StoryListItem[],
-
-      prisma.story.findMany({
-        where: { onBudget: true, status: { not: "SHELVED" }, printPubDateTBD: true },
-        include: storyInclude,
-        orderBy: { createdAt: "desc" },
-        take: TBD_CAP,
-      }) as unknown as StoryListItem[],
-    ]);
+    const datedStories = (await prisma.story.findMany({
+      where: {
+        onBudget: true,
+        status: { not: "SHELVED" },
+        printPubDateTBD: false,
+        printPubDate: { gte: windowStart },
+      },
+      include: storyInclude,
+      orderBy: [{ printPubDate: "asc" }, { createdAt: "asc" }],
+    })) as unknown as StoryListItem[];
 
     const groupMap = new Map<string, EditionDateGroup>();
 
@@ -61,16 +50,8 @@ export async function GET() {
     for (const story of datedStories) {
       getOrCreate(localDateStr(new Date(story.printPubDate!))).stories.push(story);
     }
-    for (const story of tbdStories) {
-      getOrCreate("TBD").stories.push(story);
-    }
 
-    const groups = Array.from(groupMap.values()).sort((a, b) => {
-      if (a.date === "TBD" && b.date === "TBD") return 0;
-      if (a.date === "TBD") return 1;
-      if (b.date === "TBD") return -1;
-      return a.date.localeCompare(b.date);
-    });
+    const groups = Array.from(groupMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
     return NextResponse.json({ groups });
   } catch (error) {

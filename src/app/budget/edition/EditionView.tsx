@@ -34,7 +34,6 @@ const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGroupDate(dateStr: string): string {
-  if (dateStr === "TBD") return "TBD"
   try {
     return format(parseISO(dateStr), "EEEE, MMMM d, yyyy")
   } catch {
@@ -46,7 +45,6 @@ function formatGroupDate(dateStr: string): string {
 const PRINT_DAYS = new Set([0, 3, 5, 6])
 
 function getEditionType(dateStr: string): "Print/Online Newspaper" | "Online Newspaper" | null {
-  if (dateStr === "TBD") return null
   try {
     const day = parseISO(dateStr).getDay()
     return PRINT_DAYS.has(day) ? "Print/Online Newspaper" : "Online Newspaper"
@@ -150,11 +148,7 @@ export function EditionView() {
       const newGroups: EditionDateGroup[] = [
         ...groups,
         { date: dateStr, stories: [] },
-      ].sort((a, b) => {
-        if (a.date === "TBD") return 1
-        if (b.date === "TBD") return -1
-        return a.date.localeCompare(b.date)
-      })
+      ].sort((a, b) => a.date.localeCompare(b.date))
 
       setLocalGroups(newGroups)
     },
@@ -213,11 +207,7 @@ export function EditionView() {
       if (!targetGroup) {
         targetGroup = { date: targetDate, stories: [] }
         newGroups.push(targetGroup)
-        newGroups.sort((a, b) => {
-          if (a.date === "TBD") return 1
-          if (b.date === "TBD") return -1
-          return a.date.localeCompare(b.date)
-        })
+        newGroups.sort((a, b) => a.date.localeCompare(b.date))
       }
 
       const story = groups.find((g) => g.date === sourceDate)?.stories.find((s) => s.id === itemId)
@@ -229,13 +219,8 @@ export function EditionView() {
 
       // API — only update printPubDate
       try {
-        let patchBody: Record<string, unknown>
-        if (targetDate === "TBD") {
-          patchBody = { printPubDate: null, printPubDateTBD: true }
-        } else {
-          const midnight = new Date(`${targetDate}T00:00:00`)
-          patchBody = { printPubDate: midnight.toISOString(), printPubDateTBD: false }
-        }
+        const midnight = new Date(`${targetDate}T00:00:00`)
+        const patchBody = { printPubDate: midnight.toISOString(), printPubDateTBD: false }
 
         await fetch(apiPath(`/api/stories/${itemId}`), {
           method: "PATCH",
@@ -314,17 +299,13 @@ export function EditionView() {
             const today = todayString()
             const tomorrow = format(addDays(parseISO(today), 1), "yyyy-MM-dd")
             const pastGroups = groups.filter(
-              (g) => g.date !== "TBD" && g.date <= today && g.stories.length > 0
+              (g) => g.date <= today && g.stories.length > 0
             )
-            const upcomingGroups = groups.filter(
-              (g) => g.date === "TBD" || g.date >= tomorrow
-            )
+            const upcomingGroups = groups.filter((g) => g.date >= tomorrow)
 
             function renderGroup(group: EditionDateGroup) {
               const itemIds = group.stories.map((s) => `story-${s.id}`)
-              const newStoryHref = group.date === "TBD"
-                ? "/stories/new"
-                : `/stories/new?printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
+              const newStoryHref = `/stories/new?printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
               return (
                 <DroppableSection
                   key={group.date}
@@ -378,7 +359,7 @@ export function EditionView() {
                       </div>
                     )}
 
-                    {/* ── Upcoming + TBD ── */}
+                    {/* ── Upcoming ── */}
                     {upcomingGroups.map(renderGroup)}
                   </>
                 )}
