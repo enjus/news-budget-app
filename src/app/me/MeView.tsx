@@ -124,7 +124,7 @@ function DraftsSection() {
       {!isEmpty && (
         <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" />
-          <span>Drafts aren&rsquo;t sent to the budget until you (or a teammate) send them — they&rsquo;re visible to anyone who navigates to them, so treat this as a personal staging list, not a private one.</span>
+          <span>Drafts won&rsquo;t appear on the budget until sent.</span>
         </div>
       )}
 
