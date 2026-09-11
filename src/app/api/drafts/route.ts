@@ -29,8 +29,10 @@ export async function GET() {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
-    // "Your drafts" includes drafts you created and drafts you're assigned to —
-    // matches the visibility grant in blockedFromDraft() (src/lib/api-helpers.ts).
+    // "Your drafts" includes drafts you created and drafts you're assigned to.
+    // This is just a personal-convenience filter, not an access boundary —
+    // any draft is also viewable/editable by anyone who navigates to it
+    // directly (see CLAUDE.md's "Off-budget draft visibility" design decision).
     const { personId } = session.user;
     const ownerOrAssignee = {
       OR: [

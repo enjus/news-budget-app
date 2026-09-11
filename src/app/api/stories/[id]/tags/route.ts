@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createStoryTagSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -16,14 +16,9 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: storyDraftGateSelect,
+      select: { id: true },
     });
     if (!story) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
-
-    const session = await getServerSession(authOptions);
-    if (blockedFromDraft(story, session?.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -64,12 +59,9 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: storyDraftGateSelect,
+      select: { id: true },
     });
     if (!story) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
-    if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
@@ -107,12 +99,9 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id: storyId },
-      select: storyDraftGateSelect,
+      select: { id: true },
     });
     if (!story) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
-    if (blockedFromDraft(story, session.user)) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 

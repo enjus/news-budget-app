@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkWriteLimit, blockedFromDraft, storyDraftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
+import { checkWriteLimit, checkVersionConflict } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const story = await prisma.story.findUnique({
       where: { id },
-      select: storyDraftGateSelect,
+      select: { onBudget: true, pitchedAt: true },
     });
 
     if (!story) {
@@ -58,11 +58,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         { error: "Pitches must be sent to budget, not published directly" },
         { status: 400 }
       );
-    }
-
-    // Only the creator, an assignee, or an admin can publish a draft
-    if (blockedFromDraft(story, session.user)) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
     if (clientVersion !== undefined) {

@@ -124,7 +124,7 @@ function DraftsSection() {
       {!isEmpty && (
         <div className="flex items-start gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" />
-          <span>Drafts are private until sent to budget — visible only to you and anyone assigned to them.</span>
+          <span>Drafts aren&rsquo;t sent to the budget until you (or a teammate) send them — they&rsquo;re visible to anyone who navigates to them, so treat this as a personal staging list, not a private one.</span>
         </div>
       )}
 
@@ -327,7 +327,11 @@ function AssignedContentSection({ personId }: { personId: string }) {
     )
   }
 
-  const items = (data?.items ?? []).filter((i) => VIDEOS_ENABLED || i.type !== "video")
+  // Exclude drafts here — they already have their own "My Drafts" section
+  // above (with publish/delete actions); showing them again here would just
+  // duplicate that list. /api/people/[id]/content itself no longer filters
+  // onBudget, since /people/[id] and the Teams member view do want drafts.
+  const items = (data?.items ?? []).filter((i) => (VIDEOS_ENABLED || i.type !== "video") && i.onBudget)
 
   if (items.length === 0) {
     return (

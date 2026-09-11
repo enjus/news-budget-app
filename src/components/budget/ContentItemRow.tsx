@@ -45,6 +45,14 @@ export function ContentRow({
               {STORY_STATUS_LABELS[item.status] ?? item.status}
             </Badge>
           )}
+          {/* onBudget is distinct from item.status === "DRAFT" (the editorial
+              StoryStatus enum value, e.g. an unpublished-but-on-budget story) —
+              this flags the off-budget/staging concept instead. */}
+          {!item.onBudget && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-dashed text-muted-foreground">
+              Not yet budgeted
+            </Badge>
+          )}
         </div>
         {item.budgetLine && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.budgetLine}</p>
