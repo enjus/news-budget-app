@@ -4,7 +4,6 @@ import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { canCreateContent } from "@/lib/utils"
-import { blockedFromDraft } from "@/lib/api-helpers"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { commentInclude, commentOrderBy } from "@/lib/comments"
 import { VideoDetailWrapper } from "./VideoDetailWrapper"
@@ -29,8 +28,7 @@ export default async function VideoPage({ params }: VideoPageProps) {
     },
   })
 
-  // Off-budget drafts are only visible to their creator, assignees, or admins
-  if (!video || blockedFromDraft(video, session?.user)) {
+  if (!video) {
     notFound()
   }
 

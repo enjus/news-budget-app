@@ -14,6 +14,7 @@ export interface PersonContentItem {
   status: string;
   onlinePubDate: string | null;
   onlinePubDateTBD: boolean;
+  onBudget: boolean;
   role: string;
 }
 
@@ -25,7 +26,7 @@ const PAST_CAP = 10;
 // /api/budget/enterprise, /api/budget/edition, and /api/teams/[id]/content).
 const TBD_CAP = 500;
 
-function toStoryItem(a: { role: string; story: { id: string; slug: string; budgetLine: string; status: string; onlinePubDate: Date | null; onlinePubDateTBD: boolean } }): PersonContentItem {
+function toStoryItem(a: { role: string; story: { id: string; slug: string; budgetLine: string; status: string; onlinePubDate: Date | null; onlinePubDateTBD: boolean; onBudget: boolean } }): PersonContentItem {
   return {
     type: "story",
     id: a.story.id,
@@ -34,11 +35,12 @@ function toStoryItem(a: { role: string; story: { id: string; slug: string; budge
     status: a.story.status,
     onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
     onlinePubDateTBD: a.story.onlinePubDateTBD,
+    onBudget: a.story.onBudget,
     role: a.role,
   };
 }
 
-function toVideoItem(a: { role: string; video: { id: string; slug: string; budgetLine: string; status: string; onlinePubDate: Date | null; onlinePubDateTBD: boolean } }): PersonContentItem {
+function toVideoItem(a: { role: string; video: { id: string; slug: string; budgetLine: string; status: string; onlinePubDate: Date | null; onlinePubDateTBD: boolean; onBudget: boolean } }): PersonContentItem {
   return {
     type: "video",
     id: a.video.id,
@@ -47,12 +49,13 @@ function toVideoItem(a: { role: string; video: { id: string; slug: string; budge
     status: a.video.status,
     onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
     onlinePubDateTBD: a.video.onlinePubDateTBD,
+    onBudget: a.video.onBudget,
     role: a.role,
   };
 }
 
 const storySelect = {
-  id: true, slug: true, budgetLine: true, status: true, onlinePubDate: true, onlinePubDateTBD: true,
+  id: true, slug: true, budgetLine: true, status: true, onlinePubDate: true, onlinePubDateTBD: true, onBudget: true,
 } as const;
 
 export async function GET(request: NextRequest, { params }: RouteContext) {
@@ -82,15 +85,15 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       // relies on this — its Past date-range filter needs the complete history.
       const [storyAssignments, visualCredits, videoAssignments] = await Promise.all([
         prisma.storyAssignment.findMany({
-          where: { personId: id, story: { onBudget: true, status: { not: "SHELVED" } } },
+          where: { personId: id, story: { status: { not: "SHELVED" } } },
           include: { story: { select: storySelect } },
         }),
         prisma.visual.findMany({
-          where: { personId: id, story: { onBudget: true, status: { not: "SHELVED" } } },
+          where: { personId: id, story: { status: { not: "SHELVED" } } },
           include: { story: { select: storySelect } },
         }),
         prisma.videoAssignment.findMany({
-          where: { personId: id, video: { onBudget: true, status: { not: "SHELVED" } } },
+          where: { personId: id, video: { status: { not: "SHELVED" } } },
           include: { video: { select: storySelect } },
         }),
       ]);
@@ -129,7 +132,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.storyAssignment.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
+          story: { status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { story: { select: storySelect } },
         take: TBD_CAP,
@@ -137,7 +140,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.storyAssignment.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
+          story: { status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
         },
         include: { story: { select: storySelect } },
         orderBy: { story: { onlinePubDate: "desc" } },
@@ -147,7 +150,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.visual.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
+          story: { status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { story: { select: storySelect } },
         // Dedupe distinct (story, type) credits at the DB level before `take`.
@@ -157,7 +160,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.visual.findMany({
         where: {
           personId: id,
-          story: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
+          story: { status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
         },
         include: { story: { select: storySelect } },
         distinct: ["storyId", "type"],
@@ -167,7 +170,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.videoAssignment.findMany({
         where: {
           personId: id,
-          video: { onBudget: true, status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
+          video: { status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { video: { select: storySelect } },
         take: TBD_CAP,
@@ -175,7 +178,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.videoAssignment.findMany({
         where: {
           personId: id,
-          video: { onBudget: true, status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
+          video: { status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
         },
         include: { video: { select: storySelect } },
         orderBy: { video: { onlinePubDate: "desc" } },

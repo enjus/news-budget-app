@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft, prismaErrorCode, storyDraftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
 export const dynamic = 'force-dynamic'
@@ -36,13 +36,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
-    // Off-budget drafts are only visible to their creator, assignees, or admins.
-    // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can read it.
-    const session = await getServerSession(authOptions);
-    if (blockedFromDraft(story, session?.user)) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
-
     return NextResponse.json(story);
   } catch (error) {
     console.error("GET /api/stories/[id] error:", error);
@@ -62,18 +55,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    // Block non-owners/non-assignees from editing off-budget drafts (pitches are exempt — public pool item)
     const existing = await prisma.story.findUnique({
       where: { id },
       select: {
-        ...storyDraftGateSelect,
+        pitchedAt: true,
         expiresAt: true,
         status: true,
       },
     });
-    if (existing && blockedFromDraft(existing, session.user)) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
 
     const body = await request.json();
     const result = updateStorySchema.safeParse(body);
@@ -197,15 +186,6 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (limited) return limited;
 
     const { id } = await params;
-
-    // Block non-owners/non-assignees from deleting off-budget drafts (pitches are exempt — public pool item)
-    const existing = await prisma.story.findUnique({
-      where: { id },
-      select: storyDraftGateSelect,
-    });
-    if (existing && blockedFromDraft(existing, session.user)) {
-      return NextResponse.json({ error: "Story not found" }, { status: 404 });
-    }
 
     await prisma.story.delete({ where: { id } });
 

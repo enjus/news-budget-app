@@ -18,6 +18,7 @@ type VisualCredit = {
     status: string
     onlinePubDate: Date | null
     onlinePubDateTBD: boolean
+    onBudget: boolean
   }
 }
 
@@ -30,6 +31,7 @@ function mapVisualToContentItem(v: VisualCredit): PersonContentItem {
     status: v.story.status,
     onlinePubDate: v.story.onlinePubDate?.toISOString() ?? null,
     onlinePubDateTBD: v.story.onlinePubDateTBD,
+    onBudget: v.story.onBudget,
     role: v.type,
   }
 }
@@ -99,7 +101,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               story: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
               },
@@ -113,6 +114,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -122,7 +124,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               story: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 onlinePubDateTBD: false,
                 onlinePubDate: { lt: todayStart },
@@ -137,6 +138,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -149,7 +151,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               story: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
               },
@@ -163,6 +164,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -177,7 +179,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               story: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 onlinePubDateTBD: false,
                 onlinePubDate: { lt: todayStart },
@@ -192,6 +193,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -205,7 +207,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               video: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
               },
@@ -219,6 +220,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -228,7 +230,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
             where: {
               personId: member.personId,
               video: {
-                onBudget: true,
                 status: { not: "SHELVED" },
                 onlinePubDateTBD: false,
                 onlinePubDate: { lt: todayStart },
@@ -243,6 +244,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
                   status: true,
                   onlinePubDate: true,
                   onlinePubDateTBD: true,
+                  onBudget: true,
                 },
               },
             },
@@ -259,6 +261,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           status: a.story.status,
           onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
           onlinePubDateTBD: a.story.onlinePubDateTBD,
+          onBudget: a.story.onBudget,
           role: a.role,
         }))
         const visualUpcomingItems: PersonContentItem[] = dedupeVisualCredits(visualUpcoming).map(mapVisualToContentItem)
@@ -271,6 +274,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           status: a.video.status,
           onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
           onlinePubDateTBD: a.video.onlinePubDateTBD,
+          onBudget: a.video.onBudget,
           role: a.role,
         }))
         const storyPastItems: PersonContentItem[] = storyPast.map((a) => ({
@@ -281,6 +285,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           status: a.story.status,
           onlinePubDate: a.story.onlinePubDate?.toISOString() ?? null,
           onlinePubDateTBD: a.story.onlinePubDateTBD,
+          onBudget: a.story.onBudget,
           role: a.role,
         }))
         const videoPastItems: PersonContentItem[] = videoPast.map((a) => ({
@@ -291,6 +296,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           status: a.video.status,
           onlinePubDate: a.video.onlinePubDate?.toISOString() ?? null,
           onlinePubDateTBD: a.video.onlinePubDateTBD,
+          onBudget: a.video.onBudget,
           role: a.role,
         }))
 

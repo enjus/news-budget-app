@@ -280,8 +280,8 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
       {!video.onBudget && (
         <div className="flex items-center justify-between rounded-lg border border-dashed bg-muted/30 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            This draft was created by {video.createdByUser?.name ?? "an unknown user"}. Only the
-            creator and assigned users can see it until it&apos;s added to the budget.
+            This draft was created by {video.createdByUser?.name ?? "an unknown user"}. It won&apos;t
+            appear on the budget until it&apos;s sent.
           </p>
           <div className="flex shrink-0 items-center gap-2">
             <DeleteDraftDialog slug={video.slug} disabled={deletingDraft} onDelete={handleDeleteDraft} />

@@ -194,9 +194,16 @@ function TeamMembersView({ teamId }: { teamId: string }) {
       return true
     })
 
-    const { tbd: tbdItems, upcoming: upcomingItems, past: pastItems } = classifyContentItems(filtered, today)
+    // Drafts (onBudget: false) aren't scheduled yet — pull them out before
+    // date-classifying the rest, so a draft with a future onlinePubDate
+    // doesn't land in Upcoming and get mistaken for committed work.
+    const draftItems = filtered.filter((item) => !item.onBudget)
+    const { tbd: tbdItems, upcoming: upcomingItems, past: pastItems } = classifyContentItems(
+      filtered.filter((item) => item.onBudget),
+      today
+    )
 
-    return { ...mc, filtered, tbdItems, upcomingItems, pastItems }
+    return { ...mc, filtered, draftItems, tbdItems, upcomingItems, pastItems }
   })
 
   const totalItems = filteredMembers.reduce((sum, mc) => sum + mc.filtered.length, 0)
@@ -261,6 +268,7 @@ function TeamMembersView({ teamId }: { teamId: string }) {
           const isCollapsed = !expandedMembers.includes(`${teamId}:${mc.person.id}`)
           const Chevron = isCollapsed ? ChevronRight : ChevronDown
           const tbdKey = `${mc.person.id}:tbd`
+          const draftsKey = `${mc.person.id}:drafts`
           const pastKey = `${mc.person.id}:past`
 
           return (
@@ -311,6 +319,21 @@ function TeamMembersView({ teamId }: { teamId: string }) {
                         >
                           <div className="space-y-1">
                             {mc.tbdItems.map((item) => (
+                              <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+                            ))}
+                          </div>
+                        </CollapsibleSection>
+                      )}
+                      {mc.draftItems.length > 0 && (
+                        <CollapsibleSection
+                          title="Drafts"
+                          count={mc.draftItems.length}
+                          open={expandedSections.has(draftsKey)}
+                          onToggle={() => toggleSection(draftsKey)}
+                          compact
+                        >
+                          <div className="space-y-1">
+                            {mc.draftItems.map((item) => (
                               <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
                             ))}
                           </div>

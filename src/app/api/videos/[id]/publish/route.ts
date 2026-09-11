@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { checkWriteLimit, blockedFromDraft, draftGateSelect, checkVersionConflict } from "@/lib/api-helpers";
+import { checkWriteLimit, checkVersionConflict } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const video = await prisma.video.findUnique({
       where: { id },
-      select: draftGateSelect,
+      select: { onBudget: true },
     });
 
     if (!video) {
@@ -49,11 +49,6 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     if (video.onBudget) {
       return NextResponse.json({ error: "Video is already on the budget" }, { status: 400 });
-    }
-
-    // Only the creator, an assignee, or an admin can publish a draft
-    if (blockedFromDraft(video, session.user)) {
-      return NextResponse.json({ error: "Video not found" }, { status: 404 });
     }
 
     if (clientVersion !== undefined) {

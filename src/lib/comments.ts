@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommentSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, blockedFromDraft } from "@/lib/api-helpers";
+import { checkWriteLimit } from "@/lib/api-helpers";
 import {
   collectEmails,
   notifyCommentMention,
@@ -23,38 +23,19 @@ export const commentOrderBy = { createdAt: "asc" } as const;
 
 type Kind = "story" | "video";
 
-const parentDraftSelect = {
-  id: true,
-  onBudget: true,
-  createdByUserId: true,
-  assignments: { select: { personId: true } },
-} as const;
-// Story-only — Video has no pitchedAt column.
-const storyDraftSelect = { ...parentDraftSelect, pitchedAt: true } as const;
-
 /**
  * GET handler shared by /api/stories/[id]/comments and /api/videos/[id]/comments.
- * Read access matches the other child collections (assignments, visuals): any
- * request that got past the auth middleware can read — except off-budget
- * drafts, which stay visible only to their creator, assignees, or admins,
- * same as the parent story/video detail route.
+ * Any request that got past the auth middleware can read — off-budget drafts
+ * are no longer gated (see CLAUDE.md's "Off-budget draft visibility" design
+ * decision), same as the parent story/video detail route.
  */
 export async function listComments(kind: Kind, parentId: string) {
   const parent =
     kind === "story"
-      ? await prisma.story.findUnique({ where: { id: parentId }, select: storyDraftSelect })
-      : await prisma.video.findUnique({ where: { id: parentId }, select: parentDraftSelect });
+      ? await prisma.story.findUnique({ where: { id: parentId }, select: { id: true } })
+      : await prisma.video.findUnique({ where: { id: parentId }, select: { id: true } });
 
   if (!parent) {
-    return NextResponse.json(
-      { error: kind === "story" ? "Story not found" : "Video not found" },
-      { status: 404 }
-    );
-  }
-
-  // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can read its comments.
-  const session = await getServerSession(authOptions);
-  if (blockedFromDraft(parent, session?.user)) {
     return NextResponse.json(
       { error: kind === "story" ? "Story not found" : "Video not found" },
       { status: 404 }
@@ -110,8 +91,6 @@ export async function createComment(
     id: true,
     slug: true,
     budgetLine: true,
-    onBudget: true,
-    createdByUserId: true,
     assignments: { select: { personId: true, role: true, person: { select: { name: true, email: true, isActive: true } } } },
   } as const;
 
@@ -123,7 +102,6 @@ export async function createComment(
           where: { id: parentId },
           select: {
             ...parentSelect,
-            pitchedAt: true,
             visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
           },
         })
@@ -135,14 +113,6 @@ export async function createComment(
   const parent = storyParent ?? videoParent;
 
   if (!parent) {
-    return NextResponse.json(
-      { error: kind === "story" ? "Story not found" : "Video not found" },
-      { status: 404 }
-    );
-  }
-
-  // A pitch (pitchedAt set) is a public pool item, not a private draft — anyone can comment/mention on it.
-  if (blockedFromDraft(parent, session.user)) {
     return NextResponse.json(
       { error: kind === "story" ? "Story not found" : "Video not found" },
       { status: 404 }

@@ -69,6 +69,7 @@ export function PersonView({ id }: PersonViewProps) {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [openDrafts, setOpenDrafts] = useState(true)
   const [openTbd, setOpenTbd] = useState(true)
   const [openUpcoming, setOpenUpcoming] = useState(true)
   const [openPast, setOpenPast] = useState(true)
@@ -119,7 +120,14 @@ export function PersonView({ id }: PersonViewProps) {
     return true
   })
 
-  const { tbd: tbdItems, upcoming: upcomingItems, past: pastItemsAll } = classifyContentItems(globalFiltered, today)
+  // Drafts (onBudget: false) aren't scheduled yet — pull them out before
+  // date-classifying the rest, so a draft with a future onlinePubDate doesn't
+  // land in Upcoming and get mistaken for committed work.
+  const draftItems = globalFiltered.filter((item) => !item.onBudget)
+  const { tbd: tbdItems, upcoming: upcomingItems, past: pastItemsAll } = classifyContentItems(
+    globalFiltered.filter((item) => item.onBudget),
+    today
+  )
   // Date range filter applies only to past
   const pastItems = pastItemsAll.filter((item) => {
     const ds = itemDateStr(item)
@@ -301,6 +309,23 @@ export function PersonView({ id }: PersonViewProps) {
 
       {/* Sections */}
       <div className="space-y-4">
+        <CollapsibleSection
+          title="Drafts"
+          count={draftItems.length}
+          open={openDrafts}
+          onToggle={() => setOpenDrafts((v) => !v)}
+        >
+          {draftItems.length === 0 ? (
+            <EmptySection />
+          ) : (
+            <div className="space-y-1">
+              {draftItems.map((item) => (
+                <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
+              ))}
+            </div>
+          )}
+        </CollapsibleSection>
+
         <CollapsibleSection
           title="TBD"
           count={tbdItems.length}

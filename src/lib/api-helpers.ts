@@ -1,62 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { writeLimiter, WRITE_LIMIT, readLimiter, READ_LIMIT } from "./rate-limit"
-import { hasAdminAccess } from "./utils"
 
-/**
- * Off-budget draft privacy check, shared by every route that touches a
- * Story/Video or one of its child resources (comments, visuals,
- * assignments, tags). Per CLAUDE.md this is deliberately per-route rather
- * than centralized middleware — callers still 404 on a missing parent
- * themselves; this only covers the onBudget/createdByUserId/assignments gate
- * itself, so the same rule can't drift between routes the way it previously
- * did.
- *
- * A draft is visible (and, per this same check, writable) to its creator,
- * anyone assigned to it, and admins. `parent.assignments` must be selected
- * by the caller — pass the StoryAssignment/VideoAssignment rows' `personId`s.
- * Visual credits are deliberately NOT consulted here (unlike
- * `collectEmails()`'s notification recipients) — the simplest rule for draft
- * access is assignment-based only.
- *
- * A Story with `pitchedAt` set is a Pitches pool item (issue #24), not a
- * private draft — it's public even though `onBudget` is also false, so it
- * short-circuits the same way `onBudget` does. Callers that don't select
- * `pitchedAt` (e.g. Video, which has no pitch concept) pass `undefined` and
- * fall through to the normal draft check.
- */
-export function blockedFromDraft(
-  parent: { onBudget: boolean; createdByUserId: string | null; assignments: { personId: string }[]; pitchedAt?: Date | string | null },
-  sessionUser: { id: string; appRole: string; personId?: string | null } | null | undefined
-): boolean {
-  if (parent.onBudget) return false
-  if (parent.pitchedAt) return false
-  if (!sessionUser) return true
-  if (sessionUser.id === parent.createdByUserId) return false
-  if (hasAdminAccess(sessionUser.appRole)) return false
-  if (sessionUser.personId && parent.assignments.some((a) => a.personId === sessionUser.personId)) return false
-  return true
-}
-
-/**
- * The exact `select` shape `blockedFromDraft()` requires, as a reusable
- * constant instead of hand-retyping it at every call site (this drifted
- * across 5 routes before `blockedFromDraft()` existed — see the comment
- * above — and the select feeding it can drift the same way if it's not
- * shared too). `draftGateSelect` covers Video (no pitch concept);
- * `storyDraftGateSelect` adds `pitchedAt` for Story. Spread one of these
- * into a route's own `select`/`select.story` object; add sibling fields
- * (e.g. `expiresAt`, `status`) alongside the spread as needed.
- */
-export const draftGateSelect = {
-  onBudget: true,
-  createdByUserId: true,
-  assignments: { select: { personId: true } },
-} as const
-
-export const storyDraftGateSelect = {
-  ...draftGateSelect,
-  pitchedAt: true,
-} as const
+// Off-budget draft privacy (view + write ownership gate) was deliberately
+// removed — see CLAUDE.md's "Off-budget draft visibility" design decision.
+// Drafts are now visible/writable the same way all other content is
+// (canCreateContent(role) only); exposure is limited by navigability, not
+// an access check.
 
 /**
  * Shared optimistic-locking conflict check, used by every route that accepts
