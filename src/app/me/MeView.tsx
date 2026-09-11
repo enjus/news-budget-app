@@ -131,7 +131,7 @@ function DraftsSection() {
       {isEmpty ? (
         <div className="rounded-lg border border-dashed bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            No drafts. Use &ldquo;Save as Draft&rdquo; when creating a story or video to stage it here first.
+            No drafts. Use &ldquo;Save as Draft&rdquo; when creating a story to stage it here first.
           </p>
         </div>
       ) : (
