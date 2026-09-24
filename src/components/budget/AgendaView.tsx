@@ -14,7 +14,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, dateToBucket, bucketToUtcStamp, todayString, cn } from "@/lib/utils"
+import { TIME_BUCKETS, dateToBucket, bucketToUtcStamp, compareAgendaOrder, pubTimeKey, todayString, cn } from "@/lib/utils"
 import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { StoryListItem, VideoWithRelations } from "@/types/index"
 import type { AgendaDay, AgendaResponse } from "@/app/api/budget/agenda/route"
@@ -239,8 +239,21 @@ export function AgendaView({
       let newPubDate: string | null = null
       let newTBD = false
 
+      // A drop inside the item's own bucket on its own day keeps its exact
+      // time: the agenda is chronological, so it can't be moved past
+      // neighbors with different times, and restamping it to the bucket
+      // default would silently change its pub time.
+      const sourceBucket =
+        !sourceItem.onlinePubDateTBD && sourceItem.onlinePubDate
+          ? dateToBucket(new Date(sourceItem.onlinePubDate))
+          : "TBD"
+      const staysInBucket =
+        targetDate === sourceDate && targetBucketId === sourceBucket && sourceBucket !== "TBD"
+
       if (targetDate === "TBD") {
         newTBD = true
+      } else if (staysInBucket) {
+        newPubDate = new Date(sourceItem.onlinePubDate!).toISOString()
       } else if (targetBucketId) {
         const stamp = bucketToUtcStamp(targetDate, targetBucketId)
         if (stamp) {
@@ -267,18 +280,14 @@ export function AgendaView({
           (!sourceItem.onlinePubDate ||
             new Date(sourceItem.onlinePubDate).toISOString() !== new Date(newPubDate!).toISOString()))
 
-      // The bucket the moved item actually lands in ("TBD" or a TIME_BUCKETS
-      // id) — reordering and sortOrder reindexing are scoped to just this
-      // bucket's items within the target day (or the flat TBD list).
-      // beforeCompositeId is only trustworthy as an insertion point when it
-      // was resolved from a same-bucket neighbor (targetBucketId set) —
-      // otherwise (e.g. a cross-day drop that preserves the item's own
-      // time-of-day) we can't be sure it lands in that neighbor's bucket.
-      const effectiveBucketKey = newTBD ? "TBD" : dateToBucket(new Date(newPubDate!))
+      // Manual order only matters among items that tie on sort key: the exact
+      // pub time for dated items (a bucket drop stamps every item with the
+      // bucket's default time), or the flat TBD list. Reordering and
+      // sortOrder reindexing are scoped to the moved item's tie group.
+      // positionHint is only trustworthy as an insertion point when it was
+      // resolved from a same-bucket neighbor (targetBucketId set).
+      const movingKey = newTBD ? "TBD" : pubTimeKey({ onlinePubDate: newPubDate })
       const positionHint = targetBucketId ? beforeCompositeId : null
-
-      const bucketKeyFor = (i: { onlinePubDate: Date | string | null }) =>
-        i.onlinePubDate ? dateToBucket(new Date(i.onlinePubDate)) : "TBD"
 
       function reorder<T extends { id: string; sortOrder: number; onlinePubDate: Date | string | null }>(
         list: T[],
@@ -286,22 +295,23 @@ export function AgendaView({
         prefix: "story" | "video"
       ) {
         const rest = list.filter((x) => x.id !== moving.id)
-        const inBucket = rest.filter((x) => bucketKeyFor(x) === effectiveBucketKey)
-        const outsideBucket = rest.filter((x) => bucketKeyFor(x) !== effectiveBucketKey)
-        let insertIndex = inBucket.length
-        if (positionHint) {
-          const idx = inBucket.findIndex((x) => `${prefix}-${x.id}` === positionHint)
-          if (idx !== -1) insertIndex = idx
-        }
-        inBucket.splice(insertIndex, 0, moving)
-        const sortPatches = inBucket
+        const tied = rest.filter((x) => pubTimeKey(x) === movingKey)
+        const others = rest.filter((x) => pubTimeKey(x) !== movingKey)
+        let insertIndex = tied.length
+        const hintIdx = positionHint ? tied.findIndex((x) => `${prefix}-${x.id}` === positionHint) : -1
+        if (hintIdx !== -1) insertIndex = hintIdx
+        // Dropped inside its own bucket but not next to a same-time neighbor:
+        // chronological order already decides its place, nothing to do.
+        if (staysInBucket && hintIdx === -1) return { rebuilt: list, sortPatches: [] }
+        tied.splice(insertIndex, 0, moving)
+        const sortPatches = tied
           .map((item, index) => ({ id: item.id, sortOrder: index, changed: item.sortOrder !== index }))
           .filter((p) => p.changed)
           .map(({ id, sortOrder }) => ({ id, sortOrder }))
-        // Bucket membership among `outsideBucket` items doesn't matter here —
-        // render always regroups by bucket — only relative order within a
-        // bucket (preserved above) does.
-        return { rebuilt: [...outsideBucket, ...inBucket], sortPatches }
+        // Apply the new indexes locally too — render sorts by time then
+        // sortOrder, so stale values would flash the old order until refetch.
+        const reindexed = tied.map((item, index) => ({ ...item, sortOrder: index }))
+        return { rebuilt: [...others, ...reindexed], sortPatches }
       }
 
       const findGroup = (d: string): AgendaDay =>
@@ -520,23 +530,23 @@ export function AgendaView({
           const stories = showStories ? group.stories : []
           const videos = showVideos ? group.videos : []
 
-          // Group by bucket only (stable sort) rather than exact time — the
-          // stories/videos arrays already arrive sortOrder-ordered within
-          // each bucket from the API, and a millisecond-precision sort here
-          // would discard that manual drag order whenever items in the same
-          // bucket share a pub time (the common case: dropping into a bucket
-          // stamps every item in it with that bucket's default time).
-          const bucketOrdinal = (item: { onlinePubDate: Date | string | null }) =>
-            item.onlinePubDate
-              ? TIME_BUCKETS.findIndex((b) => b.id === dateToBucket(new Date(item.onlinePubDate!)))
-              : Infinity
+          // Chronological; among items sharing an exact time, stories come
+          // before videos and sortOrder orders within each type (sortOrder is
+          // indexed per type, so it isn't comparable across them).
           const merged: Array<
             | { kind: "story"; item: StoryListItem }
             | { kind: "video"; item: VideoWithRelations }
           > = [
             ...stories.map((item) => ({ kind: "story" as const, item })),
             ...videos.map((item) => ({ kind: "video" as const, item })),
-          ].sort((a, b) => bucketOrdinal(a.item) - bucketOrdinal(b.item))
+          ].sort(
+            (a, b) =>
+              compareAgendaOrder(
+                { onlinePubDate: a.item.onlinePubDate, sortOrder: 0 },
+                { onlinePubDate: b.item.onlinePubDate, sortOrder: 0 },
+              ) ||
+              (a.kind !== b.kind ? (a.kind === "story" ? -1 : 1) : a.item.sortOrder - b.item.sortOrder),
+          )
 
           const itemIds = merged.map((m) => `${m.kind}-${m.item.id}`)
           const count = merged.length

@@ -97,6 +97,30 @@ export function bucketToUtcStamp(dateStr: string, bucketId: string): string | nu
   return `${dateStr}T${h}:${m}:00.000Z`;
 }
 
+/** Agenda ordering: dated items chronologically, with `sortOrder` breaking ties
+ *  between items that share an exact pub time (the common case after a bucket
+ *  drop, which stamps the bucket's default time). Dated items precede TBD ones.
+ *  TBD items have no time, so `sortOrder` (manual priority) is their only key;
+ *  callers rely on a stable sort to keep their fetched order for further ties. */
+export function compareAgendaOrder(
+  a: { onlinePubDate: Date | string | null; sortOrder: number },
+  b: { onlinePubDate: Date | string | null; sortOrder: number }
+): number {
+  if (!a.onlinePubDate || !b.onlinePubDate) {
+    if (a.onlinePubDate) return -1;
+    if (b.onlinePubDate) return 1;
+    return a.sortOrder - b.sortOrder;
+  }
+  const byTime = new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
+  return byTime !== 0 ? byTime : a.sortOrder - b.sortOrder;
+}
+
+/** Tie-group key for manual ordering: the exact pub time, or "TBD" when there
+ *  is none. Items sharing a key are the only ones `sortOrder` can reorder. */
+export function pubTimeKey(i: { onlinePubDate: Date | string | null }): string {
+  return i.onlinePubDate ? new Date(i.onlinePubDate).toISOString() : "TBD";
+}
+
 /** Format a UTC-as-local ISO date as a short time string.
  *  Omits ":00" for on-the-hour times (e.g. "9 AM" not "9:00 AM"). */
 export function formatTime(date: Date | string | null | undefined): string | null {

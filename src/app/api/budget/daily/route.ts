@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { TIME_BUCKETS, dateToBucket } from "@/lib/utils";
+import { TIME_BUCKETS, dateToBucket, compareAgendaOrder } from "@/lib/utils";
 import { parsePersonIds, personAssignmentFilter, parseExcludeReporterIds, reporterTeamExclusionFilter } from "@/lib/budget-query";
 import type { DailyBudgetSlot, StoryListItem, VideoWithRelations } from "@/types";
 
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
           ...exclusionFilter,
         },
         include: storyInclude,
-        orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
+        orderBy: [{ onlinePubDate: "asc" }, { sortOrder: "asc" }],
       }) as unknown as StoryListItem[],
 
       prisma.story.findMany({
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
           ...exclusionFilter,
         },
         include: videoInclude,
-        orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
+        orderBy: [{ onlinePubDate: "asc" }, { sortOrder: "asc" }],
       }) as unknown as VideoWithRelations[],
 
       prisma.video.findMany({
@@ -121,25 +121,13 @@ export async function GET(request: NextRequest) {
       bucket.videos.push(video);
     }
 
-    // Sort within each bucket: dated items first (by sortOrder — the manual
-    // drag order — then pub time as a tiebreak for items sharing a bucket's
-    // default time), TBD items last in their already-fetched createdAt-desc
-    // order. Comparator returns 0 for TBD/TBD pairs so Array.sort's stability
-    // preserves that order instead of the non-total-order `1` this replaced.
-    const bySortOrderThenPubDate = (
-      a: { onlinePubDate: Date | string | null; sortOrder: number },
-      b: { onlinePubDate: Date | string | null; sortOrder: number }
-    ) => {
-      const aDated = !!a.onlinePubDate;
-      const bDated = !!b.onlinePubDate;
-      if (aDated !== bDated) return aDated ? -1 : 1;
-      if (!aDated) return 0;
-      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      return new Date(a.onlinePubDate!).getTime() - new Date(b.onlinePubDate!).getTime();
-    };
+    // Sort within each bucket chronologically, with sortOrder (manual drag
+    // order) breaking ties between items sharing an exact pub time. TBD items
+    // have no time, so they sort by sortOrder and fall back to the
+    // already-fetched createdAt-desc order (Array.sort is stable).
     for (const slot of bucketMap.values()) {
-      slot.stories.sort(bySortOrderThenPubDate);
-      slot.videos.sort(bySortOrderThenPubDate);
+      slot.stories.sort(compareAgendaOrder);
+      slot.videos.sort(compareAgendaOrder);
     }
 
     // Return all buckets in definition order
