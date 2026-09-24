@@ -247,7 +247,7 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Edit note for ${a.name}`}
+                      aria-label={`Edit note for ${displayName(a.name)}`}
                       onClick={() => startEditNote(a)}
                     >
                       <Pencil className="size-3.5" />
@@ -255,7 +255,7 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Remove ${a.name}`}
+                      aria-label={`Remove ${displayName(a.name)}`}
                       onClick={() => handleRemove(a.id)}
                     >
                       <X className="size-3.5" />

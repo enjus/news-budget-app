@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
-import { dateOnly, toDateString, todayString, SHIFT_ROLES, SHIFT_ROLE_LABELS } from "@/lib/utils"
+import { dateOnly, toDateString, todayString, displayName, SHIFT_ROLES, SHIFT_ROLE_LABELS } from "@/lib/utils"
 import { resolvedSegmentLabel } from "@/components/schedule/AvailabilityChip"
 import { groupPeople, isObservedHoliday, type GroupedDay } from "./groupPeople"
 import type { DaySchedulePerson, DayShiftAssignment } from "@/lib/hooks/useDaySchedule"
@@ -47,7 +47,7 @@ function ShiftSection({ shifts }: { shifts: DayShiftAssignment[] }) {
                   )}
                 </span>
               )}
-              <span className="text-sm font-medium truncate">{s.name}</span>
+              <span className="text-sm font-medium truncate">{displayName(s.name)}</span>
             </div>
             <div className="text-right shrink-0 max-w-[55%]">
               <p className="text-xs text-muted-foreground">{SHIFT_ROLE_LABELS[s.shiftRole] ?? s.shiftRole}</p>
@@ -90,7 +90,7 @@ function PersonRow({ person, teamsById }: { person: DaySchedulePerson; teamsById
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
       <div className="min-w-0">
-        <div className="text-sm font-medium truncate">{person.name}</div>
+        <div className="text-sm font-medium truncate">{displayName(person.name)}</div>
         {person.teamIds.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-0.5">
             {person.teamIds.map((id) => (
