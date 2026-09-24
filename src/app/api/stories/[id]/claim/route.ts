@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, displayName } from "@/lib/utils";
 import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     }
     if (story.assignments.length > 0) {
       return NextResponse.json(
-        { error: `Already claimed by ${story.assignments[0].person.name}` },
+        { error: `Already claimed by ${displayName(story.assignments[0].person.name)}` },
         { status: 409 }
       );
     }

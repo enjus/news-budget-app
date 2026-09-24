@@ -156,7 +156,7 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   const [text, setText] = useState("")
   const [notes, setNotes] = useState("")
   const [evergreen, setEvergreen] = useState(false)
-  // Blank = let the server default to 30 days out (see /api/pitches).
+  // Blank = let the server default to 7 days out (see /api/pitches).
   const [expiresAt, setExpiresAt] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -248,7 +248,7 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Defaults to 30 days out if left blank. Extended automatically once claimed and sent to budget.
+                  Defaults to 7 days out if left blank. Extended automatically once claimed and sent to budget.
                 </p>
               </>
             )}

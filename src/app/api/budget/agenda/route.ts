@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { addDays } from "date-fns";
+import { compareAgendaOrder } from "@/lib/utils";
 import { parsePersonIds, personAssignmentFilter, parseExcludeReporterIds, reporterTeamExclusionFilter } from "@/lib/budget-query";
 import type { StoryListItem, VideoWithRelations } from "@/types";
 
@@ -76,7 +77,7 @@ export async function GET(request: NextRequest) {
           ...exclusionFilter,
         },
         include: storyInclude,
-        orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
+        orderBy: [{ onlinePubDate: "asc" }, { sortOrder: "asc" }],
       }) as unknown as StoryListItem[],
 
       prisma.story.findMany({
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
           ...exclusionFilter,
         },
         include: videoInclude,
-        orderBy: [{ sortOrder: "asc" }, { onlinePubDate: "asc" }],
+        orderBy: [{ onlinePubDate: "asc" }, { sortOrder: "asc" }],
       }) as unknown as VideoWithRelations[],
 
       prisma.video.findMany({
@@ -132,26 +133,16 @@ export async function GET(request: NextRequest) {
       tbd.videos.push(video);
     }
 
-    // Sort items by sortOrder (the manual drag order) first, falling back to
-    // onlinePubDate as a tiebreak for dated items and to the already-fetched
-    // order (createdAt desc) for TBD items, which share no meaningful
-    // sortOrder tiebreak of their own until reordered.
-    const bySortOrderThenTime = (
-      a: { onlinePubDate: Date | null; sortOrder: number },
-      b: { onlinePubDate: Date | null; sortOrder: number }
-    ) => {
-      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-      if (!a.onlinePubDate && !b.onlinePubDate) return 0;
-      if (!a.onlinePubDate) return 1;
-      if (!b.onlinePubDate) return -1;
-      return new Date(a.onlinePubDate).getTime() - new Date(b.onlinePubDate).getTime();
-    };
+    // Chronological, with sortOrder (manual drag order) breaking ties between
+    // items sharing an exact pub time. TBD items have no time, so sortOrder is
+    // their only key; the already-fetched createdAt-desc order breaks further
+    // ties (Array.sort is stable).
     for (const day of days) {
-      day.stories.sort(bySortOrderThenTime);
-      day.videos.sort(bySortOrderThenTime);
+      day.stories.sort(compareAgendaOrder);
+      day.videos.sort(compareAgendaOrder);
     }
-    tbd.stories.sort(bySortOrderThenTime);
-    tbd.videos.sort(bySortOrderThenTime);
+    tbd.stories.sort(compareAgendaOrder);
+    tbd.videos.sort(compareAgendaOrder);
 
     return NextResponse.json({ start, days, tbd });
   } catch (error) {

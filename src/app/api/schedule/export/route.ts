@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dateOnly, toDateString } from "@/lib/utils";
+import { dateOnly, displayName, toDateString } from "@/lib/utils";
 import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
 import { loadScheduleWindow, type AvailabilityRow } from "@/lib/schedule-queries";
 
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
 
         rows.push(
           toCsvRow([
-            person.name,
+            displayName(person.name),
             teamNames,
             date,
             statusLabel(resolved),

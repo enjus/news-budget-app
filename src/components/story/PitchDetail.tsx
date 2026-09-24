@@ -149,7 +149,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         }
         throw new Error(json?.error ?? "Failed to update")
       }
-      toast.success(expiresAt ? "Expiry extended 30 days" : "Marked evergreen")
+      toast.success(expiresAt ? "Expiry extended 7 days" : "Marked evergreen")
       onUpdate()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update")
@@ -233,10 +233,10 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
                     variant="outline"
                     className="gap-1"
                     disabled={working}
-                    onClick={() => patchExpiry(addDays(new Date(), 30).toISOString())}
+                    onClick={() => patchExpiry(addDays(new Date(), 7).toISOString())}
                   >
                     <CalendarPlus className="size-3" />
-                    Extend 30 days
+                    Extend 7 days
                   </Button>
                   <Button size="sm" variant="ghost" className="gap-1" disabled={working} onClick={() => patchExpiry(null)}>
                     <InfinityIcon className="size-3" />

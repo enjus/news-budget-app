@@ -12,7 +12,7 @@ import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
+import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate, displayName } from "@/lib/utils"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -169,12 +169,12 @@ function PersonRow({
   return (
     <div className="flex items-stretch">
       <div className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
-        <span className="truncate">{person.name}</span>
+        <span className="truncate">{displayName(person.name)}</span>
         {onEditWeek && (
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`Edit ${person.name}'s week`}
+            aria-label={`Edit ${displayName(person.name)}'s week`}
             className="shrink-0"
             onClick={() => onEditWeek(person.id)}
           >
