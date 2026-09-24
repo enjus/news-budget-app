@@ -45,21 +45,13 @@ function getMondayOfWeek(date: Date): string {
 }
 
 /**
- * Derive the week bucket key for an enterprise item.
- * - If both onlinePubDateTBD and printPubDateTBD are true → "TBD"
- * - Otherwise use the Monday of the week containing the earliest non-TBD date
+ * Derive the week bucket key for an enterprise item from its online pub date
+ * only — print date deliberately has no effect here (it's scheduled on the
+ * Edition view). TBD online date → "TBD".
  */
 function getDateBucket(story: EnterpriseStoryItem): string {
-  if (story.onlinePubDateTBD && story.printPubDateTBD) return "TBD";
-
-  const candidates: Date[] = [];
-  if (!story.onlinePubDateTBD && story.onlinePubDate) candidates.push(new Date(story.onlinePubDate));
-  if (!story.printPubDateTBD && story.printPubDate) candidates.push(new Date(story.printPubDate));
-
-  if (candidates.length === 0) return "TBD";
-
-  candidates.sort((a, b) => a.getTime() - b.getTime());
-  return getMondayOfWeek(candidates[0]);
+  if (story.onlinePubDateTBD || !story.onlinePubDate) return "TBD";
+  return getMondayOfWeek(new Date(story.onlinePubDate));
 }
 
 export async function GET() {
@@ -71,29 +63,26 @@ export async function GET() {
     windowStart.setDate(now.getDate() - 90);
 
     const [datedStories, tbdStories, datedVideos, tbdVideos] = await Promise.all([
-      // Dated: at least one of online/print pub date falls within the window
+      // Dated: online pub date falls within the window
       prisma.story.findMany({
         where: {
           onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
-          OR: [
-            { onlinePubDateTBD: false, onlinePubDate: { gte: windowStart } },
-            { printPubDateTBD: false, printPubDate: { gte: windowStart } },
-          ],
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: windowStart },
         },
         include: storyInclude,
-        orderBy: [{ onlinePubDate: "asc" }, { printPubDate: "asc" }, { createdAt: "asc" }],
+        orderBy: [{ onlinePubDate: "asc" }, { createdAt: "asc" }],
       }) as unknown as EnterpriseStoryItem[],
 
-      // TBD: both dates unset, capped to prevent unbounded growth
+      // TBD: online date unset, capped to prevent unbounded growth
       prisma.story.findMany({
         where: {
           onBudget: true,
           isEnterprise: true,
           status: { not: "SHELVED" },
           onlinePubDateTBD: true,
-          printPubDateTBD: true,
         },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
