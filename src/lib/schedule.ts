@@ -6,7 +6,7 @@
 // given day goes through it, so its precedence order and date-arithmetic
 // have to be right once, here, rather than reimplemented per-view.
 
-import { toDateString } from "./utils"
+import { toDateString, displayName } from "./utils"
 
 /** Common shape of a HOLIDAY-checkable marker, loose enough to cover both
  *  server-side markers (Date fields) and markers as they arrive over the
@@ -618,9 +618,10 @@ export function describeShiftConflict(
   weekdayLabel: string
 ): ShiftConflictInfo | null {
   if (!conflict) return null
+  const name = displayName(personName)
   return conflict.kind === "out"
-    ? { severity: "warning", message: `${personName} is out that day.` }
-    : { severity: "note", message: `${weekdayLabel} is outside ${personName}'s normal schedule.` }
+    ? { severity: "warning", message: `${name} is out that day.` }
+    : { severity: "note", message: `${weekdayLabel} is outside ${name}'s normal schedule.` }
 }
 
 /**
