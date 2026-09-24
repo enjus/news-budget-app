@@ -83,9 +83,12 @@ function isBaseline(day: WeekSchedulePerson["days"][number]): boolean {
  *  (that's redundant with the row count below it). Pure presentational
  *  aggregation over already resolved data, not resolution logic, so it
  *  stays here rather than in src/lib/schedule.ts. Empty string when nobody
- *  in the group is out. */
-export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: string[]): string {
-  const outCounts = weekDates.map((date, i) => {
+ *  in the group is out. `columns` are indexes into `weekDates` (and each
+ *  person's `days`) — needed because Single day shows one column that isn't
+ *  index 0. Only meaningful at week scale, so Month view skips it. */
+export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: string[], columns: number[]): string {
+  const outCounts = columns.map((i) => {
+    const date = weekDates[i]
     const n = people.filter((p) => {
       const d = p.days[i]
       return d && !d.split && d.status === "off" && d.reason === "availability"
@@ -255,7 +258,7 @@ export function TeamsView({
     : people
 
   const noTeam = filteredPeople.filter((p) => p.teamIds.length === 0)
-  const noTeamSummary = teamHeaderSummary(noTeam, columns.map((i) => weekDates[i]))
+  const noTeamSummary = isMonth ? "" : teamHeaderSummary(noTeam, weekDates, columns)
 
   // Prev/next: a week at a time, or a calendar month in Month view.
   function stepAnchor(dir: 1 | -1): string {
@@ -380,7 +383,7 @@ export function TeamsView({
               .filter((p) => p.teamIds.includes(team.id))
               .sort((a, b) => Number(isEditorOf(b, team.id)) - Number(isEditorOf(a, team.id)))
             if (teamPeople.length === 0) return null
-            const summary = teamHeaderSummary(teamPeople, columns.map((i) => weekDates[i]))
+            const summary = isMonth ? "" : teamHeaderSummary(teamPeople, weekDates, columns)
             return (
               <div key={team.id} className="space-y-2">
                 <h2 className="sticky left-0 w-fit text-sm font-semibold">
