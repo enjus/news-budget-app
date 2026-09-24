@@ -25,6 +25,11 @@ interface TeamsViewProps {
    *  from this, so switching modes keeps you in roughly the same place. */
   anchor: string
   onAnchorChange: (anchor: string) => void
+  /** Team scope: "mine" (the viewer's teams), "all" (Newsroom, including the
+   *  No team group), or a single team id. */
+  scope: string
+  onScopeChange: (scope: string) => void
+  myTeamIds: string[]
   people: WeekSchedulePerson[]
   teams: { id: string; name: string }[]
   markers: CalendarMarker[]
@@ -197,6 +202,9 @@ export function TeamsView({
   onViewModeChange,
   anchor,
   onAnchorChange,
+  scope,
+  onScopeChange,
+  myTeamIds,
   people,
   teams,
   markers,
@@ -254,7 +262,15 @@ export function TeamsView({
     ? people.filter((p) => columns.some((i) => !isBaseline(p.days[i])))
     : people
 
-  const noTeam = filteredPeople.filter((p) => p.teamIds.length === 0)
+  const visibleTeams =
+    scope === "all"
+      ? teams
+      : scope === "mine"
+        ? teams.filter((t) => myTeamIds.includes(t.id))
+        : teams.filter((t) => t.id === scope)
+  // People with no team belong to Newsroom only.
+  const noTeam = scope === "all" ? filteredPeople.filter((p) => p.teamIds.length === 0) : []
+  const hasRows = noTeam.length > 0 || visibleTeams.some((t) => filteredPeople.some((p) => p.teamIds.includes(t.id)))
   const noTeamSummary = isMonth ? "" : teamHeaderSummary(noTeam, weekDates, columns)
 
   // Prev/next: a week at a time, or a calendar month in Month view.
@@ -306,7 +322,22 @@ export function TeamsView({
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4 flex-wrap">
+          <Select value={scope} onValueChange={onScopeChange}>
+            <SelectTrigger className="w-48" aria-label="Team scope">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {myTeamIds.length > 0 && <SelectItem value="mine">My teams</SelectItem>}
+              <SelectItem value="all">Newsroom</SelectItem>
+              {teams.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2">
           <Checkbox
             id="exceptions-only"
             checked={showExceptionsOnly}
@@ -315,6 +346,7 @@ export function TeamsView({
           <Label htmlFor="exceptions-only" className="font-normal text-sm">
             Show only exceptions
           </Label>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {viewMode === "day" && (
@@ -369,7 +401,7 @@ export function TeamsView({
             </div>
           </div>
 
-          {teams.map((team) => {
+          {visibleTeams.map((team) => {
             // Editors surface first for at-a-glance "who's in charge here";
             // within each group, order stays whatever filteredPeople already
             // has it in (name-sorted, from the roster query) — a plain
@@ -428,7 +460,7 @@ export function TeamsView({
             </div>
           )}
 
-          {filteredPeople.length === 0 && (
+          {!hasRows && (
             <p className="text-sm text-muted-foreground">No one matches the current filter.</p>
           )}
         </div>
