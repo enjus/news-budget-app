@@ -12,6 +12,10 @@ interface MarkerBandProps {
    *  columns above/below this band. */
   weekDates: string[]
   markers: CalendarMarker[]
+  /** Override for the grid's column template — the team grid's Month view
+   *  uses minmax() columns so it can scroll sideways, and the band has to
+   *  share exactly that template to stay aligned with the day columns. */
+  columnTemplate?: string
 }
 
 const KIND_CLASSES: Record<string, string> = {
@@ -23,7 +27,7 @@ const KIND_CLASSES: Record<string, string> = {
 /** One row per marker, grid-positioned to the columns it covers — a marker
  *  spanning the entire displayed week renders as a full-width band, not a
  *  span that assumes both edges are visible (issue #19 §3). */
-export function MarkerBand({ weekDates, markers }: MarkerBandProps) {
+export function MarkerBand({ weekDates, markers, columnTemplate }: MarkerBandProps) {
   // CalendarMarker.startDate/endDate arrive over SWR/fetch as JSON-serialized
   // ISO strings, not Date instances — bandSpan()/toDateString() need Dates.
   const asDates = markers.map((m) => ({
@@ -37,7 +41,7 @@ export function MarkerBand({ weekDates, markers }: MarkerBandProps) {
   return (
     <div className="space-y-1 pb-1">
       {bands.map((band) => (
-        <div key={band.markerId} className="grid gap-1" style={{ gridTemplateColumns: `repeat(${weekDates.length}, 1fr)` }}>
+        <div key={band.markerId} className="grid gap-1" style={{ gridTemplateColumns: columnTemplate ?? `repeat(${weekDates.length}, 1fr)` }}>
           <div
             className={`truncate rounded px-2 py-1 text-xs font-medium ${KIND_CLASSES[band.kind] ?? "bg-muted"}`}
             style={{ gridColumn: `${band.startCol + 1} / span ${band.span}` }}
