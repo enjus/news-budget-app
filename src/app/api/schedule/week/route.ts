@@ -6,6 +6,8 @@ import { loadScheduleWindow } from "@/lib/schedule-queries";
 export const dynamic = 'force-dynamic'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_WINDOW_DAYS = 42;
 
 // Roster-wide resolved status for a Monday-Sunday week, plus markers
 // covering it (issue #19 §8 — the team grid's data source). Batched via
@@ -20,18 +22,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "start (YYYY-MM-DD) is required" }, { status: 400 });
     }
 
+    const endParam = searchParams.get("end");
+    if (endParam !== null && !DATE_RE.test(endParam)) {
+      return NextResponse.json({ error: "end must be YYYY-MM-DD" }, { status: 400 });
+    }
+
     const startDate = dateOnly(start);
-    if (startDate.getUTCDay() !== 1) {
+    // Without `end` this is the original fixed Monday-Sunday week; with it,
+    // the window is caller-defined so the Monday rule doesn't apply.
+    if (endParam === null && startDate.getUTCDay() !== 1) {
       return NextResponse.json({ error: "start must be a Monday" }, { status: 400 });
     }
 
-    // A plain 7-day walk, delegated to the same tested date-range walker the
+    const windowEnd = endParam ?? toDateString(new Date(startDate.getTime() + 6 * DAY_MS));
+    const spanDays = (dateOnly(windowEnd).getTime() - startDate.getTime()) / DAY_MS + 1;
+    if (spanDays < 1 || spanDays > MAX_WINDOW_DAYS) {
+      return NextResponse.json({ error: `end must be within ${MAX_WINDOW_DAYS} days of start` }, { status: 400 });
+    }
+
+    // A plain day walk, delegated to the same tested date-range walker the
     // availability write path uses rather than a third hand-rolled ms-based
     // loop (unconditional here — skipNonWorkingDays only matters for a
     // write, so workSchedule/markers are unused for this call).
-    const weekEnd = toDateString(new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000));
-    const weekDates = expandDateRange(start, weekEnd, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
-    const endDate = dateOnly(weekDates[6]);
+    const weekDates = expandDateRange(start, windowEnd, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
+    const endDate = dateOnly(weekDates[weekDates.length - 1]);
 
     const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
       startDate,
@@ -68,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       start: weekDates[0],
-      end: weekDates[6],
+      end: weekDates[weekDates.length - 1],
       teams,
       people,
       markers,

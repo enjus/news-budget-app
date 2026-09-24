@@ -27,9 +27,12 @@ interface WeekScheduleResponse {
 }
 
 /** Resolved roster status for a Monday-Sunday week (GET /api/schedule/week),
- *  for /schedule/teams. Roster-wide, read-open — no session dependency. */
-export function useWeekSchedule(start: string) {
-  const { data, isLoading, error, mutate } = useSWR<WeekScheduleResponse>(`/api/schedule/week?start=${start}`)
+ *  for /schedule/teams — or, when `end` is given, any window of up to 42
+ *  days (the month view). Roster-wide, read-open — no session dependency. */
+export function useWeekSchedule(start: string, end?: string) {
+  const { data, isLoading, error, mutate } = useSWR<WeekScheduleResponse>(
+    `/api/schedule/week?start=${start}${end ? `&end=${end}` : ""}`
+  )
 
   return {
     start: data?.start ?? start,

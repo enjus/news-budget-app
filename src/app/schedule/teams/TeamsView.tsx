@@ -16,9 +16,15 @@ import { dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
+export type TeamsViewMode = "week" | "day" | "month"
+
 interface TeamsViewProps {
-  weekStart: string
-  onWeekStartChange: (weekStart: string) => void
+  viewMode: TeamsViewMode
+  onViewModeChange: (mode: TeamsViewMode) => void
+  /** Any date inside the displayed week/month — the view derives its window
+   *  from this, so switching modes keeps you in roughly the same place. */
+  anchor: string
+  onAnchorChange: (anchor: string) => void
   people: WeekSchedulePerson[]
   teams: { id: string; name: string }[]
   markers: CalendarMarker[]
@@ -26,9 +32,44 @@ interface TeamsViewProps {
   onSaved: () => void
 }
 
-function weekDatesFrom(weekStart: string): string[] {
-  const start = dateOnly(weekStart)
-  return Array.from({ length: 7 }, (_, i) => toDateString(new Date(start.getTime() + i * 24 * 60 * 60 * 1000)))
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Min width of one day column in Month view — wide enough for a chip label
+ *  and a "Wed 9/23" header; the grid scrolls horizontally past that. */
+const MONTH_COL_REM = 4
+
+function datesBetween(start: string, end: string): string[] {
+  const out: string[] = []
+  for (let t = dateOnly(start).getTime(); t <= dateOnly(end).getTime(); t += DAY_MS) {
+    out.push(toDateString(new Date(t)))
+  }
+  return out
+}
+
+function firstOfMonth(date: string): string {
+  return `${date.slice(0, 7)}-01`
+}
+
+function addMonths(monthStart: string, n: number): string {
+  const [y, m] = monthStart.split("-").map(Number)
+  return toDateString(new Date(Date.UTC(y, m - 1 + n, 1)))
+}
+
+function lastOfMonth(date: string): string {
+  const [y, m] = date.split("-").map(Number)
+  return toDateString(new Date(Date.UTC(y, m, 0)))
+}
+
+/** The fetch window for a mode + anchor: the Monday-Sunday week for Week and
+ *  Single day, the full calendar month for Month. */
+export function visibleRange(mode: TeamsViewMode, anchor: string): { start: string; end: string } {
+  if (mode === "month") return { start: firstOfMonth(anchor), end: lastOfMonth(anchor) }
+  const start = mondayOf(anchor)
+  return { start, end: toDateString(new Date(dateOnly(start).getTime() + 6 * DAY_MS)) }
+}
+
+function monthLabel(date: string): string {
+  return dateOnly(date).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" })
 }
 
 /** Row has no explicit override anywhere in the displayed range — used by
@@ -99,6 +140,7 @@ function DayCell({
 function PersonRow({
   person,
   columns,
+  gridTemplate,
   drag,
   onCellMouseDown,
   onCellMouseEnter,
@@ -106,10 +148,13 @@ function PersonRow({
 }: {
   person: WeekSchedulePerson
   columns: number[]
+  gridTemplate: string
   drag: DragState | null
   onCellMouseDown: (personId: string, idx: number) => void
   onCellMouseEnter: (personId: string, idx: number) => void
-  onEditWeek: (personId: string) => void
+  /** Omitted in Month view — WeekEditor edits one 7-day week, so there's no
+   *  single week for the row's button to open. */
+  onEditWeek?: (personId: string) => void
 }) {
   const selectedRange =
     drag && drag.personId === person.id
@@ -118,19 +163,21 @@ function PersonRow({
 
   return (
     <div className="flex items-stretch gap-2">
-      <div className="w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
+      <div className="sticky left-0 z-10 bg-background w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
         <span className="truncate">{person.name}</span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Edit ${person.name}'s week`}
-          className="shrink-0"
-          onClick={() => onEditWeek(person.id)}
-        >
-          <CalendarDays className="size-3.5" />
-        </Button>
+        {onEditWeek && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Edit ${person.name}'s week`}
+            className="shrink-0"
+            onClick={() => onEditWeek(person.id)}
+          >
+            <CalendarDays className="size-3.5" />
+          </Button>
+        )}
       </div>
-      <div className="grid gap-1 flex-1" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
+      <div className="grid gap-1 flex-1" style={{ gridTemplateColumns: gridTemplate }}>
         {columns.map((idx) => (
           <DayCell
             key={idx}
@@ -145,17 +192,38 @@ function PersonRow({
   )
 }
 
-export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers, isLoading, onSaved }: TeamsViewProps) {
-  const weekDates = useMemo(() => weekDatesFrom(weekStart), [weekStart])
+export function TeamsView({
+  viewMode,
+  onViewModeChange,
+  anchor,
+  onAnchorChange,
+  people,
+  teams,
+  markers,
+  isLoading,
+  onSaved,
+}: TeamsViewProps) {
+  const isMonth = viewMode === "month"
+  // Every date the grid can show: the week for Week/Single day, the whole
+  // month for Month. Column indexes below are indexes into this array.
+  const weekDates = useMemo(() => {
+    const { start, end } = visibleRange(viewMode, anchor)
+    return datesBetween(start, end)
+  }, [viewMode, anchor])
 
-  const [viewMode, setViewMode] = useState<"week" | "day">("week")
   const [dayIndex, setDayIndex] = useState(0)
   const [showExceptionsOnly, setShowExceptionsOnly] = useState(false)
   const [drag, setDrag] = useState<DragState | null>(null)
   const [rangePicker, setRangePicker] = useState<{ personId: string; dates: string[] } | null>(null)
   const [editingWeekFor, setEditingWeekFor] = useState<string | null>(null)
 
-  const columns = viewMode === "week" ? weekDates.map((_, i) => i) : [dayIndex]
+  const columns = viewMode === "day" ? [dayIndex] : weekDates.map((_, i) => i)
+  const gridTemplate = isMonth
+    ? `repeat(${columns.length}, minmax(${MONTH_COL_REM}rem, 1fr))`
+    : `repeat(${columns.length}, 1fr)`
+  // Name column (w-40) + gap-2 + day columns + their gap-1 gutters — the
+  // floor that makes Month scroll sideways instead of squeezing cells.
+  const monthMinWidth = `${10.5 + columns.length * (MONTH_COL_REM + 0.25) - 0.25}rem`
 
   // A single window `mouseup` listener while dragging catches a release
   // outside the grid entirely — per-cell mouseup would miss that.
@@ -189,6 +257,12 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
   const noTeam = filteredPeople.filter((p) => p.teamIds.length === 0)
   const noTeamSummary = teamHeaderSummary(noTeam, columns.map((i) => weekDates[i]))
 
+  // Prev/next: a week at a time, or a calendar month in Month view.
+  function stepAnchor(dir: 1 | -1): string {
+    if (isMonth) return addMonths(firstOfMonth(weekDates[0]), dir)
+    return toDateString(new Date(dateOnly(weekDates[0]).getTime() + dir * 7 * DAY_MS))
+  }
+
   const editingPerson = editingWeekFor ? people.find((p) => p.id === editingWeekFor) : undefined
 
   return (
@@ -199,22 +273,22 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           <Button
             variant="outline"
             size="icon-sm"
-            onClick={() => onWeekStartChange(toDateString(new Date(dateOnly(weekStart).getTime() - 7 * 24 * 60 * 60 * 1000)))}
-            aria-label="Previous week"
+            onClick={() => onAnchorChange(stepAnchor(-1))}
+            aria-label={isMonth ? "Previous month" : "Previous week"}
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onWeekStartChange(mondayOf(todayString()))}>
-            This week
+          <Button variant="outline" size="sm" onClick={() => onAnchorChange(todayString())}>
+            {isMonth ? "This month" : "This week"}
           </Button>
           <span className="text-sm font-medium w-32 text-center">
-            {shortDate(weekDates[0])} – {shortDate(weekDates[6])}
+            {isMonth ? monthLabel(weekDates[0]) : `${shortDate(weekDates[0])} – ${shortDate(weekDates[6])}`}
           </span>
           <Button
             variant="outline"
             size="icon-sm"
-            onClick={() => onWeekStartChange(toDateString(new Date(dateOnly(weekStart).getTime() + 7 * 24 * 60 * 60 * 1000)))}
-            aria-label="Next week"
+            onClick={() => onAnchorChange(stepAnchor(1))}
+            aria-label={isMonth ? "Next month" : "Next week"}
           >
             <ChevronRight className="size-4" />
           </Button>
@@ -223,10 +297,10 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
              far-future planned absence. */}
           <Input
             type="date"
-            aria-label="Jump to week"
+            aria-label={isMonth ? "Jump to month" : "Jump to week"}
             className="w-40"
-            value={weekStart}
-            onChange={(e) => e.target.value && onWeekStartChange(mondayOf(e.target.value))}
+            value={weekDates[0]}
+            onChange={(e) => e.target.value && onAnchorChange(e.target.value)}
           />
         </div>
       </div>
@@ -257,13 +331,14 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
               </SelectContent>
             </Select>
           )}
-          <Select value={viewMode} onValueChange={(v) => setViewMode(v as "week" | "day")}>
+          <Select value={viewMode} onValueChange={(v) => onViewModeChange(v as TeamsViewMode)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="week">Week</SelectItem>
               <SelectItem value="day">Single day</SelectItem>
+              <SelectItem value="month">Month</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -276,12 +351,15 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
+        // Month view is 28-31 day columns: the grid keeps a fixed floor width
+        // and this wrapper scrolls it sideways, with the name column pinned.
+        <div className={isMonth ? "overflow-x-auto pb-2" : undefined}>
+        <div className="space-y-6" style={isMonth ? { minWidth: monthMinWidth } : undefined}>
           <div className="flex items-stretch gap-2">
-            <div className="w-40 shrink-0" />
+            <div className="sticky left-0 z-10 bg-background w-40 shrink-0" />
             <div className="flex-1">
-              <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} />
-              <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: `repeat(${columns.length}, 1fr)` }}>
+              <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} columnTemplate={gridTemplate} />
+              <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: gridTemplate }}>
                 {columns.map((i) => (
                   <div key={i} className="rounded border border-border/60 py-1">
                     {weekdayAbbrev(weekDates[i])} {shortDate(weekDates[i])}
@@ -305,7 +383,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
             const summary = teamHeaderSummary(teamPeople, columns.map((i) => weekDates[i]))
             return (
               <div key={team.id} className="space-y-2">
-                <h2 className="text-sm font-semibold">
+                <h2 className="sticky left-0 w-fit text-sm font-semibold">
                   {team.name}
                   {summary && ` — ${summary}`}
                 </h2>
@@ -315,10 +393,11 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
                       key={p.id}
                       person={p}
                       columns={columns}
+                      gridTemplate={gridTemplate}
                       drag={drag}
                       onCellMouseDown={handleCellMouseDown}
                       onCellMouseEnter={handleCellMouseEnter}
-                      onEditWeek={setEditingWeekFor}
+                      onEditWeek={isMonth ? undefined : setEditingWeekFor}
                     />
                   ))}
                 </div>
@@ -328,7 +407,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
 
           {noTeam.length > 0 && (
             <div className="space-y-2">
-              <h2 className="text-sm font-semibold">
+              <h2 className="sticky left-0 w-fit text-sm font-semibold">
                 No team
                 {noTeamSummary && ` — ${noTeamSummary}`}
               </h2>
@@ -338,10 +417,11 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
                     key={p.id}
                     person={p}
                     columns={columns}
+                    gridTemplate={gridTemplate}
                     drag={drag}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
-                    onEditWeek={setEditingWeekFor}
+                    onEditWeek={isMonth ? undefined : setEditingWeekFor}
                   />
                 ))}
               </div>
@@ -351,6 +431,7 @@ export function TeamsView({ weekStart, onWeekStartChange, people, teams, markers
           {filteredPeople.length === 0 && (
             <p className="text-sm text-muted-foreground">No one matches the current filter.</p>
           )}
+        </div>
         </div>
       )}
 
