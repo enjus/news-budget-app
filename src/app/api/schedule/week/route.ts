@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dateOnly, toDateString } from "@/lib/utils";
+import { addDays, dateOnly, toDateString } from "@/lib/utils";
 import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
@@ -34,9 +34,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "start must be a Monday" }, { status: 400 });
     }
 
-    const windowEnd = endParam ?? toDateString(new Date(startDate.getTime() + 6 * DAY_MS));
+    const windowEnd = endParam ?? addDays(start, 6);
     const spanDays = (dateOnly(windowEnd).getTime() - startDate.getTime()) / DAY_MS + 1;
-    if (spanDays < 1 || spanDays > MAX_WINDOW_DAYS) {
+    // Written as a positive range check so NaN (a well-formed but impossible
+    // date like 2026-13-45) fails it too, instead of slipping past `< 1 || > max`.
+    if (!(spanDays >= 1 && spanDays <= MAX_WINDOW_DAYS)) {
       return NextResponse.json({ error: `end must be within ${MAX_WINDOW_DAYS} days of start` }, { status: 400 });
     }
 

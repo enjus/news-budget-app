@@ -12,7 +12,7 @@ import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
+import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -32,17 +32,14 @@ interface TeamsViewProps {
   onSaved: () => void
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
 /** Min width of one day column in Month view — wide enough for a chip label
  *  and a "Wed 9/23" header; the grid scrolls horizontally past that. */
 const MONTH_COL_REM = 4
 
 function datesBetween(start: string, end: string): string[] {
   const out: string[] = []
-  for (let t = dateOnly(start).getTime(); t <= dateOnly(end).getTime(); t += DAY_MS) {
-    out.push(toDateString(new Date(t)))
-  }
+  // ISO date strings compare correctly as plain strings.
+  for (let d = start; d <= end; d = addDays(d, 1)) out.push(d)
   return out
 }
 
@@ -65,7 +62,7 @@ function lastOfMonth(date: string): string {
 export function visibleRange(mode: TeamsViewMode, anchor: string): { start: string; end: string } {
   if (mode === "month") return { start: firstOfMonth(anchor), end: lastOfMonth(anchor) }
   const start = mondayOf(anchor)
-  return { start, end: toDateString(new Date(dateOnly(start).getTime() + 6 * DAY_MS)) }
+  return { start, end: addDays(start, 6) }
 }
 
 function monthLabel(date: string): string {
@@ -165,8 +162,8 @@ function PersonRow({
       : null
 
   return (
-    <div className="flex items-stretch gap-2">
-      <div className="sticky left-0 z-10 bg-background w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
+    <div className="flex items-stretch">
+      <div className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
         <span className="truncate">{person.name}</span>
         {onEditWeek && (
           <Button
@@ -263,7 +260,7 @@ export function TeamsView({
   // Prev/next: a week at a time, or a calendar month in Month view.
   function stepAnchor(dir: 1 | -1): string {
     if (isMonth) return addMonths(firstOfMonth(weekDates[0]), dir)
-    return toDateString(new Date(dateOnly(weekDates[0]).getTime() + dir * 7 * DAY_MS))
+    return addDays(weekDates[0], dir * 7)
   }
 
   const editingPerson = editingWeekFor ? people.find((p) => p.id === editingWeekFor) : undefined
@@ -358,8 +355,8 @@ export function TeamsView({
         // and this wrapper scrolls it sideways, with the name column pinned.
         <div className={isMonth ? "overflow-x-auto pb-2" : undefined}>
         <div className="space-y-6" style={isMonth ? { minWidth: monthMinWidth } : undefined}>
-          <div className="flex items-stretch gap-2">
-            <div className="sticky left-0 z-10 bg-background w-40 shrink-0" />
+          <div className="flex items-stretch">
+            <div className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0" />
             <div className="flex-1">
               <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} columnTemplate={gridTemplate} />
               <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: gridTemplate }}>
