@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const { text, notes, evergreen, expiresAt } = result.data;
     const pitchedAt = new Date();
-    const resolvedExpiresAt = evergreen ? null : (expiresAt ? new Date(expiresAt) : addDays(pitchedAt, 30));
+    const resolvedExpiresAt = evergreen ? null : (expiresAt ? new Date(expiresAt) : addDays(pitchedAt, 7));
 
     const story = await prisma.story.create({
       data: {

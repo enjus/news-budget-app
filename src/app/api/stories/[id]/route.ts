@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       data.shelvedAt = null;
       // A pitch that expired, got auto-shelved, and is now being unarchived is
       // still expired — without this it would just re-shelve on the next cron
-      // run. Give it a fresh 30-day clock. Server-side so it can't be bypassed
+      // run. Give it a fresh 7-day clock. Server-side so it can't be bypassed
       // by a client unaware of the pool. Only applies to an actual SHELVED→
       // unshelved transition — a routine re-save of an already-unshelved
       // status must not silently extend expiresAt. (issue #24 §7)
@@ -123,7 +123,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         existing?.status === "SHELVED" &&
         existing?.pitchedAt && existing?.expiresAt && existing.expiresAt <= new Date()
       ) {
-        data.expiresAt = addDays(new Date(), 30);
+        data.expiresAt = addDays(new Date(), 7);
       }
     }
 
