@@ -50,7 +50,7 @@ If `npm run build` or `tsc --noEmit` fails with "Cannot find module" for a packa
 
 **No server components for data**: Pages are thin wrappers; data fetching is client-side via SWR hooks in `src/lib/hooks/`. The pattern is: `page.tsx` → `*Wrapper.tsx` (fetches data) → `*View.tsx` or `*Detail.tsx` (renders).
 
-**Budget API returns grouped data**: `/api/budget/daily` returns content grouped by `TIME_BUCKET` (TBD/MORNING/MIDDAY/AFTERNOON/EVENING). `/api/budget/enterprise` groups by week (Monday). `/api/budget/edition` groups by print publication date. See `src/lib/utils.ts` for `dateToBucket()` logic.
+**Budget API returns grouped data**: `/api/budget/daily` returns content grouped by `TIME_BUCKET` (TBD/MORNING/MIDDAY/AFTERNOON/EVENING). `/api/budget/enterprise` groups by week (Monday) of the *online* pub date only — print date is ignored. `/api/budget/edition` groups by print publication date; its `TBD` group is labeled "Unscheduled Enterprise" and holds only enterprise stories with no print date whose online date is within the last 7 days or later (dated first, then online-TBD). See `src/lib/utils.ts` for `dateToBucket()` logic.
 
 **Optimistic drag-and-drop**: dnd-kit updates local SWR cache immediately on drop; server PATCH confirms persistence. `sortOrder` field on Story/Video drives ordering.
 

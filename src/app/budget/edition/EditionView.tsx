@@ -34,7 +34,7 @@ const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatGroupDate(dateStr: string): string {
-  if (dateStr === "TBD") return "TBD"
+  if (dateStr === "TBD") return "Unscheduled Enterprise"
   try {
     return format(parseISO(dateStr), "EEEE, MMMM d, yyyy")
   } catch {
@@ -201,6 +201,27 @@ export function EditionView() {
 
       if (!sourceDate || targetDate === sourceDate) return
 
+      // The TBD group is "Unscheduled Enterprise": the API only loads enterprise
+      // stories whose online date is TBD or within the last 7 days. Anything else
+      // dropped there would lose its print date and vanish from this view.
+      if (targetDate === "TBD") {
+        const dragged = groups.find((g) => g.date === sourceDate)?.stories.find((s) => s.id === itemId)
+        if (dragged) {
+          const cutoff = format(addDays(parseISO(todayString()), -7), "yyyy-MM-dd")
+          const tooOld =
+            !dragged.onlinePubDateTBD && !!dragged.onlinePubDate &&
+            new Date(dragged.onlinePubDate).toISOString().slice(0, 10) < cutoff
+          if (!dragged.isEnterprise) {
+            toast.error("Only enterprise stories can be unscheduled here.")
+            return
+          }
+          if (tooOld) {
+            toast.error("This story's online date is more than 7 days ago, so it wouldn't show in Unscheduled Enterprise.")
+            return
+          }
+        }
+      }
+
       // Optimistic update
       const newGroups: EditionDateGroup[] = groups.map((g) => ({
         ...g,
@@ -323,7 +344,7 @@ export function EditionView() {
             function renderGroup(group: EditionDateGroup) {
               const itemIds = group.stories.map((s) => `story-${s.id}`)
               const newStoryHref = group.date === "TBD"
-                ? "/stories/new"
+                ? "/stories/new?isEnterprise=true"
                 : `/stories/new?printPubDate=${encodeURIComponent(new Date(`${group.date}T00:00:00`).toISOString())}&printPubDateTBD=false`
               return (
                 <DroppableSection

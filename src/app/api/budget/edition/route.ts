@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { todayString } from "@/lib/utils";
 import type { EditionDateGroup, StoryListItem } from "@/types";
 
 export const dynamic = 'force-dynamic'
@@ -29,7 +30,12 @@ export async function GET() {
     const windowStart = new Date(now);
     windowStart.setDate(now.getDate() - 90);
 
-    const [datedStories, tbdStories] = await Promise.all([
+    // Unscheduled Enterprise: online pub dates are "newsroom time encoded as
+    // UTC", so build the cutoff from the Pacific calendar day, not now-minus-7d.
+    const cutoff = new Date(`${todayString()}T00:00:00.000Z`);
+    cutoff.setUTCDate(cutoff.getUTCDate() - 7);
+
+    const [datedStories, unscheduledDated, unscheduledTbd] = await Promise.all([
       prisma.story.findMany({
         where: {
           onBudget: true,
@@ -41,8 +47,29 @@ export async function GET() {
         orderBy: [{ printPubDate: "asc" }, { createdAt: "asc" }],
       }) as unknown as StoryListItem[],
 
+      // Unscheduled Enterprise, dated: no print date, online date within the last 7 days or later
       prisma.story.findMany({
-        where: { onBudget: true, status: { not: "SHELVED" }, printPubDateTBD: true },
+        where: {
+          onBudget: true,
+          isEnterprise: true,
+          status: { not: "SHELVED" },
+          printPubDateTBD: true,
+          onlinePubDateTBD: false,
+          onlinePubDate: { gte: cutoff },
+        },
+        include: storyInclude,
+        orderBy: [{ onlinePubDate: "asc" }, { createdAt: "asc" }],
+      }) as unknown as StoryListItem[],
+
+      // Unscheduled Enterprise, online TBD: listed after the dated ones
+      prisma.story.findMany({
+        where: {
+          onBudget: true,
+          isEnterprise: true,
+          status: { not: "SHELVED" },
+          printPubDateTBD: true,
+          onlinePubDateTBD: true,
+        },
         include: storyInclude,
         orderBy: { createdAt: "desc" },
         take: TBD_CAP,
@@ -61,7 +88,7 @@ export async function GET() {
     for (const story of datedStories) {
       getOrCreate(localDateStr(new Date(story.printPubDate!))).stories.push(story);
     }
-    for (const story of tbdStories) {
+    for (const story of [...unscheduledDated, ...unscheduledTbd]) {
       getOrCreate("TBD").stories.push(story);
     }
 
