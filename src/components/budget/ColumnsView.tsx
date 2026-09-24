@@ -17,7 +17,7 @@ import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
-import { TIME_BUCKETS, bucketToUtcStamp, cn } from "@/lib/utils"
+import { TIME_BUCKETS, bucketToUtcStamp, compareAgendaOrder, pubTimeKey, cn } from "@/lib/utils"
 import { personIdsQueryParts, excludeReporterIdsQueryParts } from "@/lib/budget-query"
 import type { DailyBudgetSlot } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -297,26 +297,49 @@ export function ColumnsView({
 
       const sameBucket = resolvedTargetSlot === sourceSlot
 
-      // Reorders a same-type list: drop the moving item, reinsert it before
-      // `beforeCompositeId` (or at the end), and report which items' sortOrder
-      // actually moved via a dense 0..n-1 reindex.
-      function reorder<T extends { id: string; sortOrder: number }>(
+      // Columns are chronological, so manual order only matters among items
+      // that tie on exact pub time (a bucket drop stamps every item with the
+      // bucket's default time) or in the TBD column. Reinsert the moving item
+      // before `beforeItemId` within its tie group (or at the end of it) and
+      // report which items' sortOrder actually moved via a dense 0..n-1
+      // reindex of that group. A same-bucket drop keeps the item's own time.
+      function reorder<T extends { id: string; sortOrder: number; onlinePubDate: Date | string | null }>(
         list: T[],
         movingItem: T,
         prefix: "story" | "video"
       ) {
-        const ordered = list.filter((x) => x.id !== movingItem.id)
-        let insertIndex = ordered.length // default: append at the end
-        if (beforeItemId) {
-          const idx = ordered.findIndex((x) => `${prefix}-${x.id}` === beforeItemId)
-          if (idx !== -1) insertIndex = idx
+        const newStamp =
+          resolvedTargetSlot === "TBD"
+            ? null
+            : sameBucket
+              ? movingItem.onlinePubDate
+              : bucketToUtcStamp(date, resolvedTargetSlot)
+        const movingKey = pubTimeKey({ onlinePubDate: newStamp })
+        const rest = list.filter((x) => x.id !== movingItem.id)
+        const tied = rest.filter((x) => pubTimeKey(x) === movingKey)
+        const others = rest.filter((x) => pubTimeKey(x) !== movingKey)
+        const hintIdx = beforeItemId ? tied.findIndex((x) => `${prefix}-${x.id}` === beforeItemId) : -1
+        // Dropped inside its own timed bucket but not next to a same-time
+        // neighbor: chronological order already decides its place.
+        if (sameBucket && resolvedTargetSlot !== "TBD" && hintIdx === -1) {
+          return { ordered: list, unchanged: true, sortPatches: [] as { id: string; sortOrder: number }[] }
         }
-        ordered.splice(insertIndex, 0, movingItem)
-        const unchanged =
-          sameBucket && list.length === ordered.length && list.every((x, i) => x.id === ordered[i].id)
-        const sortPatches = ordered
+        tied.splice(hintIdx === -1 ? tied.length : hintIdx, 0, movingItem)
+        const sortPatches = tied
           .map((item, index) => ({ id: item.id, sortOrder: index, changed: item.sortOrder !== index }))
           .filter((p) => p.changed)
+        // Apply the new time and indexes locally too, so the optimistic order
+        // matches what the server will return.
+        const placed = tied.map((item, index) => ({
+          ...item,
+          sortOrder: index,
+          ...(item.id === movingItem.id
+            ? { onlinePubDate: newStamp as unknown as T["onlinePubDate"], onlinePubDateTBD: newStamp === null }
+            : {}),
+        }))
+        const ordered = [...others, ...placed].sort(compareAgendaOrder)
+        const unchanged =
+          sameBucket && list.length === ordered.length && list.every((x, i) => x.id === ordered[i].id) && sortPatches.length === 0
         return { ordered, unchanged, sortPatches }
       }
 
