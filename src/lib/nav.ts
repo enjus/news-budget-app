@@ -37,30 +37,10 @@ interface SectionDef extends Omit<NavSection, "tabs"> {
   tabs: (ctx: NavContext) => NavTab[]
 }
 
-// Order matters for matching: Pitches lives under /budget, so it must be
-// checked before Budget.
+// Listed in top-bar display order. Order doesn't affect matching:
+// sectionForPath() picks the most specific (longest) matching prefix, so
+// /budget/pitches belongs to Pitches even though Budget also claims /budget.
 const SECTIONS: SectionDef[] = [
-  {
-    id: "pitches",
-    label: "Pitches",
-    href: "/budget/pitches",
-    match: ["/budget/pitches"],
-    enabled: PITCHES_ENABLED,
-    tabs: () => [],
-  },
-  {
-    id: "schedule",
-    label: "Schedule",
-    href: "/schedule/today",
-    match: ["/schedule"],
-    enabled: SCHEDULE_ENABLED,
-    tabs: () => [
-      { label: "Today", href: "/schedule/today", match: ["/schedule/today"] },
-      { label: "Me", href: "/schedule/me", match: ["/schedule/me"] },
-      { label: "Teams", href: "/schedule/teams", match: ["/schedule/teams"] },
-      { label: "Shifts", href: "/schedule/shifts", match: ["/schedule/shifts"] },
-    ],
-  },
   {
     id: "budget",
     label: "Budget",
@@ -85,27 +65,55 @@ const SECTIONS: SectionDef[] = [
         : []),
     ],
   },
+  {
+    id: "pitches",
+    label: "Pitches",
+    href: "/budget/pitches",
+    match: ["/budget/pitches"],
+    enabled: PITCHES_ENABLED,
+    tabs: () => [],
+  },
+  {
+    id: "schedule",
+    label: "Schedule",
+    href: "/schedule/today",
+    match: ["/schedule"],
+    enabled: SCHEDULE_ENABLED,
+    tabs: () => [
+      { label: "Today", href: "/schedule/today", match: ["/schedule/today"] },
+      { label: "Me", href: "/schedule/me", match: ["/schedule/me"] },
+      { label: "Teams", href: "/schedule/teams", match: ["/schedule/teams"] },
+      { label: "Shifts", href: "/schedule/shifts", match: ["/schedule/shifts"] },
+    ],
+  },
 ]
-
-// Top-bar display order (differs from match order above).
-const DISPLAY_ORDER: NavSectionId[] = ["budget", "pitches", "schedule"]
 
 export function matchesPath(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
 }
 
-function build(def: SectionDef, ctx: NavContext): NavSection {
-  return { id: def.id, label: def.label, href: def.href, enabled: def.enabled, tabs: def.tabs(ctx) }
-}
-
 /** Every section in display order, with tabs filtered for the viewer. */
 export function navSections(ctx: NavContext): NavSection[] {
-  return DISPLAY_ORDER.map((id) => build(SECTIONS.find((s) => s.id === id)!, ctx))
+  return SECTIONS.map((def) => ({
+    id: def.id,
+    label: def.label,
+    href: def.href,
+    enabled: def.enabled,
+    tabs: def.tabs(ctx),
+  }))
 }
 
-/** The section owning `pathname`, whether or not it's enabled — or null (admin, settings, people…). */
+/** The section owning `pathname` (longest matching prefix wins), whether or not it's enabled — or null (admin, settings, people…). */
 export function sectionForPath(pathname: string): NavSectionId | null {
-  return SECTIONS.find((s) => s.match.some((p) => matchesPath(pathname, p)))?.id ?? null
+  let best: { id: NavSectionId; length: number } | null = null
+  for (const section of SECTIONS) {
+    for (const prefix of section.match) {
+      if (matchesPath(pathname, prefix) && (!best || prefix.length > best.length)) {
+        best = { id: section.id, length: prefix.length }
+      }
+    }
+  }
+  return best?.id ?? null
 }
 
 export function isTabActive(pathname: string, tab: NavTab): boolean {
