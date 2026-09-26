@@ -193,7 +193,7 @@ function AddMemberRow({
       onSelect={onAdd}
       roles={["EDITOR", "OTHER"]}
       defaultRole="OTHER"
-      label="Select person"
+      label="Add member"
     />
   )
 }
