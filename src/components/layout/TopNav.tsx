@@ -13,6 +13,8 @@ import { isTabActive } from "@/lib/nav"
 import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import masthead from "@/assets/brand/oregonian-masthead.png"
+import mark from "@/assets/brand/oregonian-mark.png"
 
 export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -33,20 +35,17 @@ export function TopNav() {
 
         {/* Logo */}
         <Link href="/" className="shrink-0" aria-label="The Oregonian News Budget, home">
+          {/* Static imports so the paths pick up BASE_PATH. No `priority`:
+              one of the pair is display:none at every breakpoint, and lazy
+              images that aren't rendered never load. */}
           <Image
-            src="/brand/oregonian-masthead.png"
+            src={masthead}
             alt="The Oregonian"
-            width={411}
-            height={72}
-            priority
             className="hidden h-[23px] w-auto dark:invert md:block"
           />
           <Image
-            src="/brand/oregonian-mark.png"
+            src={mark}
             alt="The Oregonian"
-            width={87}
-            height={96}
-            priority
             className="h-8 w-auto dark:invert md:hidden"
           />
         </Link>

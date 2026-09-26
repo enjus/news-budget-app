@@ -1,5 +1,5 @@
 import { PITCHES_ENABLED, SCHEDULE_ENABLED } from "@/lib/features"
-import { todayString, hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
+import { hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
 
 // Single source of truth for the two-level nav: TopNav renders the sections,
 // SectionTabNav renders the active section's tabs, and the mobile menu
@@ -31,13 +31,10 @@ export interface NavSection {
   tabs: NavTab[]
 }
 
-interface TabDef extends NavTab {
-  show?: (ctx: NavContext) => boolean
-}
-
 interface SectionDef extends Omit<NavSection, "tabs"> {
   match: string[]
-  tabs: (ctx: NavContext) => TabDef[]
+  /** Returns only the tabs this viewer should see. */
+  tabs: (ctx: NavContext) => NavTab[]
 }
 
 // Order matters for matching: Pitches lives under /budget, so it must be
@@ -72,12 +69,20 @@ const SECTIONS: SectionDef[] = [
     match: ["/budget", "/teams", "/me", "/stories", "/videos"],
     enabled: true,
     tabs: (ctx) => [
-      { label: "Daily", href: `/budget/daily/${todayString()}`, match: ["/budget/daily"] },
+      // /budget/daily redirects server-side to today, so a tab left open
+      // past midnight still lands on the current date.
+      { label: "Daily", href: "/budget/daily", match: ["/budget/daily"] },
       { label: "Enterprise", href: "/budget/enterprise", match: ["/budget/enterprise"] },
-      { label: "Editions", href: "/budget/edition", match: ["/budget/edition"], show: (c) => hasAdminAccess(c.appRole) },
+      ...(hasAdminAccess(ctx.appRole)
+        ? [{ label: "Editions", href: "/budget/edition", match: ["/budget/edition"] }]
+        : []),
       { label: "Shelved", href: "/budget/shelved", match: ["/budget/shelved"] },
-      { label: ctx.teamsLabel, href: "/teams", match: ["/teams"], show: (c) => canViewMyTeams(c.appRole) },
-      { label: "Me", href: "/me", match: ["/me"], show: (c) => canCreateContent(c.appRole) || !!c.personId },
+      ...(canViewMyTeams(ctx.appRole)
+        ? [{ label: ctx.teamsLabel, href: "/teams", match: ["/teams"] }]
+        : []),
+      ...(canCreateContent(ctx.appRole) || ctx.personId
+        ? [{ label: "Me", href: "/me", match: ["/me"] }]
+        : []),
     ],
   },
 ]
@@ -90,10 +95,7 @@ export function matchesPath(pathname: string, prefix: string): boolean {
 }
 
 function build(def: SectionDef, ctx: NavContext): NavSection {
-  const tabs = def.tabs(ctx)
-    .filter((t) => !t.show || t.show(ctx))
-    .map(({ label, href, match }) => ({ label, href, match }))
-  return { id: def.id, label: def.label, href: def.href, enabled: def.enabled, tabs }
+  return { id: def.id, label: def.label, href: def.href, enabled: def.enabled, tabs: def.tabs(ctx) }
 }
 
 /** Every section in display order, with tabs filtered for the viewer. */
