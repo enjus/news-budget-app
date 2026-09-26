@@ -45,7 +45,7 @@ export async function POST(_request: NextRequest, { params }: RouteContext) {
       data: {
         onBudget: false,
         pitchedAt: now,
-        expiresAt: addDays(now, 30),
+        expiresAt: addDays(now, 7),
         onlinePubDate: null,
         onlinePubDateTBD: true,
         // A story created outside the pitch flow never has pitchText set, but
