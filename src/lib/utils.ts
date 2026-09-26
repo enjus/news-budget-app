@@ -188,9 +188,11 @@ export function todayString(): string {
 
 /** Minimal shape needed to classify/format a "content item" by its online pub
  *  date — satisfied by PersonContentItem (see /api/people/[id]/content) and
- *  anything shaped like it (draft stories/videos, etc). */
+ *  anything shaped like it (draft stories/videos, StoryListItem, etc). Date is
+ *  accepted because Prisma-typed items declare Date even though they arrive
+ *  over JSON as ISO strings; every consumer goes through `new Date()`. */
 export interface DatedContentItem {
-  onlinePubDate: string | null;
+  onlinePubDate: string | Date | null;
   onlinePubDateTBD: boolean;
   slug: string;
 }

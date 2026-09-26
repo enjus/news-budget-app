@@ -10,7 +10,6 @@ import { TagChip } from "@/components/tags/TagChip"
 import { CARD_SIZE } from "@/components/budget/card-size"
 import type { StoryListItem } from "@/types/index"
 
-// Icons for StoryTag values — kept here (not in utils.ts) since they're components.
 const WORD_COUNT_LIMIT = 1400
 
 // Left border accent keyed to status — DRAFT falls through to the

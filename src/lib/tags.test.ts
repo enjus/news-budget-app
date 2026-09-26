@@ -56,3 +56,17 @@ describe("DEFAULT_TAGS", () => {
     }
   })
 })
+
+describe("tag label schema", () => {
+  // Imported lazily so the helpers above don't depend on zod.
+  it("rejects empty-after-normalizing and built-in indicator names, on create and update", async () => {
+    const { createTagSchema, updateTagSchema } = await import("@/lib/validations")
+    expect(createTagSchema.safeParse({ label: "Election 2026", color: "red" }).success).toBe(true)
+    for (const label of ["—!?", "Enterprise", "ai-contributed"]) {
+      expect(createTagSchema.safeParse({ label, color: "red" }).success).toBe(false)
+      expect(updateTagSchema.safeParse({ label }).success).toBe(false)
+    }
+    // Partial update without a label still validates.
+    expect(updateTagSchema.safeParse({ archived: true }).success).toBe(true)
+  })
+})

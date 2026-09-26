@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN } from "@/lib/tags";
+import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
 
 // ─── Slug ──────────────────────────────────────────────────────────────────────
 // Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
@@ -333,8 +333,20 @@ export const createStoryTagSchema = z.object({
 
 // ─── Tag (admin) ──────────────────────────────────────────────────────────────
 
+// Field-level refines (not object-level) so updateTagSchema's .partial() works.
+const tagLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Label is required")
+  .max(40)
+  .refine((l) => labelToTagKey(l) !== "", "Label must contain at least one letter or number")
+  .refine(
+    (l) => !(RESERVED_TAG_KEYS as readonly string[]).includes(labelToTagKey(l)),
+    "That name belongs to a built-in indicator (Enterprise / AI Contributed)"
+  );
+
 const tagFieldsSchema = z.object({
-  label: z.string().trim().min(1, "Label is required").max(40),
+  label: tagLabelSchema,
   abbrev: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? null : v),
     z.string().trim().max(12).nullable().optional()

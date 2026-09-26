@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { CollapsibleSection, EmptySection } from "@/components/CollapsibleSection"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { TagChip } from "@/components/tags/TagChip"
-import { itemDateStr, todayString } from "@/lib/utils"
+import { classifyContentItems, todayString } from "@/lib/utils"
 import type { TagRecord } from "@/lib/hooks/useTags"
 import type { StoryListItem } from "@/types/index"
 
@@ -16,17 +16,6 @@ interface TagStoriesResponse {
   stories: StoryListItem[]
   pastDays: number
 }
-
-// Pub dates arrive as ISO strings over JSON even though StoryListItem types them as Date.
-function dateStr(story: StoryListItem): string | null {
-  return itemDateStr({
-    onlinePubDate: story.onlinePubDate as unknown as string | null,
-    onlinePubDateTBD: story.onlinePubDateTBD,
-  })
-}
-
-const byTime = (a: StoryListItem, b: StoryListItem) =>
-  new Date(a.onlinePubDate!).getTime() - new Date(b.onlinePubDate!).getTime()
 
 export function TagView({ tagKey }: { tagKey: string }) {
   const [openTbd, setOpenTbd] = useState(true)
@@ -57,19 +46,7 @@ export function TagView({ tagKey }: { tagKey: string }) {
   }
 
   const { tag, stories, pastDays } = data
-  const today = todayString()
-  const tbd: StoryListItem[] = []
-  const upcoming: StoryListItem[] = []
-  const past: StoryListItem[] = []
-  for (const s of stories) {
-    const ds = dateStr(s)
-    if (ds === null) tbd.push(s)
-    else if (ds >= today) upcoming.push(s)
-    else past.push(s)
-  }
-  tbd.sort((a, b) => a.slug.localeCompare(b.slug))
-  upcoming.sort(byTime)
-  past.sort((a, b) => byTime(b, a))
+  const { tbd, upcoming, past } = classifyContentItems(stories, todayString())
 
   const renderList = (items: StoryListItem[]) =>
     items.length === 0 ? (

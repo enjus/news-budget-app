@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { updateTagSchema } from "@/lib/validations"
 import { hasAdminAccess } from "@/lib/utils"
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers"
-import { labelToTagKey, RESERVED_TAG_KEYS } from "@/lib/tags"
+import { findTagNameConflict } from "@/lib/tags-server"
 
 export const dynamic = 'force-dynamic'
 
@@ -30,22 +30,24 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   const parsed = updateTagSchema.safeParse(await req.json())
   if (!parsed.success) {
-    return Response.json({ error: "Validation failed", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 })
+    const fieldErrors = parsed.error.flatten().fieldErrors
+    // The admin UI toasts `error`, so surface the first specific message.
+    const first = Object.values(fieldErrors).flat()[0]
+    return Response.json({ error: first ?? "Validation failed", fieldErrors }, { status: 400 })
   }
 
   const { key } = await params
   const { archived, ...fields } = parsed.data
-  if (fields.label !== undefined) {
-    const labelKey = labelToTagKey(fields.label)
-    if (!labelKey) {
-      return Response.json({ error: "Label must contain at least one letter or number" }, { status: 400 })
-    }
-    if ((RESERVED_TAG_KEYS as readonly string[]).includes(labelKey)) {
-      return Response.json({ error: `"${fields.label}" is a built-in indicator and can't be used as a tag name` }, { status: 400 })
-    }
-  }
-
   try {
+    // Empty and reserved names are rejected by the schema; this catches
+    // near-duplicates of *other* tags that the case-sensitive label index misses.
+    if (fields.label !== undefined) {
+      const conflict = await findTagNameConflict(fields.label, key)
+      if (conflict) {
+        return Response.json({ error: `Too similar to the existing tag "${conflict.label}"` }, { status: 409 })
+      }
+    }
+
     const tag = await prisma.tag.update({
       where: { key },
       data: {

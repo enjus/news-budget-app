@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { createTagSchema } from "@/lib/validations"
 import { hasAdminAccess } from "@/lib/utils"
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers"
-import { labelToTagKey, RESERVED_TAG_KEYS } from "@/lib/tags"
-import { ensureDefaultTags } from "@/lib/tags-server"
+import { labelToTagKey } from "@/lib/tags"
+import { ensureDefaultTags, findTagNameConflict } from "@/lib/tags-server"
 
 export const dynamic = 'force-dynamic'
 
@@ -23,31 +23,29 @@ export async function POST(req: NextRequest) {
 
   const parsed = createTagSchema.safeParse(await req.json())
   if (!parsed.success) {
-    return Response.json({ error: "Validation failed", fieldErrors: parsed.error.flatten().fieldErrors }, { status: 400 })
+    const fieldErrors = parsed.error.flatten().fieldErrors
+    // The admin UI toasts `error`, so surface the first specific message.
+    const first = Object.values(fieldErrors).flat()[0]
+    return Response.json({ error: first ?? "Validation failed", fieldErrors }, { status: 400 })
   }
 
   // The key is derived once from the label and never changes, so renames
-  // don't break existing StoryTag rows or /tags/[slug] URLs.
+  // don't break existing StoryTag rows or /tags/[slug] URLs. Empty and
+  // reserved (Enterprise / AI Contributed) names are rejected by the schema.
   const key = labelToTagKey(parsed.data.label)
-  if (!key) {
-    return Response.json({ error: "Label must contain at least one letter or number" }, { status: 400 })
-  }
-  if ((RESERVED_TAG_KEYS as readonly string[]).includes(key)) {
-    return Response.json({ error: `"${parsed.data.label}" is a built-in indicator and can't be used as a tag name` }, { status: 400 })
-  }
 
   try {
     // Make sure a default tag can't be shadowed by an admin tag created before
     // the defaults were first inserted on a fresh DB.
     await ensureDefaultTags()
 
-    const existing = await prisma.tag.findUnique({ where: { key } })
-    if (existing) {
+    const conflict = await findTagNameConflict(parsed.data.label)
+    if (conflict) {
       return Response.json(
         {
-          error: existing.archivedAt
-            ? `An archived tag "${existing.label}" already uses this name — unarchive it instead`
-            : `A tag named "${existing.label}" already exists`,
+          error: conflict.archivedAt
+            ? `Too similar to the archived tag "${conflict.label}" — unarchive it instead`
+            : `Too similar to the existing tag "${conflict.label}"`,
         },
         { status: 409 }
       )
