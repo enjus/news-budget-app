@@ -248,12 +248,28 @@ model StoryTag {
   id        String   @id @default(cuid())
   story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
   storyId   String
-  // StoryTagType: HERE_IS_OREGON | CONTENT_REMIX | SUMMER_FOCUS | OREGON_INSIGHT | VIDEO_POTENTIAL | PUSHED
+  // A Tag.key. Deliberately not a foreign key: existing rows predate the Tag
+  // table, and an archived Tag must keep rendering on the stories that carry it.
   tag       String
   createdAt DateTime @default(now())
 
   @@unique([storyId, tag])
   @@index([tag])
+}
+
+// Admin-managed editorial tags (see src/lib/tags.ts). Enterprise and AI
+// Contributed are NOT Tag rows — they're Story/Video boolean columns with
+// special behavior, so the admin panel can never edit or delete them.
+model Tag {
+  key        String    @id // UPPER_SNAKE, derived from the label once and never changed; stored in StoryTag.tag
+  label      String    @unique
+  abbrev     String?   // chip text on cards; falls back to label
+  color      String    // TAG_COLORS key
+  icon       String?   // TAG_ICONS key
+  sortOrder  Int       @default(0)
+  archivedAt DateTime? // archived tags stay on existing stories but can't be newly applied
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model Visual {

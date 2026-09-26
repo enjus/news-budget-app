@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { addDays } from "date-fns";
 import bcrypt from "bcryptjs";
+import { DEFAULT_TAGS } from "../src/lib/tags";
 
 const prisma = new PrismaClient();
 
@@ -193,6 +194,10 @@ async function main() {
   // duplicate/stale HOLIDAY markers across reseeds.
   await prisma.calendarMarker.deleteMany();
   await prisma.person.deleteMany();
+  // Reset admin-managed tags to the originals (the API also self-heals missing
+  // defaults via ensureDefaultTags(), so this just clears test-created tags).
+  await prisma.tag.deleteMany();
+  await prisma.tag.createMany({ data: DEFAULT_TAGS });
 
   // ─── People ───────────────────────────────────────────────────────────────
 

@@ -65,6 +65,19 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
+    // Only active tags can be newly applied. DELETE deliberately skips this
+    // check so an archived tag can still be removed from a story.
+    const tagRow = await prisma.tag.findUnique({
+      where: { key: tag },
+      select: { archivedAt: true },
+    });
+    if (!tagRow) {
+      return NextResponse.json({ error: "Unknown tag" }, { status: 400 });
+    }
+    if (tagRow.archivedAt) {
+      return NextResponse.json({ error: "This tag has been archived" }, { status: 400 });
+    }
+
     const storyTag = await prisma.storyTag.create({
       data: { storyId, tag },
     });

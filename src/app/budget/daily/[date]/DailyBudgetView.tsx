@@ -22,7 +22,8 @@ import {
 import { ColumnsView } from "@/components/budget/ColumnsView"
 import { AgendaView } from "@/components/budget/AgendaView"
 import { TeamFilterControl } from "@/components/budget/TeamFilterControl"
-import { todayString, cn, STORY_STATUS_LABELS, INDICATOR_OPTIONS } from "@/lib/utils"
+import { todayString, cn, STORY_STATUS_LABELS, BUILTIN_INDICATORS, type IndicatorOption } from "@/lib/utils"
+import { useTags } from "@/lib/hooks/useTags"
 import { usePreferences } from "@/lib/hooks/usePreferences"
 import { useTeams } from "@/lib/hooks/useTeams"
 import { resolveExcludedReporterTeams } from "@/lib/team-filter"
@@ -60,6 +61,13 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
   }, [preferences.dailyExcludedTeamIds])
 
   const { teams, isLoading: teamsLoading, error: teamsError } = useTeams()
+  const { activeTags } = useTags()
+  // Bulk-apply choices: the two built-in indicators plus every active tag
+  // (tags are story-only).
+  const indicatorOptions: IndicatorOption[] = [
+    ...BUILTIN_INDICATORS,
+    ...activeTags.map((t) => ({ value: t.key, label: t.label, color: "", storyOnly: true })),
+  ]
   const { personIds: excludePersonIds } = useMemo(
     () => resolveExcludedReporterTeams(excludedTeamIds, teams),
     [excludedTeamIds, teams]
@@ -176,7 +184,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
 
   async function applyBulkIndicator() {
     if (!bulkIndicator || selectedItems.size === 0) return
-    const opt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
+    const opt = indicatorOptions.find((o) => o.value === bulkIndicator)
     if (!opt) return
     const snapshot = [...selectedItems.keys()]
     // Story-only indicators (AI Contributed, the editorial tags) skip video items.
@@ -391,7 +399,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
               {applying ? "Applying…" : "Apply"}
             </Button>
             {(() => {
-              const selectedOpt = INDICATOR_OPTIONS.find((o) => o.value === bulkIndicator)
+              const selectedOpt = indicatorOptions.find((o) => o.value === bulkIndicator)
               const applicableCount = selectedOpt
                 ? (selectedOpt.storyOnly
                     ? [...selectedItems.keys()].filter((id) => id.startsWith("story-")).length
@@ -404,7 +412,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
                       <SelectValue placeholder="Add tag…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {INDICATOR_OPTIONS.map((opt) => (
+                      {indicatorOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                       ))}
                     </SelectContent>
