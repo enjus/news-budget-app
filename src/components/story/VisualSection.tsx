@@ -14,11 +14,112 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { PersonBadge } from "@/components/people/PersonBadge"
+import { PersonSelect } from "@/components/people/PersonSelect"
 import { usePeople } from "@/lib/hooks/usePeople"
-import { displayName } from "@/lib/utils"
 import type { VisualWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+
+export type VisualTypeValue = "PHOTO" | "GRAPHIC" | "MAP" | "VIDEO"
+
+export const VISUAL_TYPE_LABELS: Record<VisualTypeValue, string> = {
+  PHOTO: "Photo",
+  GRAPHIC: "Graphic",
+  MAP: "Map",
+  VIDEO: "Video",
+}
+
+export interface NewVisual {
+  type: VisualTypeValue
+  description: string
+  person: Person | null
+}
+
+/** Body for POST /api/stories/[id]/visuals — shared with StoryForm's create-mode post. */
+export function visualRequestBody(visual: NewVisual): Record<string, unknown> {
+  const body: Record<string, unknown> = { type: visual.type }
+  if (visual.description.trim()) body.description = visual.description.trim()
+  if (visual.person) body.personId = visual.person.id
+  return body
+}
+
+/**
+ * The type / description / person row for adding a visual. Used live by
+ * VisualSection (edit view) and as a pending list by StoryForm (create view,
+ * where no story id exists yet). `onAdd` resolves false to keep the inputs.
+ */
+export function VisualAddRow({ onAdd }: { onAdd: (visual: NewVisual) => Promise<boolean> | boolean }) {
+  const [isAdding, setIsAdding] = useState(false)
+  const [newType, setNewType] = useState<VisualTypeValue>("PHOTO")
+  const [newDescription, setNewDescription] = useState("")
+  const [newPersonId, setNewPersonId] = useState<string>("")
+
+  const { people } = usePeople()
+
+  async function handleAdd() {
+    setIsAdding(true)
+    try {
+      const person = people.find((p) => p.id === newPersonId) ?? null
+      const ok = await onAdd({ type: newType, description: newDescription, person })
+      if (ok) {
+        setNewDescription("")
+        setNewPersonId("")
+        setNewType("PHOTO")
+      }
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
+      <Select value={newType} onValueChange={(v) => setNewType(v as VisualTypeValue)}>
+        <SelectTrigger className="h-8 w-[110px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="PHOTO">Photo</SelectItem>
+          <SelectItem value="GRAPHIC">Graphic</SelectItem>
+          <SelectItem value="MAP">Map</SelectItem>
+          <SelectItem value="VIDEO">Video</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Input
+        className="h-8 flex-1 min-w-[160px]"
+        placeholder="Description (optional)"
+        value={newDescription}
+        onChange={(e) => setNewDescription(e.target.value)}
+        onKeyDown={(e) => {
+          // In StoryForm's create view this row sits inside the story <form>;
+          // Enter should add the visual, not submit the whole story.
+          if (e.key === "Enter") {
+            e.preventDefault()
+            if (!isAdding) handleAdd()
+          }
+        }}
+      />
+
+      <PersonSelect
+        value={newPersonId || null}
+        onChange={(id) => setNewPersonId(id ?? "")}
+        placeholder="Unassigned"
+        noneLabel="Unassigned"
+        className="h-8 w-[180px]"
+      />
+
+      <Button
+        type="button"
+        size="sm"
+        onClick={handleAdd}
+        disabled={isAdding}
+      >
+        <Plus className="size-4" />
+        {isAdding ? "Adding..." : "Add Visual"}
+      </Button>
+    </div>
+  )
+}
 
 interface VisualSectionProps {
   storyId: string
@@ -28,38 +129,23 @@ interface VisualSectionProps {
 }
 
 export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSectionProps) {
-  const [isAdding, setIsAdding] = useState(false)
-  const [newType, setNewType] = useState<"PHOTO" | "GRAPHIC" | "MAP" | "VIDEO">("PHOTO")
-  const [newDescription, setNewDescription] = useState("")
-  const [newPersonId, setNewPersonId] = useState<string>("")
-
-  const { people } = usePeople()
-
-  async function handleAdd() {
-    setIsAdding(true)
+  async function handleAdd(visual: NewVisual): Promise<boolean> {
     try {
-      const body: Record<string, unknown> = { type: newType }
-      if (newDescription.trim()) body.description = newDescription.trim()
-      if (newPersonId) body.personId = newPersonId
-
       const res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(visualRequestBody(visual)),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Failed to add visual (${res.status})`)
       }
       toast.success("Visual added")
-      setNewDescription("")
-      setNewPersonId("")
-      setNewType("PHOTO")
       onUpdate()
+      return true
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to add visual")
-    } finally {
-      setIsAdding(false)
+      return false
     }
   }
 
@@ -130,53 +216,7 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       )}
 
       {/* Add new visual */}
-      {!readOnly && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed p-3">
-        <Select value={newType} onValueChange={(v) => setNewType(v as "PHOTO" | "GRAPHIC" | "MAP" | "VIDEO")}>
-          <SelectTrigger className="h-8 w-[110px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="PHOTO">Photo</SelectItem>
-            <SelectItem value="GRAPHIC">Graphic</SelectItem>
-            <SelectItem value="MAP">Map</SelectItem>
-            <SelectItem value="VIDEO">Video</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Input
-          className="h-8 flex-1 min-w-[160px]"
-          placeholder="Description (optional)"
-          value={newDescription}
-          onChange={(e) => setNewDescription(e.target.value)}
-        />
-
-        <Select
-          value={newPersonId || "__none__"}
-          onValueChange={(v) => setNewPersonId(v === "__none__" ? "" : v)}
-        >
-          <SelectTrigger className="h-8 w-[180px]">
-            <SelectValue placeholder="Assign person (optional)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">Unassigned</SelectItem>
-            {people.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {displayName(p.name)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleAdd}
-          disabled={isAdding}
-        >
-          <Plus className="size-4" />
-          {isAdding ? "Adding..." : "Add Visual"}
-        </Button>
-      </div>}
+      {!readOnly && <VisualAddRow onAdd={handleAdd} />}
     </div>
   )
 }
