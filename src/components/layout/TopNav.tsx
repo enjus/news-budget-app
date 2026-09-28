@@ -2,92 +2,69 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Image from "next/image"
 import { useSession, signOut } from "next-auth/react"
 import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
-import { cn, initials, hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
-import { useMyTeams } from "@/lib/hooks/useTeams"
+import { cn, initials, hasAdminAccess, canCreateContent, canViewPeople } from "@/lib/utils"
+import { isTabActive } from "@/lib/nav"
+import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED, PITCHES_ENABLED } from "@/lib/features"
-
-const baseNavLinks = [
-  { label: "Daily", href: "/budget/daily" },
-  { label: "Enterprise", href: "/budget/enterprise" },
-  { label: "Pitches", href: "/budget/pitches", flagged: true },
-  { label: "Editions", href: "/budget/edition", adminOnly: true },
-  { label: "Shelved", href: "/budget/shelved" },
-]
-
-function isActive(pathname: string, href: string) {
-  return pathname.startsWith(href)
-}
+import { VIDEOS_ENABLED } from "@/lib/features"
+import masthead from "@/assets/brand/oregonian-masthead.png"
+import mark from "@/assets/brand/oregonian-mark.png"
 
 export function TopNav() {
-  const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const { data: session } = useSession()
   const appRole = session?.user?.appRole ?? ""
   const isAdmin = hasAdminAccess(appRole)
   const canCreate = canCreateContent(appRole)
-  const myPersonId = session?.user?.personId
-  const showTeams = canViewMyTeams(appRole)
   const showPeople = canViewPeople(appRole)
-  const { teams } = useMyTeams()
-  const teamsLabel = teams.length === 1 ? teams[0].name : "Team"
-  const navLinks = baseNavLinks.filter((link) => {
-    if (link.flagged && !PITCHES_ENABLED) return false
-    if (link.adminOnly) return hasAdminAccess(appRole)
-    return true
-  })
+  const { pathname, sections, current } = useNav()
+  const topSections = sections.filter((s) => s.enabled)
+  // The mobile menu stands in for SectionTabNav, so it also includes a
+  // flagged-off section when you're already inside it by direct URL.
+  const menuSections = sections.filter((s) => s.enabled || s.id === current?.id)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
 
         {/* Logo */}
-        <Link href="/" className="shrink-0 text-lg font-bold tracking-tight">
-          News Budget
+        <Link href="/" className="shrink-0" aria-label="The Oregonian News Budget, home">
+          {/* Static imports so the paths pick up BASE_PATH. No `priority`:
+              one of the pair is display:none at every breakpoint, and lazy
+              images that aren't rendered never load. */}
+          <Image
+            src={masthead}
+            alt="The Oregonian"
+            className="hidden h-[23px] w-auto dark:invert md:block"
+          />
+          <Image
+            src={mark}
+            alt="The Oregonian"
+            className="h-8 w-auto dark:invert md:hidden"
+          />
         </Link>
 
         {/* Desktop nav links */}
-        <nav className="hidden md:flex flex-1 items-center gap-1">
-          {navLinks.map((link) => (
+        <nav className="hidden md:flex flex-1 items-center gap-1 pl-2">
+          {topSections.map((section) => (
             <Link
-              key={link.href}
-              href={link.href}
+              key={section.id}
+              href={section.href}
+              aria-current={current?.id === section.id ? "page" : undefined}
               className={cn(
                 "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, link.href) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                current?.id === section.id ? "bg-accent text-accent-foreground" : "text-muted-foreground"
               )}
             >
-              {link.label}
+              {section.label}
             </Link>
           ))}
-          {showTeams && (
-            <Link
-              href="/teams"
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, "/teams") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-              )}
-            >
-              {teamsLabel}
-            </Link>
-          )}
-          {(canCreate || myPersonId) && (
-            <Link
-              href="/me"
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                isActive(pathname, "/me") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-              )}
-            >
-              Me
-            </Link>
-          )}
         </nav>
 
         {/* Spacer on mobile */}
@@ -201,43 +178,45 @@ export function TopNav() {
       {mobileOpen && (
         <div className="border-t md:hidden">
           <nav className="mx-auto max-w-7xl px-4 py-2 space-y-0.5">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive(pathname, link.href) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+            {menuSections.map((section, i) => (
+              <div key={section.id} className={cn(i > 0 && "pt-2")}>
+                {section.tabs.length === 0 ? (
+                  <Link
+                    href={section.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={cn(
+                      "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                      current?.id === section.id ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {section.label}
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href={section.href}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex px-3 pt-1.5 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
+                    >
+                      {section.label}
+                    </Link>
+                    {section.tabs.map((tab) => (
+                      <Link
+                        key={tab.href}
+                        href={tab.href}
+                        onClick={() => setMobileOpen(false)}
+                        className={cn(
+                          "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
+                          isTabActive(pathname, tab) ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {tab.label}
+                      </Link>
+                    ))}
+                  </>
                 )}
-              >
-                {link.label}
-              </Link>
+              </div>
             ))}
-            {showTeams && (
-              <Link
-                href="/teams"
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive(pathname, "/teams") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                )}
-              >
-                {teamsLabel}
-              </Link>
-            )}
-            {(canCreate || myPersonId) && (
-              <Link
-                href="/me"
-                onClick={() => setMobileOpen(false)}
-                className={cn(
-                  "flex rounded-md px-3 py-2.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                  isActive(pathname, "/me") ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-                )}
-              >
-                Me
-              </Link>
-            )}
             {canCreate && (
               <>
                 <div className="my-1 border-t" />
