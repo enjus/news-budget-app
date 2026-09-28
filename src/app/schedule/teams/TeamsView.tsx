@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -226,6 +226,22 @@ export function TeamsView({
   const [editingWeekFor, setEditingWeekFor] = useState<string | null>(null)
 
   const columns = viewMode === "day" ? [dayIndex] : weekDates.map((_, i) => i)
+  const today = todayString()
+
+  // Opening a month that contains today scrolls today's column to just right
+  // of the pinned names — otherwise late-month days start off-screen. Keyed on
+  // the month, not the data, so a save's refetch doesn't yank the scroll back.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const monthStart = weekDates[0]
+  useEffect(() => {
+    const box = scrollRef.current
+    if (!isMonth || isLoading || !box) return
+    const cell = box.querySelector<HTMLElement>("[data-today]")
+    const names = box.querySelector<HTMLElement>("[data-name-col]")
+    if (!cell || !names) return
+    const offset = cell.getBoundingClientRect().left - box.getBoundingClientRect().left + box.scrollLeft
+    box.scrollLeft = offset - names.offsetWidth - cell.offsetWidth
+  }, [isMonth, isLoading, monthStart])
   const gridTemplate = isMonth
     ? `repeat(${columns.length}, minmax(${MONTH_COL_REM}rem, 1fr))`
     : `repeat(${columns.length}, 1fr)`
@@ -328,8 +344,8 @@ export function TeamsView({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {myTeamIds.length > 0 && <SelectItem value="mine">My teams</SelectItem>}
               <SelectItem value="all">Newsroom</SelectItem>
+              {myTeamIds.length > 0 && <SelectItem value="mine">My teams</SelectItem>}
               {teams.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   {t.name}
@@ -384,19 +400,38 @@ export function TeamsView({
         </div>
       ) : (
         // Month view is 28-31 day columns: the grid keeps a fixed floor width
-        // and this wrapper scrolls it sideways, with the name column pinned.
-        <div className={isMonth ? "overflow-x-auto pb-2" : undefined}>
+        // and scrolls both ways inside a roughly viewport-tall box, with the
+        // name column pinned left and the date header pinned top. It has to
+        // scroll vertically too: overflow-x makes this box the sticky
+        // container, so a top-pinned header could never stick to the page —
+        // and a page-length box would bury its sideways scrollbar at the end
+        // of the roster, out of reach for mouse users.
+        <div
+          ref={scrollRef}
+          className={isMonth ? "overflow-auto overscroll-x-contain pb-2 max-h-[max(16rem,calc(100dvh-18rem))]" : undefined}
+        >
         <div className="space-y-6" style={isMonth ? { minWidth: monthMinWidth } : undefined}>
-          <div className="flex items-stretch">
-            <div className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0" />
+          {/* Pinned in every mode: Month pins to its own scroll box; Week and
+              Single day pin to the page, just under the sticky TopNav (h-14
+              plus its 1px border). */}
+          <div className={`sticky z-20 flex items-stretch bg-background pb-1 ${isMonth ? "top-0" : "top-[calc(3.5rem+1px)]"}`}>
+            <div data-name-col className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0" />
             <div className="flex-1">
               <MarkerBand weekDates={columns.map((i) => weekDates[i])} markers={markers} columnTemplate={gridTemplate} />
               <div className="grid gap-1 text-xs text-muted-foreground text-center" style={{ gridTemplateColumns: gridTemplate }}>
-                {columns.map((i) => (
-                  <div key={i} className="rounded border border-border/60 py-1">
-                    {weekdayAbbrev(weekDates[i])} {shortDate(weekDates[i])}
-                  </div>
-                ))}
+                {columns.map((i) => {
+                  const isToday = weekDates[i] === today
+                  return (
+                    <div
+                      key={i}
+                      data-today={isToday || undefined}
+                      aria-current={isToday ? "date" : undefined}
+                      className={`rounded border py-1 ${isToday ? "border-primary bg-primary text-primary-foreground font-semibold" : "border-border/60"}`}
+                    >
+                      {weekdayAbbrev(weekDates[i])} {shortDate(weekDates[i])}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </div>

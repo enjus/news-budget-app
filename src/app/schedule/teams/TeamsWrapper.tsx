@@ -39,11 +39,11 @@ export function TeamsWrapper() {
   const myTeamIds = people.find((p) => p.id === personId)?.teamIds ?? []
 
   // No usable ?scope= (absent, or a team that no longer exists) falls back to
-  // My teams when the viewer has any, otherwise Newsroom — so nobody lands on
+  // Newsroom; so does "mine" when the viewer has no teams, so nobody lands on
   // an empty grid.
   const rawScope = searchParams.get("scope")
   const validRaw = rawScope === "all" || rawScope === "mine" || teams.some((t) => t.id === rawScope)
-  let scope = validRaw && rawScope ? rawScope : myTeamIds.length > 0 ? "mine" : "all"
+  let scope = validRaw && rawScope ? rawScope : "all"
   if (scope === "mine" && myTeamIds.length === 0) scope = "all"
 
   function handleScopeChange(next: string) {
