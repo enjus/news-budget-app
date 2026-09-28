@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
-import { X } from "lucide-react"
+import { X, Plus } from "lucide-react"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,7 @@ import { format } from "date-fns"
 import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toAssignmentRole, cn, displayName, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
+import { VisualAddRow, VISUAL_TYPE_LABELS, visualRequestBody, type NewVisual } from "./VisualSection"
 import type { StoryWithRelations } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
@@ -76,6 +77,8 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   const router = useRouter()
 
   const [pendingAssignments, setPendingAssignments] = useState<PendingAssignment[]>([])
+  const [pendingVisuals, setPendingVisuals] = useState<NewVisual[]>([])
+  const [showVisuals, setShowVisuals] = useState(false)
 
   const {
     register,
@@ -286,30 +289,36 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
 
       const saved = await res.json()
 
-      // Post pending assignments after story creation
-      if (!isEdit && pendingAssignments.length > 0) {
-        await Promise.all(
-          pendingAssignments.map((a) =>
-            fetch(apiPath(`/api/stories/${saved.id}/assignments`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ personId: a.person.id, role: a.role }),
-            })
-          )
-        )
-      }
+      // Post pending assignments, tags, and visuals after story creation. The
+      // story itself already exists at this point, so a failure here doesn't
+      // roll it back — just warn so the missing pieces can be re-added on the
+      // detail page instead of silently vanishing.
+      if (!isEdit) {
+        const postJSON = (path: string, body: unknown) =>
+          fetch(apiPath(path), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }).then((res) => { if (!res.ok) throw new Error(`${res.status}`) })
 
-      // Post pending tags after story creation
-      if (!isEdit && selectedTags.length > 0) {
-        await Promise.all(
-          selectedTags.map((tag) =>
-            fetch(apiPath(`/api/stories/${saved.id}/tags`), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tag }),
-            })
+        const results = await Promise.allSettled([
+          ...pendingAssignments.map((a) =>
+            postJSON(`/api/stories/${saved.id}/assignments`, { personId: a.person.id, role: a.role })
+          ),
+          ...selectedTags.map((tag) =>
+            postJSON(`/api/stories/${saved.id}/tags`, { tag })
+          ),
+          ...pendingVisuals.map((v) =>
+            postJSON(`/api/stories/${saved.id}/visuals`, visualRequestBody(v))
+          ),
+        ])
+        const failed = results.filter((r) => r.status === "rejected").length
+        if (failed > 0) {
+          toast.warning(
+            `Story saved, but ${failed} ${failed === 1 ? "person, tag, or visual" : "people, tags, or visuals"} didn't save — check the story page and re-add.`,
+            { duration: 8000 }
           )
-        )
+        }
       }
 
       if (isDraft && !isEdit) {
@@ -462,6 +471,56 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
           </div>
         </div>
       )}
+
+      {/* Visuals — create mode, collapsed until needed or populated */}
+      {!isEdit && (showVisuals || pendingVisuals.length > 0 ? (
+        <div className="space-y-2">
+          <Label>Visuals</Label>
+          {pendingVisuals.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingVisuals.map((v, i) => (
+                <span
+                  key={i}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-md bg-secondary px-2.5 py-1 text-sm font-medium"
+                >
+                  {VISUAL_TYPE_LABELS[v.type]}
+                  {v.description.trim() && (
+                    <span className="truncate font-normal text-muted-foreground">
+                      {v.description.trim()}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-muted-foreground/70">
+                    · {v.person ? displayName(v.person.name) : "Unassigned"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingVisuals((prev) => prev.filter((_, j) => j !== i))}
+                    className="ml-0.5 shrink-0 rounded text-muted-foreground/60 hover:text-foreground"
+                    aria-label="Remove visual"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <VisualAddRow
+            onAdd={(visual) => {
+              setPendingVisuals((prev) => [...prev, visual])
+              return true
+            }}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowVisuals(true)}
+          className="-mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+          Add visuals
+        </button>
+      ))}
 
       {/* Status + Word Count + Enterprise */}
       <div className="flex flex-wrap items-start gap-4">

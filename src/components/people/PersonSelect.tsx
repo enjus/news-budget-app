@@ -32,6 +32,10 @@ interface PersonSelectProps {
    */
   fallbackLabel?: string | null
   placeholder?: string
+  /** Label for the "none" option in the list. */
+  noneLabel?: string
+  /** Extra classes for the trigger button (e.g. a compact height or fixed width). */
+  className?: string
   id?: string
 }
 
@@ -45,6 +49,8 @@ export function PersonSelect({
   excludeIds = [],
   fallbackLabel,
   placeholder = "No linked person",
+  noneLabel = "None (no linked person)",
+  className,
   id,
 }: PersonSelectProps) {
   const [open, setOpen] = useState(false)
@@ -68,7 +74,7 @@ export function PersonSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className={cn("w-full justify-between font-normal", className)}
         >
           <span className={cn(!value && "text-muted-foreground")}>
             {triggerLabel}
@@ -87,7 +93,7 @@ export function PersonSelect({
                 <CommandEmpty>No people found.</CommandEmpty>
                 <CommandGroup>
                   <CommandItem
-                    value="__none__ no linked person"
+                    value={`__none__ ${noneLabel}`}
                     onSelect={() => {
                       onChange(null)
                       setOpen(false)
@@ -97,7 +103,7 @@ export function PersonSelect({
                       className={cn("mr-2 size-4", value === null ? "opacity-100" : "opacity-0")}
                     />
                     <span className="text-sm text-muted-foreground">
-                      None (no linked person)
+                      {noneLabel}
                     </span>
                   </CommandItem>
                   {availablePeople.map((person) => (

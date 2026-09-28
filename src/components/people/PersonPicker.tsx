@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronsUpDown, Plus } from "lucide-react"
-import { cn, displayName } from "@/lib/utils"
+import { ChevronsUpDown, Plus } from "lucide-react"
+import { displayName } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -53,6 +53,12 @@ interface PersonPickerProps {
   label?: string
 }
 
+/**
+ * Role first, then name: picking a name adds that person immediately with the
+ * role showing. There's deliberately no separate "Add" step — people kept
+ * choosing a name and moving on (or hitting Create/Save), assuming it was
+ * added. A mis-pick is undone with the resulting chip's remove button.
+ */
 export function PersonPicker({
   onSelect,
   excludeIds = [],
@@ -61,33 +67,51 @@ export function PersonPicker({
   label = "Add person",
 }: PersonPickerProps) {
   const [open, setOpen] = useState(false)
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
   const [selectedRole, setSelectedRole] = useState<AssignmentRoleValue>(defaultRole)
   const { people, isLoading } = usePeople()
 
   const filteredPeople = people.filter((p) => !excludeIds.includes(p.id))
 
-  function handleAdd() {
-    if (!selectedPerson) return
-    onSelect(selectedPerson, selectedRole)
-    setSelectedPerson(null)
+  function handlePick(person: Person) {
+    onSelect(person, selectedRole)
     setSelectedRole(defaultRole)
     setOpen(false)
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Person combobox */}
+      {/* Role selector — chosen before the name, since picking the name adds */}
+      <Select
+        value={selectedRole}
+        onValueChange={(v) => setSelectedRole(v as AssignmentRoleValue)}
+      >
+        <SelectTrigger className="h-8 w-[130px]" aria-label="Role">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {roles.map((role) => (
+            <SelectItem key={role} value={role}>
+              {ROLE_LABELS[role]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Person combobox — selecting a name adds them */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            type="button"
             variant="outline"
             size="sm"
             role="combobox"
             aria-expanded={open}
-            className="min-w-[200px] justify-between"
+            className="min-w-[200px] justify-between font-normal"
           >
-            {selectedPerson ? displayName(selectedPerson.name) : label}
+            <span className="inline-flex items-center gap-1.5">
+              <Plus className="size-3.5" />
+              {label}
+            </span>
             <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -105,17 +129,8 @@ export function PersonPicker({
                     <CommandItem
                       key={person.id}
                       value={`${displayName(person.name)}${person.email ? ` ${person.email}` : ""}`}
-                      onSelect={() => {
-                        setSelectedPerson(person)
-                        setOpen(false)
-                      }}
+                      onSelect={() => handlePick(person)}
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 size-4",
-                          selectedPerson?.id === person.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
                       <div className="flex flex-col">
                         <span className="text-sm font-medium">{displayName(person.name)}</span>
                         {person.email && (
@@ -130,34 +145,6 @@ export function PersonPicker({
           </Command>
         </PopoverContent>
       </Popover>
-
-      {/* Role selector */}
-      <Select
-        value={selectedRole}
-        onValueChange={(v) => setSelectedRole(v as AssignmentRoleValue)}
-      >
-        <SelectTrigger className="h-8 w-[130px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {roles.map((role) => (
-            <SelectItem key={role} value={role}>
-              {ROLE_LABELS[role]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Add button */}
-      <Button
-        type="button"
-        size="sm"
-        onClick={handleAdd}
-        disabled={!selectedPerson}
-      >
-        <Plus className="size-4" />
-        Add
-      </Button>
     </div>
   )
 }
