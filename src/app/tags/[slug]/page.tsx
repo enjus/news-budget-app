@@ -9,7 +9,7 @@ export default async function TagPage({ params }: { params: Promise<{ slug: stri
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <Suspense>
-        <TagView tagKey={tagSlugToKey(slug)} />
+        <TagView key={slug} tagKey={tagSlugToKey(slug)} />
       </Suspense>
     </div>
   )

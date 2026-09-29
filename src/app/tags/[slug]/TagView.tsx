@@ -15,6 +15,16 @@ interface TagStoriesResponse {
   tag: TagRecord
   stories: StoryListItem[]
   pastDays: number
+  /** The next-wider window the server will serve, or null at the widest. */
+  nextDays: number | null
+}
+
+function windowLabel(days: number) {
+  if (days >= 365) {
+    const years = Math.round(days / 365)
+    return years === 1 ? "year" : `${years} years`
+  }
+  return `${days} days`
 }
 
 export function TagView({ tagKey }: { tagKey: string }) {
@@ -22,9 +32,18 @@ export function TagView({ tagKey }: { tagKey: string }) {
   const [openUpcoming, setOpenUpcoming] = useState(true)
   const [openPast, setOpenPast] = useState(true)
 
-  const { data, error, isLoading } = useSWR<TagStoriesResponse>(`/api/tags/${tagKey}/stories`)
+  // null = the server's default window.
+  const [days, setDays] = useState<number | null>(null)
 
-  if (error) {
+  // keepPreviousData: widening the window shouldn't flash the skeleton.
+  const { data, error, isLoading, isValidating, mutate } = useSWR<TagStoriesResponse>(
+    `/api/tags/${tagKey}/stories${days ? `?days=${days}` : ""}`,
+    { keepPreviousData: true },
+  )
+
+  // Only a full-page error when there's nothing to show; a failed "Show older"
+  // keeps the list and reports inline next to the button.
+  if (error && !data) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         {error.message?.includes("404") ? "No such tag." : "Failed to load tagged stories."}
@@ -45,7 +64,8 @@ export function TagView({ tagKey }: { tagKey: string }) {
     )
   }
 
-  const { tag, stories, pastDays } = data
+  const { tag, stories, pastDays, nextDays } = data
+  const loadingOlder = isValidating && days !== null && days !== pastDays
   const { tbd, upcoming, past } = classifyContentItems(stories, todayString())
 
   const renderList = (items: StoryListItem[]) =>
@@ -69,7 +89,7 @@ export function TagView({ tagKey }: { tagKey: string }) {
           )}
         </div>
         <p className="text-sm text-muted-foreground">
-          Budgeted stories tagged {tag.label}: TBD, upcoming, and the past {pastDays} days.
+          Budgeted stories tagged {tag.label}: TBD, upcoming, and the past {windowLabel(pastDays)}.
         </p>
       </div>
 
@@ -80,8 +100,23 @@ export function TagView({ tagKey }: { tagKey: string }) {
         <CollapsibleSection title="Upcoming" count={upcoming.length} open={openUpcoming} onToggle={() => setOpenUpcoming((v) => !v)}>
           {renderList(upcoming)}
         </CollapsibleSection>
-        <CollapsibleSection title={`Past ${pastDays} days`} count={past.length} open={openPast} onToggle={() => setOpenPast((v) => !v)}>
+        <CollapsibleSection title={`Past ${windowLabel(pastDays)}`} count={past.length} open={openPast} onToggle={() => setOpenPast((v) => !v)}>
           {renderList(past)}
+          {nextDays !== null && (
+            <div className="mt-3 flex items-center gap-3 text-sm">
+              <button
+                type="button"
+                disabled={loadingOlder}
+                onClick={() => (error ? mutate() : setDays(nextDays))}
+                className="text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+              >
+                {loadingOlder ? "Loading…" : error ? "Retry" : "Show older"}
+              </button>
+              {error && !loadingOlder && (
+                <span className="text-muted-foreground">Couldn&apos;t load older stories.</span>
+              )}
+            </div>
+          )}
         </CollapsibleSection>
       </div>
     </div>
