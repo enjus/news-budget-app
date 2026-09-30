@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
 
 // ─── Slug ──────────────────────────────────────────────────────────────────────
 // Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
@@ -32,16 +33,6 @@ export const StoryStatusEnum = z.enum([
   "SHELVED",
 ]);
 
-// Editorial campaign tags — see StoryTag model comment in prisma/schema.prisma.
-// Labels/colors for these live in STORY_TAG_LABELS etc. in src/lib/utils.ts.
-export const StoryTagEnum = z.enum([
-  "HERE_IS_OREGON",
-  "CONTENT_REMIX",
-  "SUMMER_FOCUS",
-  "OREGON_INSIGHT",
-  "VIDEO_POTENTIAL",
-  "PUSHED",
-]);
 
 // Empty string → null before URL validation so blank inputs don't error
 const optionalUrl = z.preprocess(
@@ -334,8 +325,42 @@ export const createAssignmentSchema = z.object({
 
 // ─── Story Tag ────────────────────────────────────────────────────────────────
 
+// Tag keys are admin-managed (Tag table) — the route checks the key exists
+// and isn't archived; this only bounds the shape.
 export const createStoryTagSchema = z.object({
-  tag: StoryTagEnum,
+  tag: z.string().regex(TAG_KEY_PATTERN, "Invalid tag"),
+});
+
+// ─── Tag (admin) ──────────────────────────────────────────────────────────────
+
+// Field-level refines (not object-level) so updateTagSchema's .partial() works.
+const tagLabelSchema = z
+  .string()
+  .trim()
+  .min(1, "Label is required")
+  .max(40)
+  .refine((l) => labelToTagKey(l) !== "", "Label must contain at least one letter or number")
+  .refine(
+    (l) => !(RESERVED_TAG_KEYS as readonly string[]).includes(labelToTagKey(l)),
+    "That name belongs to a built-in indicator (Enterprise / AI Contributed)"
+  );
+
+const tagFieldsSchema = z.object({
+  label: tagLabelSchema,
+  abbrev: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(12).nullable().optional()
+  ),
+  color: z.enum(TAG_COLOR_KEYS),
+  icon: z.enum(TAG_ICON_KEYS).nullable().optional(),
+});
+
+export const createTagSchema = tagFieldsSchema;
+
+// The key is immutable, so it's never accepted here. `archived` toggles
+// archivedAt rather than exposing the timestamp.
+export const updateTagSchema = tagFieldsSchema.partial().extend({
+  archived: z.boolean().optional(),
 });
 
 // ─── Visual ───────────────────────────────────────────────────────────────────
@@ -477,6 +502,8 @@ export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSchema>;
+export type CreateTagInput = z.infer<typeof createTagSchema>;
+export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type UpdateTeamInput = z.infer<typeof updateTeamSchema>;
 export type AddTeamMemberInput = z.infer<typeof addTeamMemberSchema>;

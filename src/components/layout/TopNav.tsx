@@ -4,12 +4,12 @@ import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays, Users } from "lucide-react"
+import { Plus, Menu, X, LogOut, ShieldCheck, Settings, CalendarDays, Users, Tag, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
 import { cn, initials, hasAdminAccess, canCreateContent, canViewPeople } from "@/lib/utils"
-import { isTabActive } from "@/lib/nav"
+import { isTabActive, EXTERNAL_NAV_LINKS } from "@/lib/nav"
 import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
@@ -64,6 +64,18 @@ export function TopNav() {
             >
               {section.label}
             </Link>
+          ))}
+          {EXTERNAL_NAV_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              {link.label}
+              <ExternalLink className="size-3.5" />
+            </a>
           ))}
         </nav>
 
@@ -124,6 +136,13 @@ export function TopNav() {
                     >
                       <ShieldCheck className="size-3.5" />
                       Teams
+                    </Link>
+                    <Link
+                      href="/admin/tags"
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Tag className="size-3.5" />
+                      Tags
                     </Link>
                     <Link
                       href="/admin/calendar"
@@ -217,6 +236,18 @@ export function TopNav() {
                 )}
               </div>
             ))}
+            {EXTERNAL_NAV_LINKS.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {link.label}
+                <ExternalLink className="size-3.5" />
+              </a>
+            ))}
             {canCreate && (
               <>
                 <div className="my-1 border-t" />
@@ -258,6 +289,14 @@ export function TopNav() {
                 >
                   <ShieldCheck className="size-4" />
                   Teams
+                </Link>
+                <Link
+                  href="/admin/tags"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Tag className="size-4" />
+                  Tags
                 </Link>
                 <Link
                   href="/admin/calendar"

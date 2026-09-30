@@ -25,7 +25,9 @@ import {
   type CreateStoryInput,
 } from "@/lib/validations"
 import { format } from "date-fns"
-import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toAssignmentRole, cn, displayName, INDICATOR_OPTIONS, STORY_TAG_LABELS } from "@/lib/utils"
+import { STORY_STATUS_LABELS, PERSON_ROLE_LABELS, todayString, canEditPrint, toAssignmentRole, cn, displayName, BUILTIN_INDICATORS } from "@/lib/utils"
+import { useTags } from "@/lib/hooks/useTags"
+import { tagChipClass, humanizeTagKey } from "@/lib/tags"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { PersonPicker, type AssignmentRoleValue } from "@/components/people/PersonPicker"
 import { VisualAddRow, VISUAL_TYPE_LABELS, visualRequestBody, type NewVisual } from "./VisualSection"
@@ -143,6 +145,15 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     () => story?.tags.map((t) => t.tag) ?? []
   )
 
+  const { tags: allTags, tagByKey, isLoading: tagsLoading } = useTags()
+  // Picker offers active tags plus any archived ones already on this story, so
+  // an archived tag can still be toggled off.
+  const pickerTags = allTags.filter((t) => !t.archivedAt || selectedTags.includes(t.key))
+  // Keys on this story with no Tag row at all (written outside the app) — shown
+  // so they can still be removed. Waits for the hook: an empty list while
+  // loading would otherwise make every key look orphaned.
+  const orphanTagKeys = tagsLoading ? [] : selectedTags.filter((k) => !tagByKey.has(k))
+
   const { data: session } = useSession()
   const canEditPrintDate = canEditPrint(session?.user?.appRole ?? "")
 
@@ -217,7 +228,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     const removing = selectedTags.includes(value)
     setSelectedTags((prev) => (removing ? prev.filter((t) => t !== value) : [...prev, value]))
     if (isEdit && story) {
-      const label = STORY_TAG_LABELS[value] ?? value
+      const label = tagByKey.get(value)?.label ?? value
       if (removing) {
         fetch(apiPath(`/api/stories/${story.id}/tags?tag=${value}`), { method: "DELETE" })
           .then((res) => { if (!res.ok) throw new Error() })
@@ -692,12 +703,8 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
       <div className="space-y-1.5">
         <Label>Tags</Label>
         <div className="flex flex-wrap gap-1.5">
-          {INDICATOR_OPTIONS.map((opt) => {
-            const active = opt.value === "ENTERPRISE"
-              ? watchedIsEnterprise
-              : opt.value === "AI_CONTRIBUTED"
-                ? watchedAiContributed
-                : selectedTags.includes(opt.value)
+          {BUILTIN_INDICATORS.map((opt) => {
+            const active = opt.value === "ENTERPRISE" ? watchedIsEnterprise : watchedAiContributed
             return (
               <button
                 key={opt.value}
@@ -712,6 +719,35 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               </button>
             )
           })}
+          {pickerTags.map((tag) => {
+            const active = selectedTags.includes(tag.key)
+            return (
+              <button
+                key={tag.key}
+                type="button"
+                onClick={() => toggleIndicator(tag.key)}
+                title={tag.archivedAt ? "Archived — can be removed but not re-added" : undefined}
+                className={cn(
+                  "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+                  active ? cn(tagChipClass(tag.color), "border-transparent") : "border-input text-muted-foreground hover:bg-accent",
+                  tag.archivedAt && "opacity-60"
+                )}
+              >
+                {tag.label}
+              </button>
+            )
+          })}
+          {orphanTagKeys.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleIndicator(key)}
+              title="This tag no longer exists — click to remove it"
+              className="rounded-md border border-dashed px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
+            >
+              {humanizeTagKey(key)}
+            </button>
+          ))}
         </div>
       </div>
 

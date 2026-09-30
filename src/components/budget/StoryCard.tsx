@@ -2,21 +2,13 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MapPin, Repeat2, Sun, Landmark, Clapperboard, BellRing, MessageSquare, type LucideIcon } from "lucide-react"
+import { Sparkles, Camera, BarChart2, Map, ExternalLink, Video, FileText, Check, Clipboard, MessageSquare } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort, formatBudgetLineCopy, STORY_TAG_LABELS, STORY_TAG_ABBREV, STORY_TAG_COLOR } from "@/lib/utils"
+import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, formatOnlinePubShort, formatBudgetLineCopy } from "@/lib/utils"
+import { useTags } from "@/lib/hooks/useTags"
+import { TagChip } from "@/components/tags/TagChip"
 import { CARD_SIZE } from "@/components/budget/card-size"
 import type { StoryListItem } from "@/types/index"
-
-// Icons for StoryTag values — kept here (not in utils.ts) since they're components.
-const TAG_ICON: Record<string, LucideIcon> = {
-  HERE_IS_OREGON: MapPin,
-  CONTENT_REMIX: Repeat2,
-  SUMMER_FOCUS: Sun,
-  OREGON_INSIGHT: Landmark,
-  VIDEO_POTENTIAL: Clapperboard,
-  PUSHED: BellRing,
-}
 
 const WORD_COUNT_LIMIT = 1400
 
@@ -150,6 +142,10 @@ export function StoryCard({
 }: StoryCardProps) {
   const [copied, setCopied] = useState(false)
   const s = CARD_SIZE[size]
+  const { tagByKey, isLoading: tagsLoading } = useTags()
+  // Chips link to their views, except while the card's own click is busy
+  // selecting or dragging — a nested link would steal that click.
+  const chipLinks = !selectMode && !isDragging
 
   function handleCopy(e: React.MouseEvent) {
     e.preventDefault()
@@ -211,9 +207,17 @@ export function StoryCard({
               <FileText className={cn("shrink-0 text-muted-foreground/60", s.titleIcon)} />
               <span className={cn("font-semibold leading-none", s.title)}>{story.slug}</span>
               {story.isEnterprise && !hideEnterpriseTag && (
-                <Badge variant="secondary" className={s.badge}>
-                  Enterprise
-                </Badge>
+                chipLinks ? (
+                  <Link href="/budget/enterprise" onClick={(e) => e.stopPropagation()} className="hover:underline">
+                    <Badge variant="secondary" className={s.badge}>
+                      Enterprise
+                    </Badge>
+                  </Link>
+                ) : (
+                  <Badge variant="secondary" className={s.badge}>
+                    Enterprise
+                  </Badge>
+                )
               )}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -308,23 +312,17 @@ export function StoryCard({
                 AI
               </span>
             )}
-            {story.tags.map((t) => {
-              const Icon = TAG_ICON[t.tag]
-              return (
-                <span
-                  key={t.id}
-                  className={cn(
-                    "inline-flex items-center gap-0.5 rounded-md font-medium",
-                    s.chip,
-                    STORY_TAG_COLOR[t.tag],
-                  )}
-                  title={STORY_TAG_LABELS[t.tag] ?? t.tag}
-                >
-                  {Icon && <Icon className={cn("pointer-events-none", s.chipIcon)} />}
-                  {STORY_TAG_ABBREV[t.tag] ?? t.tag}
-                </span>
-              )
-            })}
+            {/* Skip while tags load so chips don't flash as raw keys */}
+            {!tagsLoading && story.tags.map((t) => (
+              <TagChip
+                key={t.id}
+                tagKey={t.tag}
+                tag={tagByKey.get(t.tag)}
+                link={chipLinks}
+                className={s.chip}
+                iconClassName={s.chipIcon}
+              />
+            ))}
             {wordCount != null && (
               <span
                 className={cn(

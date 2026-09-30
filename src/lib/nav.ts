@@ -119,3 +119,17 @@ export function sectionForPath(pathname: string): NavSectionId | null {
 export function isTabActive(pathname: string, tab: NavTab): boolean {
   return tab.match.some((p) => matchesPath(pathname, p))
 }
+
+export interface ExternalNavLink {
+  label: string
+  href: string
+}
+
+/**
+ * Links out to tools that live outside this app (different origin path,
+ * no routing/active-state here). Rendered in top-bar display order after
+ * the sections, both desktop and mobile.
+ */
+export const EXTERNAL_NAV_LINKS: ExternalNavLink[] = [
+  { label: "BookStack", href: "/bookstack" },
+]
