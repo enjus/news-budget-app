@@ -8,6 +8,10 @@ export type WeekScheduleDay = ResolvedDay & {
   amNote?: string | null
   pmNote?: string | null
   inBlackout: boolean
+  /** Before the schedule start date (issue #85) — the server sends only
+   *  `date` and this flag; every other field is absent. Render a neutral
+   *  "See spreadsheet" cell, never an AvailabilityChip. */
+  untracked?: boolean
 }
 
 export interface WeekSchedulePerson {

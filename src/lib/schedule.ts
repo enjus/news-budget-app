@@ -6,7 +6,34 @@
 // given day goes through it, so its precedence order and date-arithmetic
 // have to be right once, here, rather than reimplemented per-view.
 
-import { toDateString, displayName } from "./utils"
+import { toDateString, displayName, todayString } from "./utils"
+
+/** First date the app tracks (issue #85). Anything earlier lives only in the
+ *  PTO spreadsheet, so it must never resolve to a status here — the standing
+ *  Mon–Fri pattern would otherwise show everyone as "working". A constant
+ *  rather than an env var: 2026 was never tracked here, so the floor is
+ *  permanent. */
+export const SCHEDULE_START_DATE = "2027-01-01"
+
+/** Human-readable form for notices and error messages. */
+export const SCHEDULE_START_LABEL = "Jan 1, 2027"
+
+/** True when `dateStr` ("YYYY-MM-DD") is before the cutover. Plain string
+ *  comparison is correct for zero-padded ISO dates. */
+export function isBeforeScheduleStart(dateStr: string): boolean {
+  return dateStr < SCHEDULE_START_DATE
+}
+
+/** Today (Pacific), but never before the cutover — where every schedule view
+ *  should open until then. */
+export function scheduleToday(): string {
+  return clampToScheduleStart(todayString())
+}
+
+/** `dateStr` itself, or the cutover date when it falls earlier. */
+export function clampToScheduleStart(dateStr: string): string {
+  return isBeforeScheduleStart(dateStr) ? SCHEDULE_START_DATE : dateStr
+}
 
 /** Common shape of a HOLIDAY-checkable marker, loose enough to cover both
  *  server-side markers (Date fields) and markers as they arrive over the

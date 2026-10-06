@@ -1,5 +1,7 @@
 "use client"
 
+import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, isBeforeScheduleStart, scheduleToday } from "@/lib/schedule"
+import { FloorDateInput } from "@/components/schedule/FloorDateInput"
 import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
@@ -8,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { ShiftRoleSlot } from "@/components/schedule/ShiftRoleSlot"
-import { SHIFT_ROLE_LABELS, SHIFT_ROLES, addDays, todayString, weekdayAbbrev, shortDate } from "@/lib/utils"
+import { SHIFT_ROLE_LABELS, SHIFT_ROLES, addDays, weekdayAbbrev, shortDate } from "@/lib/utils"
 import type { ShiftDay, ShiftRosterPerson } from "@/lib/hooks/useShifts"
 
 interface ShiftsViewProps {
@@ -50,6 +52,10 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
 
   function handleAddDay() {
     if (!newDate) return
+    if (isBeforeScheduleStart(newDate)) {
+      toast.error(`The schedule starts ${SCHEDULE_START_LABEL}.`)
+      return
+    }
     if (newDate < start || newDate > end) {
       toast.error("Pick a date within the range above (or widen it first).")
       return
@@ -63,10 +69,10 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold">Shifts</h1>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => onRangeChange(todayString(), addDays(todayString(), 56))}>
+          <Button variant="outline" size="sm" onClick={() => onRangeChange(scheduleToday(), addDays(scheduleToday(), 56))}>
             Next 8 weeks
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onRangeChange(todayString(), addDays(todayString(), 182))}>
+          <Button variant="outline" size="sm" onClick={() => onRangeChange(scheduleToday(), addDays(scheduleToday(), 182))}>
             Next 6 months
           </Button>
         </div>
@@ -75,13 +81,7 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
       <div className="flex items-end gap-3 flex-wrap">
         <div className="space-y-1.5">
           <Label htmlFor="shifts-start">Start</Label>
-          <Input
-            id="shifts-start"
-            type="date"
-            className="text-base"
-            value={start}
-            onChange={(e) => onRangeChange(e.target.value, end)}
-          />
+          <FloorDateInput id="shifts-start" className="text-base" value={start} onCommit={(v) => onRangeChange(v, end)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="shifts-end">End</Label>
@@ -90,6 +90,7 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
             type="date"
             className="text-base"
             value={end}
+            min={SCHEDULE_START_DATE}
             onChange={(e) => onRangeChange(start, e.target.value)}
           />
         </div>
@@ -101,6 +102,7 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
               type="date"
               className="text-base"
               value={newDate}
+              min={SCHEDULE_START_DATE}
               onChange={(e) => setNewDate(e.target.value)}
             />
             <Button variant="outline" onClick={handleAddDay} disabled={!newDate}>

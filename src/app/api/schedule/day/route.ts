@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dateOnly, weekdayName } from "@/lib/utils";
-import { resolveDay, resolveNotes, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
+import { isBeforeScheduleStart, resolveDay, resolveNotes, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +19,12 @@ export async function GET(request: NextRequest) {
 
     if (!date || !DATE_RE.test(date)) {
       return NextResponse.json({ error: "date (YYYY-MM-DD) is required" }, { status: 400 });
+    }
+
+    // Issue #85: before the cutover there is nothing to resolve — the board
+    // shows a "schedule starts" notice instead of an all-working roster.
+    if (isBeforeScheduleStart(date)) {
+      return NextResponse.json({ date, untracked: true, people: [], teams: [], markers: [], shifts: [] });
     }
 
     const dateObj = dateOnly(date);

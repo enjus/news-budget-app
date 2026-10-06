@@ -16,6 +16,7 @@ import {
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 import { apiPath } from "@/lib/api-path"
 import { weekdayAbbrev, shortDate } from "@/lib/utils"
+import { isBeforeScheduleStart } from "@/lib/schedule"
 
 type WeekEditorDay = { date: string; revert: true } | { date: string; segment: string; status: string }
 type CustomStatuses = { am: PresetRow["status"]; pm: PresetRow["status"] }
@@ -37,7 +38,10 @@ interface WeekEditorProps {
   onSaved: () => void
 }
 
-export function WeekEditor({ open, onOpenChange, personId, weekDates, resolvedDays, onSaved }: WeekEditorProps) {
+export function WeekEditor({ open, onOpenChange, personId, weekDates: allWeekDates, resolvedDays, onSaved }: WeekEditorProps) {
+  // Issue #85: the boundary week (Dec 28 – Jan 3) has days the app doesn't
+  // track — they're simply not editable here.
+  const weekDates = useMemo(() => allWeekDates.filter((d) => !isBeforeScheduleStart(d)), [allWeekDates])
   const dayByDate = useMemo(() => Object.fromEntries(resolvedDays.map((d) => [d.date, d])), [resolvedDays])
 
   const [selections, setSelections] = useState<Record<string, PresetId | "BASELINE">>(() =>

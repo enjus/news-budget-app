@@ -8,7 +8,8 @@
 // query or grouping bug instead of three.
 
 import { prisma } from "@/lib/prisma"
-import { ROSTER_WHERE } from "@/lib/utils"
+import { ROSTER_WHERE, dateOnly } from "@/lib/utils"
+import { SCHEDULE_START_DATE } from "@/lib/schedule"
 
 export interface RosterMember {
   id: string
@@ -71,6 +72,11 @@ export async function loadScheduleWindow(
   endDate: Date,
   markerKinds?: string[]
 ): Promise<ScheduleWindowData> {
+  // Issue #85: rows before the cutover (e.g. test entries) are never read, so
+  // they can't leak through any caller. Markers are exempt — holidays and
+  // blackouts aren't anyone's availability.
+  const floor = dateOnly(SCHEDULE_START_DATE)
+  const availabilityStart = startDate < floor ? floor : startDate
   const [roster, availabilityRows, workSchedule, markers] = await Promise.all([
     prisma.person.findMany({
       where: ROSTER_WHERE,
@@ -82,7 +88,7 @@ export async function loadScheduleWindow(
       orderBy: { name: "asc" },
     }),
     prisma.availability.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
+      where: { date: { gte: availabilityStart, lte: endDate } },
       select: { personId: true, date: true, segment: true, status: true, note: true },
     }),
     prisma.workSchedule.findMany({

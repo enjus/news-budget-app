@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dateOnly, toDateString } from "@/lib/utils";
-import { resolveDay, resolveNotes, type AvailabilityEntry } from "@/lib/schedule";
+import { isBeforeScheduleStart, resolveDay, resolveNotes, type AvailabilityEntry, type ResolvedDay } from "@/lib/schedule";
 
 export const dynamic = 'force-dynamic'
 
@@ -64,10 +64,16 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     // made the "Update availability" picker on /schedule/me appear to forget
     // a note on reopen (it does save; this endpoint just never returned it
     // back).
-    const days = [];
+    const days: Array<({ date: string } & ResolvedDay & ReturnType<typeof resolveNotes>) | { date: string; untracked: true }> = [];
     let cursor = new Date(startDate);
     while (cursor.getTime() <= endDate.getTime()) {
       const dateStr = toDateString(cursor);
+      // Issue #85: pre-cutover dates are untracked here, never resolved.
+      if (isBeforeScheduleStart(dateStr)) {
+        days.push({ date: dateStr, untracked: true });
+        cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
+        continue;
+      }
       const resolved = resolveDay(cursor, availability, workSchedule, markers);
       const rowsForDate = availabilityRows.filter((r) => toDateString(r.date) === dateStr);
       days.push({ date: dateStr, ...resolved, ...resolveNotes(resolved, rowsForDate) });

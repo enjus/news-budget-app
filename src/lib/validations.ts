@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isBeforeScheduleStart, SCHEDULE_START_LABEL } from "@/lib/schedule";
 import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
 
 // ─── Slug ──────────────────────────────────────────────────────────────────────
@@ -85,6 +86,11 @@ export const replaceWorkScheduleSchema = z.object({
 // Every schedule API takes and returns "YYYY-MM-DD" strings — Date objects
 // never cross the wire (src/lib/schedule.ts, dateOnly()/toDateString()).
 const dateOnlyString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD");
+// Dates the app writes availability/shifts for must be on or after the
+// cutover (issue #85) — earlier dates live in the PTO spreadsheet only.
+const scheduleDateString = dateOnlyString.refine((d) => !isBeforeScheduleStart(d), {
+  message: `Schedule starts ${SCHEDULE_START_LABEL}`,
+});
 
 export const AvailabilitySegmentEnum = z.enum(["FULL_DAY", "MORNING", "AFTERNOON"]);
 export const AvailabilityStatusEnum = z.enum(["OUT", "WORKING", "UNAVAILABLE"]);
@@ -104,8 +110,8 @@ const availabilityRowSchema = z.object({
 
 export const createAvailabilitySchema = z.object({
   personId: z.string().cuid(),
-  startDate: dateOnlyString,
-  endDate: dateOnlyString,
+  startDate: scheduleDateString,
+  endDate: scheduleDateString,
   rows: z.array(availabilityRowSchema).min(1).max(2),
   note: z.string().max(500).nullable().optional(),
   // Resolves against the person's WorkSchedule pattern AND observed holidays —
@@ -135,9 +141,9 @@ export const updateAvailabilitySchema = z.object({
 // guessing a FULL_DAY status client-side, which can't correctly express
 // reverting a split (AM/PM) day back to its true baseline.
 export const weekAvailabilityDaySchema = z.union([
-  z.object({ date: dateOnlyString, revert: z.literal(true) }),
+  z.object({ date: scheduleDateString, revert: z.literal(true) }),
   z.object({
-    date: dateOnlyString,
+    date: scheduleDateString,
     segment: AvailabilitySegmentEnum,
     status: AvailabilityStatusEnum,
     note: z.string().max(500).nullable().optional(),
@@ -161,7 +167,7 @@ export const ShiftRoleEnum = z.enum(["GA_REPORTER", "EDITOR", "SOCIAL_VIDEO_PROD
 // route writes the matching Availability FULL_DAY/WORKING row alongside the
 // ShiftAssignment when set.
 export const createShiftAssignmentSchema = z.object({
-  date: dateOnlyString,
+  date: scheduleDateString,
   shiftRole: ShiftRoleEnum,
   personId: z.string().cuid(),
   note: z.string().max(500).nullable().optional(),

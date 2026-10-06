@@ -8,6 +8,9 @@ export type MyScheduleDay = ResolvedDay & {
   note: string | null
   amNote?: string | null
   pmNote?: string | null
+  /** Before the schedule start date (issue #85): the server sends only `date`
+   *  and this flag — every resolved field is absent. */
+  untracked?: boolean
 }
 
 interface MyScheduleResponse {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dateOnly, displayName, toDateString } from "@/lib/utils";
-import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
+import { clampToScheduleStart, isBeforeScheduleStart, SCHEDULE_START_LABEL, resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
 import { loadScheduleWindow, type AvailabilityRow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -67,7 +67,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "start and end (YYYY-MM-DD, end >= start) are required" }, { status: 400 });
     }
 
-    const startDate = dateOnly(start);
+    // Issue #85: the spreadsheet is the only source before the cutover, so the
+    // export starts no earlier than it (and has nothing to say if it ends
+    // earlier).
+    if (isBeforeScheduleStart(end)) {
+      // Plain text, not JSON: this endpoint is opened as a CSV download, so a
+      // browser navigating here should show a readable message.
+      return new Response(`Nothing to export: the schedule starts ${SCHEDULE_START_LABEL}. Earlier dates are in the spreadsheet.
+`, {
+        status: 400,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    }
+    const exportStart = clampToScheduleStart(start);
+
+    const startDate = dateOnly(exportStart);
     const endDate = dateOnly(end);
     const dayCount = Math.round((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
     if (dayCount > MAX_RANGE_DAYS) {
@@ -77,7 +91,7 @@ export async function GET(request: NextRequest) {
     // Delegated to the same tested range-walker the availability write path
     // uses, rather than a second hand-rolled ms-based loop (unconditional
     // here — skipNonWorkingDays only matters for a write).
-    const dates = expandDateRange(start, end, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
+    const dates = expandDateRange(exportStart, end, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
 
     const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
       startDate,
@@ -121,7 +135,7 @@ export async function GET(request: NextRequest) {
     return new Response(rows.join("\n") + "\n", {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="schedule-${start}-to-${end}.csv"`,
+        "Content-Disposition": `attachment; filename="schedule-${exportStart}-to-${end}.csv"`,
       },
     });
   } catch (error) {
