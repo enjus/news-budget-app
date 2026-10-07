@@ -372,7 +372,7 @@ model CommentMention {
   @@index([personId])
 }
 
-// Newsroom Links (/links): admin-curated directory of tools and sites,
+// Newsroom homepage links (/homepage): admin-curated directory of tools and sites,
 // grouped into ordered categories. Not named `Link` so the generated type
 // doesn't collide with `next/link` imports.
 model LinkCategory {
@@ -397,4 +397,19 @@ model NewsroomLink {
   updatedAt  DateTime     @updatedAt
 
   @@index([categoryId, sortOrder])
+}
+
+// Newsroom homepage announcements (/homepage), newest first. Shown through
+// endDate (a newsroom date stored as UTC midnight, like the schedule's
+// dates); null endDate = until deleted.
+model Announcement {
+  id        String    @id @default(cuid())
+  title     String
+  body      String?
+  url       String?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([endDate])
 }

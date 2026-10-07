@@ -406,6 +406,31 @@ export const reorderLinksSchema = reorderLinkCategoriesSchema.extend({
   categoryId: z.string().cuid(),
 });
 
+// ─── Announcements (admin) ───────────────────────────────────────────────────
+
+const optionalText = (max: number) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(max).nullable().optional()
+  );
+
+const announcementFieldsSchema = z.object({
+  title: z.string().trim().min(1, "Headline is required").max(120),
+  body: optionalText(1000),
+  url: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    linkUrlSchema.nullable().optional()
+  ),
+  // Last day shown, newsroom (Pacific) date. Null = until deleted.
+  endDate: z.preprocess(
+    (v) => (v === "" ? null : v),
+    dateOnlyString.nullable().optional()
+  ),
+});
+
+export const createAnnouncementSchema = announcementFieldsSchema;
+export const updateAnnouncementSchema = announcementFieldsSchema.partial();
+
 // ─── Visual ───────────────────────────────────────────────────────────────────
 
 export const createVisualSchema = z.object({

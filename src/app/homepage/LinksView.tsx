@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import type { LinkCategoryRecord, LinksResponse, NewsroomLinkRecord } from "@/lib/hooks/useLinks"
 import { sendJSON } from "@/lib/send-json"
+import type { AnnouncementRecord, AnnouncementsResponse } from "@/lib/hooks/useAnnouncements"
+import { DeleteConfirm } from "./DeleteConfirm"
+import { AnnouncementsSection } from "./AnnouncementsSection"
 
 function hostOf(url: string) {
   try {
@@ -36,33 +39,6 @@ function filterLinks(category: LinkCategoryRecord, q: string) {
   const needle = q.toLowerCase()
   if (!needle || category.name.toLowerCase().includes(needle)) return category.links
   return category.links.filter((l) => linkMatches(l, needle))
-}
-
-/** In-dialog delete confirmation (no browser confirm()). */
-function DeleteConfirm({
-  message,
-  confirmLabel,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  message: string
-  confirmLabel: string
-  busy: boolean
-  onCancel: () => void
-  onConfirm: () => void
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 px-3 py-2 text-sm">
-      <span className="min-w-40 flex-1">{message}</span>
-      <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={busy}>
-        Keep
-      </Button>
-      <Button type="button" variant="destructive" size="sm" onClick={onConfirm} disabled={busy}>
-        {busy ? "Deleting..." : confirmLabel}
-      </Button>
-    </div>
-  )
 }
 
 interface LinkFormData {
@@ -292,6 +268,8 @@ export function LinksView({
   loadFailed,
   isAdmin,
   mutate,
+  announcements,
+  mutateAnnouncements,
 }: {
   categories: LinkCategoryRecord[]
   isLoading: boolean
@@ -299,6 +277,8 @@ export function LinksView({
   loadFailed: boolean
   isAdmin: boolean
   mutate: KeyedMutator<LinksResponse>
+  announcements: AnnouncementRecord[]
+  mutateAnnouncements: KeyedMutator<AnnouncementsResponse>
 }) {
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState(false)
@@ -381,34 +361,35 @@ export function LinksView({
 
   return (
     <div className="mx-auto max-w-7xl space-y-5 px-4 py-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-xl font-semibold">Newsroom Links</h1>
-        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div className="relative flex-1 sm:w-64 sm:flex-none">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="links-filter"
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Filter links"
-              aria-label="Filter links"
-              autoComplete="off"
-              className="pl-8"
-            />
-          </div>
-          {isAdmin && (
-            <Button
-              variant={editing ? "default" : "outline"}
-              onClick={() => setEditing((e) => !e)}
-              aria-pressed={editing}
-            >
-              <Pencil className="size-4" />
-              {editing ? "Done editing" : "Edit links"}
-            </Button>
-          )}
+      {/* No visible heading — the masthead says where you are; this one is for screen readers. */}
+      <h1 className="sr-only">Newsroom</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="relative flex-1 sm:w-64 sm:flex-none">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="links-filter"
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter links"
+            aria-label="Filter links"
+            autoComplete="off"
+            className="pl-8"
+          />
         </div>
+        {isAdmin && (
+          <Button
+            variant={editing ? "default" : "outline"}
+            onClick={() => setEditing((e) => !e)}
+            aria-pressed={editing}
+          >
+            <Pencil className="size-4" />
+            {editing ? "Done editing" : "Edit page"}
+          </Button>
+        )}
       </div>
+
+      <AnnouncementsSection announcements={announcements} editMode={editMode} mutate={mutateAnnouncements} />
 
       {visible.length > 1 && (
         <nav aria-label="Jump to category" className="flex flex-wrap gap-1.5">
