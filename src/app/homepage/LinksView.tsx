@@ -13,8 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { LinkCategoryRecord, LinksResponse, NewsroomLinkRecord } from "@/lib/hooks/useLinks"
 import { sendJSON } from "@/lib/send-json"
 import type { AnnouncementRecord, AnnouncementsResponse } from "@/lib/hooks/useAnnouncements"
-import { DeleteConfirm } from "./DeleteConfirm"
-import { AnnouncementsSection } from "./AnnouncementsSection"
+import { DeleteConfirm, FormFooter, useDialog, useFormRun } from "./form-parts"
+import { AnnouncementsSection, type AnnouncementsLoadState } from "./AnnouncementsSection"
 
 function hostOf(url: string) {
   try {
@@ -64,20 +64,8 @@ function LinkForm({
   onClose: () => void
 }) {
   const [data, setData] = useState(initial)
-  const [saving, setSaving] = useState(false)
+  const { saving, run } = useFormRun(onClose)
   const [confirming, setConfirming] = useState(false)
-
-  async function run(action: () => Promise<void>) {
-    setSaving(true)
-    try {
-      await action()
-      onClose()
-    } catch {
-      // error toast handled in sendJSON()
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <form
@@ -146,28 +134,12 @@ function LinkForm({
         />
       )}
 
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
-        {onDelete && (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirming(true)}
-              disabled={saving}
-            >
-              Delete
-            </Button>
-            <span className="flex-1" />
-          </>
-        )}
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : isCreate ? "Add link" : "Save"}
-        </Button>
-      </div>
+      <FormFooter
+        saving={saving}
+        submitLabel={isCreate ? "Add link" : "Save"}
+        onClose={onClose}
+        onRequestDelete={onDelete ? () => setConfirming(true) : undefined}
+      />
     </form>
   )
 }
@@ -188,20 +160,8 @@ function CategoryForm({
   onClose: () => void
 }) {
   const [name, setName] = useState(initial)
-  const [saving, setSaving] = useState(false)
+  const { saving, run } = useFormRun(onClose)
   const [confirming, setConfirming] = useState(false)
-
-  async function run(action: () => Promise<void>) {
-    setSaving(true)
-    try {
-      await action()
-      onClose()
-    } catch {
-      // error toast handled in sendJSON()
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <form
@@ -219,10 +179,15 @@ function CategoryForm({
       {confirming &&
         onDelete &&
         (linkCount > 0 ? (
-          <p className="rounded-md border border-destructive/50 px-3 py-2 text-sm">
-            Move or delete its {linkCount} link{linkCount === 1 ? "" : "s"} first. Only an empty category can be
-            deleted.
-          </p>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/50 px-3 py-2 text-sm">
+            <span className="min-w-40 flex-1">
+              Move or delete its {linkCount} link{linkCount === 1 ? "" : "s"} first. Only an empty category can be
+              deleted.
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(false)}>
+              OK
+            </Button>
+          </div>
         ) : (
           <DeleteConfirm
             message={`Delete "${initial}"?`}
@@ -233,28 +198,12 @@ function CategoryForm({
           />
         ))}
 
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
-        {onDelete && (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirming(true)}
-              disabled={saving}
-            >
-              Delete
-            </Button>
-            <span className="flex-1" />
-          </>
-        )}
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : isCreate ? "Add category" : "Save"}
-        </Button>
-      </div>
+      <FormFooter
+        saving={saving}
+        submitLabel={isCreate ? "Add category" : "Save"}
+        onClose={onClose}
+        onRequestDelete={onDelete ? () => setConfirming(true) : undefined}
+      />
     </form>
   )
 }
@@ -269,6 +218,8 @@ export function LinksView({
   isAdmin,
   mutate,
   announcements,
+  recentlyEnded,
+  announcementsState,
   mutateAnnouncements,
 }: {
   categories: LinkCategoryRecord[]
@@ -278,12 +229,14 @@ export function LinksView({
   isAdmin: boolean
   mutate: KeyedMutator<LinksResponse>
   announcements: AnnouncementRecord[]
+  recentlyEnded: AnnouncementRecord[]
+  announcementsState: AnnouncementsLoadState
   mutateAnnouncements: KeyedMutator<AnnouncementsResponse>
 }) {
   const [query, setQuery] = useState("")
   const [editing, setEditing] = useState(false)
-  const [linkDialog, setLinkDialog] = useState<LinkDialogState | null>(null)
-  const [categoryDialog, setCategoryDialog] = useState<CategoryDialogState | null>(null)
+  const linkDialog = useDialog<LinkDialogState>()
+  const categoryDialog = useDialog<CategoryDialogState>()
   // One reorder at a time: the arrows are disabled while a move is saving, so
   // each click starts from the order the server already has.
   const [reordering, setReordering] = useState(false)
@@ -389,7 +342,13 @@ export function LinksView({
         )}
       </div>
 
-      <AnnouncementsSection announcements={announcements} editMode={editMode} mutate={mutateAnnouncements} />
+      <AnnouncementsSection
+        announcements={announcements}
+        recentlyEnded={recentlyEnded}
+        loadState={announcementsState}
+        editMode={editMode}
+        mutate={mutateAnnouncements}
+      />
 
       {visible.length > 1 && (
         <nav aria-label="Jump to category" className="flex flex-wrap gap-1.5">
@@ -454,7 +413,7 @@ export function LinksView({
                         <Button
                           variant="ghost"
                           size="icon-xs"
-                          onClick={() => setCategoryDialog({ category })}
+                          onClick={() => categoryDialog.show({ category })}
                           aria-label={`Edit category ${category.name}`}
                         >
                           <Pencil />
@@ -510,7 +469,7 @@ export function LinksView({
                                 <Button
                                   variant="ghost"
                                   size="icon-xs"
-                                  onClick={() => setLinkDialog({ categoryId: category.id, link })}
+                                  onClick={() => linkDialog.show({ categoryId: category.id, link })}
                                   aria-label={`Edit ${link.title}`}
                                 >
                                   <Pencil />
@@ -532,7 +491,7 @@ export function LinksView({
                   {editMode && (
                     <button
                       type="button"
-                      onClick={() => setLinkDialog({ categoryId: category.id, link: null })}
+                      onClick={() => linkDialog.show({ categoryId: category.id, link: null })}
                       className="mx-1.5 mb-2 flex items-center gap-2 rounded-md border border-dashed p-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:text-foreground"
                     >
                       <Plus className="size-4" />
@@ -546,7 +505,7 @@ export function LinksView({
             {editMode && (
               <button
                 type="button"
-                onClick={() => setCategoryDialog({ category: null })}
+                onClick={() => categoryDialog.show({ category: null })}
                 className="flex min-h-28 items-center justify-center gap-2 rounded-lg border border-dashed text-sm font-medium text-muted-foreground transition-colors hover:border-muted-foreground/60 hover:text-foreground"
               >
                 <Plus className="size-4" />
@@ -557,44 +516,46 @@ export function LinksView({
         </>
       )}
 
-      <Dialog open={!!linkDialog} onOpenChange={(open) => !open && setLinkDialog(null)}>
+      <Dialog open={linkDialog.open} onOpenChange={(open) => !open && linkDialog.close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{linkDialog?.link ? "Edit link" : "Add link"}</DialogTitle>
+            <DialogTitle>{linkDialog.value?.link ? "Edit link" : "Add link"}</DialogTitle>
           </DialogHeader>
-          {linkDialog && (
+          {linkDialog.value && (
             <LinkForm
-              key={linkDialog.link?.id ?? `new-${linkDialog.categoryId}`}
-              isCreate={!linkDialog.link}
+              key={linkDialog.key}
+              isCreate={!linkDialog.value.link}
               categories={categories}
               initial={{
-                title: linkDialog.link?.title ?? "",
-                url: linkDialog.link?.url ?? "https://",
-                note: linkDialog.link?.note ?? "",
-                categoryId: linkDialog.categoryId,
+                title: linkDialog.value.link?.title ?? "",
+                url: linkDialog.value.link?.url ?? "https://",
+                note: linkDialog.value.link?.note ?? "",
+                categoryId: linkDialog.value.categoryId,
               }}
-              onSave={(data) => saveLink(linkDialog, data)}
-              onDelete={linkDialog.link ? () => deleteLink(linkDialog.link!) : undefined}
-              onClose={() => setLinkDialog(null)}
+              onSave={(data) => saveLink(linkDialog.value!, data)}
+              onDelete={linkDialog.value.link ? () => deleteLink(linkDialog.value!.link!) : undefined}
+              onClose={linkDialog.close}
             />
           )}
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!categoryDialog} onOpenChange={(open) => !open && setCategoryDialog(null)}>
+      <Dialog open={categoryDialog.open} onOpenChange={(open) => !open && categoryDialog.close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{categoryDialog?.category ? "Edit category" : "Add category"}</DialogTitle>
+            <DialogTitle>{categoryDialog.value?.category ? "Edit category" : "Add category"}</DialogTitle>
           </DialogHeader>
-          {categoryDialog && (
+          {categoryDialog.value && (
             <CategoryForm
-              key={categoryDialog.category?.id ?? "new"}
-              isCreate={!categoryDialog.category}
-              initial={categoryDialog.category?.name ?? ""}
-              linkCount={categoryDialog.category?.links.length ?? 0}
-              onSave={(name) => saveCategory(categoryDialog.category, name)}
-              onDelete={categoryDialog.category ? () => deleteCategory(categoryDialog.category!) : undefined}
-              onClose={() => setCategoryDialog(null)}
+              key={categoryDialog.key}
+              isCreate={!categoryDialog.value.category}
+              initial={categoryDialog.value.category?.name ?? ""}
+              linkCount={categoryDialog.value.category?.links.length ?? 0}
+              onSave={(name) => saveCategory(categoryDialog.value!.category, name)}
+              onDelete={
+                categoryDialog.value.category ? () => deleteCategory(categoryDialog.value!.category!) : undefined
+              }
+              onClose={categoryDialog.close}
             />
           )}
         </DialogContent>

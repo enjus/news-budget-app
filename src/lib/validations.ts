@@ -365,6 +365,13 @@ export const updateTagSchema = tagFieldsSchema.partial().extend({
 
 // ─── Newsroom Links (admin) ──────────────────────────────────────────────────
 
+// Optional free-text/URL/date fields: a blank or whitespace-only string from a
+// cleared form input is stored as null rather than "".
+const blankToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), schema.nullable().optional());
+
+const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
+
 // Admin-entered hrefs render for every user, so only http(s) is accepted —
 // never javascript:/data: URLs.
 const linkUrlSchema = z
@@ -383,10 +390,7 @@ const linkUrlSchema = z
 const linkFieldsSchema = z.object({
   title: z.string().trim().min(1, "Link text is required").max(80),
   url: linkUrlSchema,
-  note: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
-    z.string().trim().max(80).nullable().optional()
-  ),
+  note: optionalText(80),
   categoryId: z.string().cuid(),
 });
 
@@ -408,24 +412,19 @@ export const reorderLinksSchema = reorderLinkCategoriesSchema.extend({
 
 // ─── Announcements (admin) ───────────────────────────────────────────────────
 
-const optionalText = (max: number) =>
-  z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
-    z.string().trim().max(max).nullable().optional()
-  );
+// dateOnlyString only checks the shape, so "2026-02-30" would pass and become
+// an Invalid Date at the DB. Round-tripping through UTC rejects it.
+const calendarDateString = dateOnlyString.refine((d) => {
+  const parsed = new Date(`${d}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === d;
+}, "Not a real date");
 
 const announcementFieldsSchema = z.object({
   title: z.string().trim().min(1, "Headline is required").max(120),
   body: optionalText(1000),
-  url: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
-    linkUrlSchema.nullable().optional()
-  ),
+  url: blankToNull(linkUrlSchema),
   // Last day shown, newsroom (Pacific) date. Null = until deleted.
-  endDate: z.preprocess(
-    (v) => (v === "" ? null : v),
-    dateOnlyString.nullable().optional()
-  ),
+  endDate: blankToNull(calendarDateString),
 });
 
 export const createAnnouncementSchema = announcementFieldsSchema;

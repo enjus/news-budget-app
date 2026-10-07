@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label"
 import type { AnnouncementRecord, AnnouncementsResponse } from "@/lib/hooks/useAnnouncements"
 import { sendJSON } from "@/lib/send-json"
 import { dateOnly, todayString } from "@/lib/utils"
-import { DeleteConfirm } from "./DeleteConfirm"
+import { DeleteConfirm, FormFooter, useDialog, useFormRun } from "./form-parts"
+
+/** "ready" once the first fetch has returned; "failed" only when there's no data to show. */
+export type AnnouncementsLoadState = "loading" | "failed" | "ready"
 
 /** "YYYY-MM-DD" newsroom date → "Oct 10" (UTC fields, so the day never shifts). */
 function formatDay(date: string) {
@@ -46,20 +49,8 @@ function AnnouncementForm({
   onClose: () => void
 }) {
   const [data, setData] = useState(initial)
-  const [saving, setSaving] = useState(false)
+  const { saving, run } = useFormRun(onClose)
   const [confirming, setConfirming] = useState(false)
-
-  async function run(action: () => Promise<void>) {
-    setSaving(true)
-    try {
-      await action()
-      onClose()
-    } catch {
-      // error toast handled in sendJSON()
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <form
@@ -130,47 +121,75 @@ function AnnouncementForm({
         />
       )}
 
-      <div className="flex flex-wrap justify-end gap-2 pt-2">
-        {onDelete && (
-          <>
-            <Button
-              type="button"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setConfirming(true)}
-              disabled={saving}
-            >
-              Delete
-            </Button>
-            <span className="flex-1" />
-          </>
-        )}
-        <Button type="button" variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saving}>
-          {saving ? "Saving..." : isCreate ? "Post" : "Save"}
-        </Button>
-      </div>
+      <FormFooter
+        saving={saving}
+        submitLabel={isCreate ? "Post" : "Save"}
+        onClose={onClose}
+        onRequestDelete={onDelete ? () => setConfirming(true) : undefined}
+      />
     </form>
+  )
+}
+
+function AnnouncementItem({
+  announcement: a,
+  meta,
+  onEdit,
+}: {
+  announcement: AnnouncementRecord
+  meta: string
+  onEdit?: () => void
+}) {
+  return (
+    <li className="flex items-start gap-3 px-4 py-3">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-medium [overflow-wrap:anywhere]">
+          {a.url ? (
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 hover:underline hover:underline-offset-2"
+            >
+              {a.title}
+              <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
+            </a>
+          ) : (
+            a.title
+          )}
+        </p>
+        {a.body && <p className="text-sm whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]">{a.body}</p>}
+        <p className="text-xs text-muted-foreground">{meta}</p>
+      </div>
+      {onEdit && (
+        <Button variant="ghost" size="icon-xs" onClick={onEdit} aria-label={`Edit ${a.title}`}>
+          <Pencil />
+        </Button>
+      )}
+    </li>
   )
 }
 
 /**
  * Homepage announcements above the links. Hidden entirely when there are
- * none, except in edit mode, where admins get the "Add announcement" control.
+ * none, except in edit mode, where admins get the "Add announcement" control
+ * and the recently ended ones (past 3 days) to extend or delete.
  */
 export function AnnouncementsSection({
   announcements,
+  recentlyEnded,
+  loadState,
   editMode,
   mutate,
 }: {
   announcements: AnnouncementRecord[]
+  recentlyEnded: AnnouncementRecord[]
+  loadState: AnnouncementsLoadState
   editMode: boolean
   mutate: KeyedMutator<AnnouncementsResponse>
 }) {
-  // undefined = closed, null = new, record = editing
-  const [dialog, setDialog] = useState<AnnouncementRecord | null | undefined>(undefined)
+  // value null = new announcement
+  const dialog = useDialog<AnnouncementRecord | null>()
 
   async function save(existing: AnnouncementRecord | null, data: AnnouncementFormData) {
     const body = { ...data, body: data.body || null, url: data.url || null, endDate: data.endDate || null }
@@ -190,7 +209,13 @@ export function AnnouncementsSection({
     await mutate()
   }
 
-  if (announcements.length === 0 && !editMode) return null
+  if (!editMode && announcements.length === 0) return null
+
+  // In edit mode an empty list must not read as "none" until the fetch has
+  // actually returned — otherwise an admin might re-post an existing one.
+  let emptyMessage = "No current announcements."
+  if (loadState === "loading") emptyMessage = "Loading announcements…"
+  else if (loadState === "failed") emptyMessage = "Announcements couldn't be loaded. Refresh to try again."
 
   return (
     <section aria-labelledby="announcements-heading" className="space-y-2">
@@ -198,8 +223,8 @@ export function AnnouncementsSection({
         <h2 id="announcements-heading" className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           Announcements
         </h2>
-        {editMode && (
-          <Button variant="outline" size="sm" onClick={() => setDialog(null)}>
+        {editMode && loadState === "ready" && (
+          <Button variant="outline" size="sm" onClick={() => dialog.show(null)}>
             <Plus className="size-4" />
             Add announcement
           </Button>
@@ -209,63 +234,57 @@ export function AnnouncementsSection({
       {announcements.length > 0 ? (
         <ul className="divide-y rounded-lg border bg-muted/40">
           {announcements.map((a) => (
-            <li key={a.id} className="flex items-start gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1 space-y-1">
-                <p className="font-medium [overflow-wrap:anywhere]">
-                  {a.url ? (
-                    <a
-                      href={a.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 hover:underline hover:underline-offset-2"
-                    >
-                      {a.title}
-                      <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground" />
-                    </a>
-                  ) : (
-                    a.title
-                  )}
-                </p>
-                {a.body && (
-                  <p className="text-sm whitespace-pre-line text-muted-foreground [overflow-wrap:anywhere]">{a.body}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Posted {formatPosted(a.createdAt)}
-                  {editMode && (a.endDate ? ` · Shown through ${formatDay(a.endDate)}` : " · No end date")}
-                </p>
-              </div>
-              {editMode && (
-                <Button variant="ghost" size="icon-xs" onClick={() => setDialog(a)} aria-label={`Edit ${a.title}`}>
-                  <Pencil />
-                </Button>
-              )}
-            </li>
+            <AnnouncementItem
+              key={a.id}
+              announcement={a}
+              meta={
+                `Posted ${formatPosted(a.createdAt)}` +
+                (editMode ? (a.endDate ? ` · Shown through ${formatDay(a.endDate)}` : " · No end date") : "")
+              }
+              onEdit={editMode ? () => dialog.show(a) : undefined}
+            />
           ))}
         </ul>
       ) : (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">No announcements.</p>
+        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">{emptyMessage}</p>
       )}
 
-      <Dialog open={dialog !== undefined} onOpenChange={(open) => !open && setDialog(undefined)}>
+      {editMode && recentlyEnded.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <h3 className="text-xs font-medium text-muted-foreground">Recently ended, no longer shown</h3>
+          <ul className="divide-y rounded-lg border border-dashed opacity-75">
+            {recentlyEnded.map((a) => (
+              <AnnouncementItem
+                key={a.id}
+                announcement={a}
+                meta={`Posted ${formatPosted(a.createdAt)} · Ended ${formatDay(a.endDate!)}`}
+                onEdit={() => dialog.show(a)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Dialog open={dialog.open} onOpenChange={(open) => !open && dialog.close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{dialog ? "Edit announcement" : "Add announcement"}</DialogTitle>
+            <DialogTitle>{dialog.value ? "Edit announcement" : "Add announcement"}</DialogTitle>
           </DialogHeader>
-          {dialog !== undefined && (
+          {dialog.open || dialog.key > 0 ? (
             <AnnouncementForm
-              key={dialog?.id ?? "new"}
-              isCreate={!dialog}
+              key={dialog.key}
+              isCreate={!dialog.value}
               initial={{
-                title: dialog?.title ?? "",
-                body: dialog?.body ?? "",
-                url: dialog?.url ?? "",
-                endDate: dialog?.endDate ?? "",
+                title: dialog.value?.title ?? "",
+                body: dialog.value?.body ?? "",
+                url: dialog.value?.url ?? "",
+                endDate: dialog.value?.endDate ?? "",
               }}
-              onSave={(data) => save(dialog, data)}
-              onDelete={dialog ? () => remove(dialog) : undefined}
-              onClose={() => setDialog(undefined)}
+              onSave={(data) => save(dialog.value, data)}
+              onDelete={dialog.value ? () => remove(dialog.value!) : undefined}
+              onClose={dialog.close}
             />
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </section>

@@ -9,8 +9,7 @@ import { LinksView } from "./LinksView"
 export function LinksWrapper() {
   const { data: session } = useSession()
   const { categories, hasData, isLoading, error, mutate } = useLinks()
-  // A failed announcements fetch just leaves the section empty — links are the page.
-  const { announcements, mutate: mutateAnnouncements } = useAnnouncements()
+  const ann = useAnnouncements()
 
   return (
     <LinksView
@@ -21,8 +20,10 @@ export function LinksWrapper() {
       loadFailed={!!error && !hasData}
       isAdmin={!!session && hasAdminAccess(session.user.appRole)}
       mutate={mutate}
-      announcements={announcements}
-      mutateAnnouncements={mutateAnnouncements}
+      announcements={ann.announcements}
+      recentlyEnded={ann.recentlyEnded}
+      announcementsState={ann.hasData ? "ready" : ann.error ? "failed" : "loading"}
+      mutateAnnouncements={ann.mutate}
     />
   )
 }
