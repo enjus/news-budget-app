@@ -1,33 +1,19 @@
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createTagSchema } from "@/lib/validations"
-import { hasAdminAccess } from "@/lib/utils"
-import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers"
+import { prismaErrorCode, requireAdminWrite, validationErrorResponse } from "@/lib/api-helpers"
 import { labelToTagKey } from "@/lib/tags"
 import { ensureDefaultTags, findTagNameConflict } from "@/lib/tags-server"
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  if (!session || !hasAdminAccess(session.user.appRole)) {
-    return Response.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const { error: denied } = await requireAdminWrite(req)
+  if (denied) return denied
 
-  const limited = checkWriteLimit(session.user.id)
-  if (limited) return limited
-  const badType = requireJSON(req)
-  if (badType) return badType
-
-  const parsed = createTagSchema.safeParse(await req.json())
-  if (!parsed.success) {
-    const fieldErrors = parsed.error.flatten().fieldErrors
-    // The admin UI toasts `error`, so surface the first specific message.
-    const first = Object.values(fieldErrors).flat()[0]
-    return Response.json({ error: first ?? "Validation failed", fieldErrors }, { status: 400 })
-  }
+  // A malformed body parses as null and fails validation as a 400.
+  const parsed = createTagSchema.safeParse(await req.json().catch(() => null))
+  if (!parsed.success) return validationErrorResponse(parsed.error)
 
   // The key is derived once from the label and never changes, so renames
   // don't break existing StoryTag rows or /tags/[slug] URLs. Empty and

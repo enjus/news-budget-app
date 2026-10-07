@@ -371,3 +371,30 @@ model CommentMention {
   @@unique([commentId, personId])
   @@index([personId])
 }
+
+// Newsroom Links (/links): admin-curated directory of tools and sites,
+// grouped into ordered categories. Not named `Link` so the generated type
+// doesn't collide with `next/link` imports.
+model LinkCategory {
+  id        String         @id @default(cuid())
+  name      String
+  nameKey   String         @unique // categoryNameKey(name): makes names case-insensitively unique
+  sortOrder Int            @default(0)
+  links     NewsroomLink[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model NewsroomLink {
+  id         String       @id @default(cuid())
+  category   LinkCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId String
+  title      String
+  url        String
+  note       String?
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([categoryId, sortOrder])
+}

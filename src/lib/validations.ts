@@ -363,6 +363,49 @@ export const updateTagSchema = tagFieldsSchema.partial().extend({
   archived: z.boolean().optional(),
 });
 
+// ─── Newsroom Links (admin) ──────────────────────────────────────────────────
+
+// Admin-entered hrefs render for every user, so only http(s) is accepted —
+// never javascript:/data: URLs.
+const linkUrlSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((u) => {
+    try {
+      const parsed = new URL(u);
+      return /^https?:$/.test(parsed.protocol) && !!parsed.hostname;
+    } catch {
+      return false;
+    }
+  }, "Enter a full web address starting with https://");
+
+const linkFieldsSchema = z.object({
+  title: z.string().trim().min(1, "Link text is required").max(80),
+  url: linkUrlSchema,
+  note: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(80).nullable().optional()
+  ),
+  categoryId: z.string().cuid(),
+});
+
+export const createLinkSchema = linkFieldsSchema;
+export const updateLinkSchema = linkFieldsSchema.partial();
+
+export const linkCategorySchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(40),
+});
+
+// Full ordered id lists; the routes rewrite sortOrder to match.
+export const reorderLinkCategoriesSchema = z.object({
+  ids: z.array(z.string().cuid()).min(1).max(500),
+});
+
+export const reorderLinksSchema = reorderLinkCategoriesSchema.extend({
+  categoryId: z.string().cuid(),
+});
+
 // ─── Visual ───────────────────────────────────────────────────────────────────
 
 export const createVisualSchema = z.object({
