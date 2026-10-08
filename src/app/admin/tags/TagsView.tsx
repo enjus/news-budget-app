@@ -15,7 +15,7 @@ import { TAG_COLORS, TAG_COLOR_KEYS, TAG_ICON_KEYS, tagHref, type TagColorKey } 
 import { TAG_ICONS } from "@/components/tags/tag-icons"
 import { TagChip } from "@/components/tags/TagChip"
 import { BUILTIN_INDICATORS, cn } from "@/lib/utils"
-import { apiPath } from "@/lib/api-path"
+import { sendJSON } from "@/lib/send-json"
 
 interface TagFormData {
   label: string
@@ -156,19 +156,6 @@ function TagForm({
   )
 }
 
-async function sendTag(url: string, method: "POST" | "PATCH", body: object, failMessage: string) {
-  const res = await fetch(apiPath(url), {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    toast.error(typeof err.error === "string" ? err.error : failMessage)
-    throw new Error()
-  }
-}
-
 export function TagsView() {
   const { tags, isLoading, mutate } = useTags()
   const [createOpen, setCreateOpen] = useState(false)
@@ -178,13 +165,13 @@ export function TagsView() {
   const archived = tags.filter((t) => t.archivedAt)
 
   async function handleCreate(data: TagFormData) {
-    await sendTag("/api/admin/tags", "POST", { ...data, abbrev: data.abbrev || null }, "Failed to create tag")
+    await sendJSON("/api/admin/tags", "POST", { ...data, abbrev: data.abbrev || null }, "Failed to create tag")
     toast.success("Tag created")
     await mutate()
   }
 
   async function handleEdit(key: string, data: TagFormData) {
-    await sendTag(`/api/admin/tags/${key}`, "PATCH", { ...data, abbrev: data.abbrev || null }, "Failed to update tag")
+    await sendJSON(`/api/admin/tags/${key}`, "PATCH", { ...data, abbrev: data.abbrev || null }, "Failed to update tag")
     toast.success("Tag updated")
     await mutate()
   }
@@ -192,7 +179,7 @@ export function TagsView() {
   async function handleArchive(tag: TagRecord, archive: boolean) {
     if (archive && !confirm(`Archive "${tag.label}"? It stays on existing stories but can't be added to new ones.`)) return
     try {
-      await sendTag(`/api/admin/tags/${tag.key}`, "PATCH", { archived: archive }, "Failed to update tag")
+      await sendJSON(`/api/admin/tags/${tag.key}`, "PATCH", { archived: archive }, "Failed to update tag")
       toast.success(archive ? `Archived ${tag.label}` : `Restored ${tag.label}`)
       await mutate()
     } catch {

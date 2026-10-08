@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { writeLimiter, WRITE_LIMIT, readLimiter, READ_LIMIT } from "./rate-limit"
+import { getServerSession, type Session } from "next-auth"
+import type { z } from "zod"
+import { authOptions } from "./auth"
+import { hasAdminAccess } from "./utils"
 
 // Off-budget draft privacy (view + write ownership gate) was deliberately
 // removed — see CLAUDE.md's "Off-budget draft visibility" design decision.
@@ -106,4 +110,37 @@ export function checkReadLimit(userId: string): NextResponse | null {
     )
   }
   return null
+}
+
+/**
+ * Shared preamble for admin-only write routes: an admin session
+ * (hasAdminAccess), the write rate limit, and — unless `json: false`, for
+ * DELETE — a JSON content-type. Returns the session, or the error response
+ * to send as-is.
+ */
+export async function requireAdminWrite(
+  req: NextRequest,
+  { json = true }: { json?: boolean } = {}
+): Promise<{ session: Session; error?: never } | { session?: never; error: NextResponse }> {
+  const session = await getServerSession(authOptions)
+  if (!session || !hasAdminAccess(session.user.appRole)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  }
+  const limited = checkWriteLimit(session.user.id)
+  if (limited) return { error: limited }
+  if (json) {
+    const badType = requireJSON(req)
+    if (badType) return { error: badType }
+  }
+  return { session }
+}
+
+/**
+ * 400 for a failed Zod parse. `error` is the first specific field message,
+ * since admin UIs toast it directly; `fieldErrors` carries the rest.
+ */
+export function validationErrorResponse(error: z.ZodError): NextResponse {
+  const fieldErrors = error.flatten().fieldErrors as Record<string, string[] | undefined>
+  const first = Object.values(fieldErrors).flat()[0]
+  return NextResponse.json({ error: first ?? "Validation failed", fieldErrors }, { status: 400 })
 }
