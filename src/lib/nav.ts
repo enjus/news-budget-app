@@ -1,12 +1,12 @@
 import { PITCHES_ENABLED, SCHEDULE_ENABLED } from "@/lib/features"
-import { hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
+import { hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 
 // Single source of truth for the two-level nav: TopNav renders the sections,
 // SectionTabNav renders the active section's tabs, and the mobile menu
 // renders both. Budget is one tool among several (Schedule, Pitches), so
 // its old top-level links (Daily, Enterprise, …) live here as tabs.
 
-export type NavSectionId = "budget" | "pitches" | "schedule"
+export type NavSectionId = "budget" | "pitches" | "schedule" | "admin"
 
 export interface NavContext {
   appRole: string
@@ -28,11 +28,14 @@ export interface NavSection {
   href: string
   /** Whether the section appears in the top bar/menu. Its sub-nav still renders on its routes either way. */
   enabled: boolean
+  /** False for sections reached only from the menus (Admin), never as a top-bar link. */
+  inTopBar: boolean
   tabs: NavTab[]
 }
 
-interface SectionDef extends Omit<NavSection, "tabs"> {
+interface SectionDef extends Omit<NavSection, "tabs" | "enabled"> {
   match: string[]
+  enabled: boolean | ((ctx: NavContext) => boolean)
   /** Returns only the tabs this viewer should see. */
   tabs: (ctx: NavContext) => NavTab[]
 }
@@ -46,8 +49,9 @@ const SECTIONS: SectionDef[] = [
     label: "Budget",
     // "/" honors the user's defaultView preference (src/app/page.tsx).
     href: "/",
-    match: ["/budget", "/teams", "/me", "/stories", "/videos"],
+    match: ["/budget", "/teams", "/me", "/people", "/stories", "/videos"],
     enabled: true,
+    inTopBar: true,
     tabs: (ctx) => [
       // /budget/daily redirects server-side to today, so a tab left open
       // past midnight still lands on the current date.
@@ -60,6 +64,9 @@ const SECTIONS: SectionDef[] = [
       ...(canViewMyTeams(ctx.appRole)
         ? [{ label: ctx.teamsLabel, href: "/teams", match: ["/teams"] }]
         : []),
+      ...(canViewPeople(ctx.appRole)
+        ? [{ label: "People", href: "/people", match: ["/people"] }]
+        : []),
       ...(canCreateContent(ctx.appRole) || ctx.personId
         ? [{ label: "Me", href: "/me", match: ["/me"] }]
         : []),
@@ -71,6 +78,7 @@ const SECTIONS: SectionDef[] = [
     href: "/budget/pitches",
     match: ["/budget/pitches"],
     enabled: PITCHES_ENABLED,
+    inTopBar: true,
     tabs: () => [],
   },
   {
@@ -79,11 +87,29 @@ const SECTIONS: SectionDef[] = [
     href: "/schedule/today",
     match: ["/schedule"],
     enabled: SCHEDULE_ENABLED,
+    inTopBar: true,
     tabs: () => [
       { label: "Today", href: "/schedule/today", match: ["/schedule/today"] },
       { label: "Me", href: "/schedule/me", match: ["/schedule/me"] },
       { label: "Teams", href: "/schedule/teams", match: ["/schedule/teams"] },
       { label: "Shifts", href: "/schedule/shifts", match: ["/schedule/shifts"] },
+    ],
+  },
+  {
+    // Reached from the user menu (desktop) or its own group in the mobile
+    // menu; the tabs give admin pages a sub-nav. Access is enforced by
+    // src/app/admin/layout.tsx, not here.
+    id: "admin",
+    label: "Admin",
+    href: "/admin/users",
+    match: ["/admin"],
+    enabled: (ctx) => hasAdminAccess(ctx.appRole),
+    inTopBar: false,
+    tabs: () => [
+      { label: "Users", href: "/admin/users", match: ["/admin/users"] },
+      { label: "Teams", href: "/admin/teams", match: ["/admin/teams"] },
+      { label: "Tags", href: "/admin/tags", match: ["/admin/tags"] },
+      { label: "Calendar", href: "/admin/calendar", match: ["/admin/calendar"] },
     ],
   },
 ]
@@ -98,12 +124,13 @@ export function navSections(ctx: NavContext): NavSection[] {
     id: def.id,
     label: def.label,
     href: def.href,
-    enabled: def.enabled,
+    enabled: typeof def.enabled === "function" ? def.enabled(ctx) : def.enabled,
+    inTopBar: def.inTopBar,
     tabs: def.tabs(ctx),
   }))
 }
 
-/** The section owning `pathname` (longest matching prefix wins), whether or not it's enabled — or null (admin, settings, people…). */
+/** The section owning `pathname` (longest matching prefix wins), whether or not it's enabled — or null (settings, login…). */
 export function sectionForPath(pathname: string): NavSectionId | null {
   let best: { id: NavSectionId; length: number } | null = null
   for (const section of SECTIONS) {

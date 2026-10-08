@@ -9,7 +9,7 @@ describe("sectionForPath", () => {
   })
 
   it("assigns Budget's non-/budget routes to Budget", () => {
-    for (const p of ["/teams", "/me", "/stories/abc", "/videos/new"]) {
+    for (const p of ["/teams", "/me", "/people/abc", "/stories/abc", "/videos/new"]) {
       expect(sectionForPath(p)).toBe("budget")
     }
   })
@@ -24,9 +24,13 @@ describe("sectionForPath", () => {
   })
 
   it("returns null for routes outside any section", () => {
-    for (const p of ["/", "/settings", "/admin/teams", "/people/abc", "/login"]) {
+    for (const p of ["/", "/settings", "/login"]) {
       expect(sectionForPath(p)).toBeNull()
     }
+  })
+
+  it("assigns /admin routes to Admin", () => {
+    expect(sectionForPath("/admin/teams")).toBe("admin")
   })
 })
 
@@ -34,7 +38,7 @@ describe("navSections", () => {
   const ctx = { appRole: "PRODUCER", personId: null, teamsLabel: "Team" }
 
   it("lists sections in top-bar order", () => {
-    expect(navSections(ctx).map((s) => s.id)).toEqual(["budget", "pitches", "schedule"])
+    expect(navSections(ctx).map((s) => s.id)).toEqual(["budget", "pitches", "schedule", "admin"])
   })
 
   it("hides role-gated Budget tabs for a producer without a linked person", () => {
@@ -45,7 +49,14 @@ describe("navSections", () => {
 
   it("shows Editions and the team label for an admin", () => {
     const budget = navSections({ ...ctx, appRole: "ADMIN", teamsLabel: "Metro" }).find((s) => s.id === "budget")!
-    expect(budget.tabs.map((t) => t.label)).toEqual(["Daily", "Enterprise", "Editions", "Shelved", "Metro", "Me"])
+    expect(budget.tabs.map((t) => t.label)).toEqual(["Daily", "Enterprise", "Editions", "Shelved", "Metro", "People", "Me"])
+  })
+
+  it("enables Admin only for admins, and never in the top bar", () => {
+    const forRole = (appRole: string) => navSections({ ...ctx, appRole }).find((s) => s.id === "admin")!
+    expect(forRole("PRODUCER").enabled).toBe(false)
+    expect(forRole("ADMIN").enabled).toBe(true)
+    expect(forRole("ADMIN").inTopBar).toBe(false)
   })
 
   it("shows Me for a viewer with a linked person even without create rights", () => {
