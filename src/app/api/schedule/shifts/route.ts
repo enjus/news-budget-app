@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftAssignmentSchema } from "@/lib/validations";
 import { canEditSchedule, dateOnly, toDateString, weekdayName, SHIFT_ROLES } from "@/lib/utils";
-import { resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, isPlainWorkingSet, type AvailabilityEntry } from "@/lib/schedule";
+import { clampToScheduleStart, resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, isPlainWorkingSet, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -20,14 +20,19 @@ const MAX_RANGE_DAYS = 400; // a ~6-month rotation season (§6) plus buffer
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const start = searchParams.get("start");
+    const requestedStart = searchParams.get("start");
     const end = searchParams.get("end");
 
-    if (!start || !DATE_RE.test(start) || !end || !DATE_RE.test(end)) {
+    if (!requestedStart || !DATE_RE.test(requestedStart) || !end || !DATE_RE.test(end)) {
       return NextResponse.json({ error: "start and end (YYYY-MM-DD) are required" }, { status: 400 });
     }
-    if (end < start) {
+    if (end < requestedStart) {
       return NextResponse.json({ error: "end must be on or after start" }, { status: 400 });
+    }
+    // Issue #85: nothing before the cutover is tracked here.
+    const start = clampToScheduleStart(requestedStart);
+    if (end < start) {
+      return NextResponse.json({ start, end, roster: [], days: [] });
     }
 
     const startDate = dateOnly(start);

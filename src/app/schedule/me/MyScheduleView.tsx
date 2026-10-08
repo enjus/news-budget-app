@@ -8,6 +8,7 @@ import { MonthCalendar } from "@/components/schedule/MonthCalendar"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
 import { useMySchedule } from "@/lib/hooks/useMySchedule"
 import { todayString, toDateString, dateOnly } from "@/lib/utils"
+import { SCHEDULE_START_DATE, clampToScheduleStart } from "@/lib/schedule"
 
 function monthBounds(monthStart: string): { start: string; end: string } {
   const [year, month] = monthStart.split("-").map(Number)
@@ -15,8 +16,13 @@ function monthBounds(monthStart: string): { start: string; end: string } {
   return { start: monthStart, end }
 }
 
+// First-of-month for today, but never before the schedule start (issue #85).
+function currentMonthStart(): string {
+  return clampToScheduleStart(`${todayString().slice(0, 7)}-01`)
+}
+
 export function MyScheduleView() {
-  const [monthStart, setMonthStart] = useState(() => `${todayString().slice(0, 7)}-01`)
+  const [monthStart, setMonthStart] = useState(currentMonthStart)
   const { start, end } = monthBounds(monthStart)
 
   const { personId, days, isLoading, mutate } = useMySchedule(start, end)
@@ -31,8 +37,10 @@ export function MyScheduleView() {
 
   function shiftMonth(delta: number) {
     const [year, month] = monthStart.split("-").map(Number)
-    setMonthStart(toDateString(new Date(Date.UTC(year, month - 1 + delta, 1))))
+    setMonthStart(clampToScheduleStart(toDateString(new Date(Date.UTC(year, month - 1 + delta, 1)))))
   }
+  // Nothing before the cutover is tracked, so there's no earlier month to visit.
+  const atFloor = monthStart <= SCHEDULE_START_DATE
 
   // isLoading covers the session itself still resolving, not just the SWR
   // fetch — otherwise a properly-linked account flashes "no linked staff
@@ -66,10 +74,10 @@ export function MyScheduleView() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">My schedule</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon-sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+          <Button variant="outline" size="icon-sm" disabled={atFloor} onClick={() => shiftMonth(-1)} aria-label="Previous month">
             <ChevronLeft className="size-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setMonthStart(`${todayString().slice(0, 7)}-01`)}>
+          <Button variant="outline" size="sm" onClick={() => setMonthStart(currentMonthStart())}>
             Today
           </Button>
           <span className="text-sm font-medium w-28 text-center">

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addDays, dateOnly, toDateString } from "@/lib/utils";
-import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry } from "@/lib/schedule";
+import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, isBeforeScheduleStart, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -67,6 +67,9 @@ export async function GET(request: NextRequest) {
       const personWorkSchedule = workScheduleByPerson.get(person.id) ?? [];
 
       const days = weekDates.map((date) => {
+        // Issue #85: pre-cutover dates live in the spreadsheet — never resolve
+        // them (the standing pattern would show everyone as working).
+        if (isBeforeScheduleStart(date)) return { date, untracked: true as const };
         const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers);
         const inBlackout = detectBlackoutOverlap([date], blackoutMarkers).length > 0;
         const rowsForDate = rows.filter((r) => toDateString(r.date) === date);

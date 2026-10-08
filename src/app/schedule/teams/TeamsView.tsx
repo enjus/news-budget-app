@@ -13,6 +13,8 @@ import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
 import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate, displayName } from "@/lib/utils"
+import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, clampToScheduleStart, isBeforeScheduleStart, scheduleToday } from "@/lib/schedule"
+import { FloorDateInput } from "@/components/schedule/FloorDateInput"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
 
@@ -65,7 +67,12 @@ function lastOfMonth(date: string): string {
 /** The fetch window for a mode + anchor: the Monday-Sunday week for Week and
  *  Single day, the full calendar month for Month. */
 export function visibleRange(mode: TeamsViewMode, anchor: string): { start: string; end: string } {
-  if (mode === "month") return { start: firstOfMonth(anchor), end: lastOfMonth(anchor) }
+  // Clamped so a boundary-week anchor (Dec 28) doesn't open an entirely
+  // untracked December — Month starts at the cutover instead.
+  if (mode === "month") {
+    const a = clampToScheduleStart(anchor)
+    return { start: firstOfMonth(a), end: lastOfMonth(a) }
+  }
   const start = mondayOf(anchor)
   return { start, end: addDays(start, 6) }
 }
@@ -77,6 +84,7 @@ function monthLabel(date: string): string {
 /** Row has no explicit override anywhere in the displayed range — used by
  *  the "show only exceptions" filter. */
 function isBaseline(day: WeekSchedulePerson["days"][number]): boolean {
+  if (!day || day.untracked) return true
   if (day.split) return false
   return (day.status === "working" && day.source === "pattern") || (day.status === "off" && day.reason === "regular")
 }
@@ -122,6 +130,19 @@ function DayCell({
   onMouseDown: () => void
   onMouseEnter: () => void
 }) {
+  // Issue #85: dates before the cutover live in the spreadsheet. Judged per
+  // cell — the boundary week is half 2026, half 2027.
+  if (day?.untracked) {
+    return (
+      <div
+        title={`Before ${SCHEDULE_START_LABEL} — see the spreadsheet`}
+        className="flex items-center justify-center rounded border border-dashed border-border/60 min-h-9 bg-muted/30 text-xs text-muted-foreground"
+      >
+        <span className="truncate px-1">See spreadsheet</span>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
@@ -225,7 +246,11 @@ export function TeamsView({
   const [rangePicker, setRangePicker] = useState<{ personId: string; dates: string[] } | null>(null)
   const [editingWeekFor, setEditingWeekFor] = useState<string | null>(null)
 
-  const columns = viewMode === "day" ? [dayIndex] : weekDates.map((_, i) => i)
+  // Stepping into the boundary week can leave `dayIndex` on an untracked day;
+  // fall back to the first tracked one.
+  const firstTracked = Math.max(0, weekDates.findIndex((d) => !isBeforeScheduleStart(d)))
+  const activeDayIndex = isBeforeScheduleStart(weekDates[dayIndex]) ? firstTracked : dayIndex
+  const columns = viewMode === "day" ? [activeDayIndex] : weekDates.map((_, i) => i)
   const today = todayString()
 
   // Opening a month that contains today scrolls today's column to just right
@@ -258,7 +283,8 @@ export function TeamsView({
         if (d) {
           const lo = Math.min(d.startIdx, d.endIdx)
           const hi = Math.max(d.startIdx, d.endIdx)
-          setRangePicker({ personId: d.personId, dates: weekDates.slice(lo, hi + 1) })
+          const dates = weekDates.slice(lo, hi + 1).filter((date) => !isBeforeScheduleStart(date))
+          if (dates.length > 0) setRangePicker({ personId: d.personId, dates })
         }
         return null
       })
@@ -268,6 +294,7 @@ export function TeamsView({
   }, [drag, weekDates])
 
   function handleCellMouseDown(personId: string, idx: number) {
+    if (isBeforeScheduleStart(weekDates[idx])) return
     setDrag({ personId, startIdx: idx, endIdx: idx })
   }
   function handleCellMouseEnter(personId: string, idx: number) {
@@ -295,6 +322,10 @@ export function TeamsView({
     return addDays(weekDates[0], dir * 7)
   }
 
+  // Nothing earlier than the cutover is tracked, so don't step into a window
+  // that is entirely before it.
+  const atFloor = addDays(weekDates[0], -1) < SCHEDULE_START_DATE
+
   const editingPerson = editingWeekFor ? people.find((p) => p.id === editingWeekFor) : undefined
 
   return (
@@ -305,12 +336,13 @@ export function TeamsView({
           <Button
             variant="outline"
             size="icon-sm"
+            disabled={atFloor}
             onClick={() => onAnchorChange(stepAnchor(-1))}
             aria-label={isMonth ? "Previous month" : "Previous week"}
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => onAnchorChange(todayString())}>
+          <Button variant="outline" size="sm" onClick={() => onAnchorChange(scheduleToday())}>
             {isMonth ? "This month" : "This week"}
           </Button>
           <span className="text-sm font-medium w-32 text-center">
@@ -327,12 +359,11 @@ export function TeamsView({
           {/* Jumps straight to the week containing any picked date — the
              prev/next steppers alone take too many clicks to reach a
              far-future planned absence. */}
-          <Input
-            type="date"
+          <FloorDateInput
             aria-label={isMonth ? "Jump to month" : "Jump to week"}
             className="w-40"
             value={weekDates[0]}
-            onChange={(e) => e.target.value && onAnchorChange(e.target.value)}
+            onCommit={onAnchorChange}
           />
         </div>
       </div>
@@ -366,7 +397,7 @@ export function TeamsView({
         </div>
         <div className="flex items-center gap-2">
           {viewMode === "day" && (
-            <Select value={String(dayIndex)} onValueChange={(v) => setDayIndex(Number(v))}>
+            <Select value={String(activeDayIndex)} onValueChange={(v) => setDayIndex(Number(v))}>
               <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>

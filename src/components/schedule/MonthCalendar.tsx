@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { toDateString } from "@/lib/utils"
+import { isBeforeScheduleStart } from "@/lib/schedule"
 import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 
@@ -109,7 +110,16 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect }: M
           return (
             <div key={weekIdx} className="grid grid-cols-7 gap-1">
               {week.map((date, col) =>
-                date ? (
+                date && isBeforeScheduleStart(date) ? (
+                  // Issue #85: not tracked here — see the spreadsheet.
+                  <div
+                    key={date}
+                    className="flex flex-col rounded-md border border-dashed bg-muted/30 p-1.5 text-xs h-16 text-muted-foreground"
+                  >
+                    <div className="font-medium shrink-0">{Number(date.slice(8))}</div>
+                    <div className="mt-0.5 truncate">See spreadsheet</div>
+                  </div>
+                ) : date ? (
                   <button
                     key={date}
                     type="button"

@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { dateOnly, toDateString, todayString, displayName, SHIFT_ROLES, SHIFT_ROLE_LABELS } from "@/lib/utils"
 import { resolvedSegmentLabel } from "@/components/schedule/AvailabilityChip"
+import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, clampToScheduleStart, isBeforeScheduleStart } from "@/lib/schedule"
+import { FloorDateInput } from "@/components/schedule/FloorDateInput"
 import { groupPeople, isObservedHoliday, type GroupedDay } from "./groupPeople"
 import type { DaySchedulePerson, DayShiftAssignment } from "@/lib/hooks/useDaySchedule"
 import type { CalendarMarker } from "@prisma/client"
@@ -153,39 +155,50 @@ export function TodayView({ date, onDateChange, people, teams, markers, shifts, 
     [grouped.workingOnHoliday, shiftIds]
   )
 
+  // Issue #85: before the cutover the board has nothing true to say — the
+  // standing pattern would list nobody as out. Show one notice instead.
+  const untracked = isBeforeScheduleStart(date)
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-semibold">Today</h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon-sm" onClick={() => onDateChange(shiftDate(date, -1))} aria-label="Previous day">
+          <Button variant="outline" size="icon-sm" disabled={untracked || date === SCHEDULE_START_DATE} onClick={() => onDateChange(clampToScheduleStart(shiftDate(date, -1)))} aria-label="Previous day">
             <ChevronLeft className="size-4" />
           </Button>
           <Button variant="outline" size="sm" onClick={() => onDateChange(todayString())}>
             Today
           </Button>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => e.target.value && onDateChange(e.target.value)}
-            className="w-40"
-          />
+          <FloorDateInput value={date} onCommit={onDateChange} className="w-40" aria-label="Date" />
           <Button variant="outline" size="icon-sm" onClick={() => onDateChange(shiftDate(date, 1))} aria-label="Next day">
             <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>
 
-      {!isLoading && holiday && (
+      {untracked && (
+        <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+          <Info className="size-4 text-muted-foreground shrink-0" />
+          <span>
+            Schedule starts {SCHEDULE_START_LABEL}. Until then, see the spreadsheet.
+          </span>
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => onDateChange(SCHEDULE_START_DATE)}>
+            Go to {SCHEDULE_START_LABEL}
+          </Button>
+        </div>
+      )}
+
+      {!untracked && !isLoading && holiday && (
         <div className="flex items-center gap-2 rounded-lg border bg-violet-50 dark:bg-violet-950/30 px-4 py-3 text-sm">
           <CalendarDays className="size-4 text-violet-600 dark:text-violet-400 shrink-0" />
           <strong>{holiday.label}</strong>
         </div>
       )}
 
-      {!isLoading && <ShiftSection shifts={shifts} />}
+      {!untracked && !isLoading && <ShiftSection shifts={shifts} />}
 
-      {isLoading ? (
+      {untracked ? null : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-12 w-full rounded-lg" />

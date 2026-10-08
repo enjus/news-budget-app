@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, segmentToStatus, type PresetId, type PresetRow } from "./availabilityPresets"
 import { apiPath } from "@/lib/api-path"
+import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, isBeforeScheduleStart } from "@/lib/schedule"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
 
 interface PresetPickerProps {
@@ -83,6 +84,12 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
   const effectiveSkip = isRange && skipNonWorkingDays
 
   async function handleSave() {
+    // `min` on a date input doesn't stop typed values; the API rejects these
+    // too (issue #85) but with a generic message.
+    if (isBeforeScheduleStart(startDate) || isBeforeScheduleStart(endDate)) {
+      toast.error(`The schedule starts ${SCHEDULE_START_LABEL} — earlier dates live in the spreadsheet.`)
+      return
+    }
     setSaving(true)
     try {
       const rows = preset === "CUSTOM" ? presetRows(preset, { am: amStatus, pm: pmStatus }) : presetRows(preset)
@@ -140,11 +147,11 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="pp-start">Start date</Label>
-              <Input id="pp-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <Input id="pp-start" type="date" min={SCHEDULE_START_DATE} value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pp-end">End date</Label>
-              <Input id="pp-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <Input id="pp-end" type="date" min={SCHEDULE_START_DATE} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
           </div>
 

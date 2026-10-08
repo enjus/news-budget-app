@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useSWRConfig } from "swr"
 import { useWeekSchedule } from "@/lib/hooks/useWeekSchedule"
-import { todayString } from "@/lib/utils"
+import { scheduleToday } from "@/lib/schedule"
 import { TeamsView, visibleRange, type TeamsViewMode } from "./TeamsView"
 
 /** Owns navigation state (view mode + anchor date + team scope) and the SWR
@@ -14,7 +14,7 @@ import { TeamsView, visibleRange, type TeamsViewMode } from "./TeamsView"
  *  because Month changes what gets fetched. */
 export function TeamsWrapper() {
   const [viewMode, setViewMode] = useState<TeamsViewMode>("week")
-  const [anchor, setAnchor] = useState(() => todayString())
+  const [anchor, setAnchor] = useState(scheduleToday)
   const { start, end } = visibleRange(viewMode, anchor)
   // Week and Single day both read the Monday-Sunday week (no `end`), so the
   // week endpoint keeps its original request shape for them.

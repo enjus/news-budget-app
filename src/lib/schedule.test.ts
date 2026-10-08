@@ -7,6 +7,10 @@ import {
   describeShiftConflict,
   mergeShiftDays,
   isPlainWorkingSet,
+  isBeforeScheduleStart,
+  clampToScheduleStart,
+  expandDateRange,
+  SCHEDULE_START_DATE,
   type ResolveDayMarker,
   type ResolveDayWorkSchedule,
 } from "./schedule"
@@ -390,5 +394,26 @@ describe("resolveNotes", () => {
         [{ segment: "FULL_DAY", note: "Stale" }]
       )
     ).toEqual({ note: null, amNote: null, pmNote: null })
+  })
+})
+
+describe("schedule start floor (issue #85)", () => {
+  it("flags dates before the cutover", () => {
+    expect(isBeforeScheduleStart("2026-12-31")).toBe(true)
+    expect(isBeforeScheduleStart("2027-01-01")).toBe(false)
+    expect(isBeforeScheduleStart("2027-06-15")).toBe(false)
+  })
+
+  it("clamps early dates to the cutover and leaves later ones alone", () => {
+    expect(clampToScheduleStart("2026-10-06")).toBe(SCHEDULE_START_DATE)
+    expect(clampToScheduleStart("2027-01-01")).toBe("2027-01-01")
+    expect(clampToScheduleStart("2027-03-02")).toBe("2027-03-02")
+  })
+
+  it("splits the boundary week (Mon Dec 28 – Sun Jan 3) per day", () => {
+    const week = expandDateRange("2026-12-28", "2027-01-03", { skipNonWorkingDays: false, workSchedule: [], markers: [] })
+    expect(week).toHaveLength(7)
+    expect(week.filter(isBeforeScheduleStart)).toEqual(["2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31"])
+    expect(week.filter((d) => !isBeforeScheduleStart(d))).toEqual(["2027-01-01", "2027-01-02", "2027-01-03"])
   })
 })
