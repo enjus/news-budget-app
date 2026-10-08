@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchemaBase } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode, requireJSON } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -98,8 +98,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(full);
-  } catch (error: any) {
-    if (error?.code === "P2025") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
     console.error("POST /api/stories/[id]/send-to-budget error:", error);

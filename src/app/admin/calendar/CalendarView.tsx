@@ -129,7 +129,7 @@ export function CalendarView() {
       {showNextYearPrompt && !nextYearLoading && nextYearHolidayOrBlackout.length === 0 && (
         <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-4 py-3">
           <p className="text-sm">
-            No holidays or blackout added for {nextYear} yet — shifts get filled months ahead, so it's worth adding these soon.
+            No holidays or blackout added for {nextYear} yet — shifts get filled months ahead, so it&apos;s worth adding these soon.
           </p>
           <Button size="sm" variant="outline" onClick={() => setYear(nextYear)}>
             Go to {nextYear}

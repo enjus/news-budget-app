@@ -60,7 +60,7 @@ export function MyScheduleView() {
               No linked staff record
             </div>
             <p className="text-sm text-muted-foreground">
-              Your account isn't linked to a staff record yet, so there's no personal schedule to show. Ask an admin to
+              Your account isn&apos;t linked to a staff record yet, so there&apos;s no personal schedule to show. Ask an admin to
               link your account on the People page.
             </p>
           </CardContent>

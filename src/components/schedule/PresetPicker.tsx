@@ -156,7 +156,7 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="pp-preset">What's changing</Label>
+            <Label htmlFor="pp-preset">What&apos;s changing</Label>
             <Select value={preset} onValueChange={(v) => setPreset(v as PresetId)}>
               <SelectTrigger id="pp-preset">
                 <SelectValue />
@@ -210,7 +210,7 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
                 onCheckedChange={(checked) => setSkipNonWorkingDays(checked === true)}
               />
               <Label htmlFor="pp-skip" className="font-normal">
-                Skip days I'm already off (standing days off and holidays)
+                Skip days I&apos;m already off (standing days off and holidays)
               </Label>
             </div>
           )}
