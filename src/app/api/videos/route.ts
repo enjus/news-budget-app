@@ -47,7 +47,12 @@ export async function GET(request: NextRequest) {
     const videos = await prisma.video.findMany({
       where,
       include: videoInclude,
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      // Shelved: most recently shelved first (sortOrder is a stale budget drag
+      // position there). Rows shelved before shelvedAt existed sort last.
+      orderBy:
+        status === "SHELVED"
+          ? [{ shelvedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }]
+          : [{ sortOrder: "asc" }, { createdAt: "desc" }],
       take,
       skip,
     });
