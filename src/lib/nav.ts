@@ -47,8 +47,8 @@ const SECTIONS: SectionDef[] = [
   {
     id: "budget",
     label: "Budget",
-    // "/" honors the user's defaultView preference (src/app/page.tsx).
-    href: "/",
+    // /budget honors the user's defaultView preference (src/app/budget/page.tsx).
+    href: "/budget",
     match: ["/budget", "/teams", "/me", "/people", "/stories", "/videos"],
     enabled: true,
     inTopBar: true,
