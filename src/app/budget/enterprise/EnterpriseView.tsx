@@ -17,7 +17,7 @@ import { SortableCard } from "@/components/dnd/SortableCard"
 import { StoryCard } from "@/components/budget/StoryCard"
 import { VideoCard } from "@/components/budget/VideoCard"
 import { cn, bucketToUtcStamp } from "@/lib/utils"
-import type { EnterpriseDateGroup, EnterpriseStoryItem } from "@/types/index"
+import type { EnterpriseDateGroup } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
 

@@ -2,7 +2,7 @@
 
 import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, isBeforeScheduleStart, scheduleToday } from "@/lib/schedule"
 import { FloorDateInput } from "@/components/schedule/FloorDateInput"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -33,14 +33,18 @@ export function ShiftsView({ start, end, onRangeChange, roster, days, isLoading,
   // which has no weekend/holiday basis of its own). A placeholder exists
   // purely so there's a row to add the first assignment to; once that
   // assignment is saved, the server starts returning the real day (see
-  // mergeShiftDays()) and the effect below drops the now-redundant
+  // mergeShiftDays()) and the check below drops the now-redundant
   // placeholder.
   const [manualDates, setManualDates] = useState<string[]>([])
   const [newDate, setNewDate] = useState("")
 
-  useEffect(() => {
+  // Adjusted during render rather than in an effect when `days` changes
+  // (https://react.dev/learn/you-might-not-need-an-effect).
+  const [prevDays, setPrevDays] = useState(days)
+  if (days !== prevDays) {
+    setPrevDays(days)
     setManualDates((prev) => prev.filter((d) => !days.some((day) => day.date === d)))
-  }, [days])
+  }
 
   const combinedDays = useMemo(() => {
     const existing = new Set(days.map((d) => d.date))

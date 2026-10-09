@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAssignmentSchema } from "@/lib/validations";
 import { canCreateContent, displayName } from "@/lib/utils";
-import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
+import { checkWriteLimit, prismaErrorCode, requireJSON } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -81,8 +81,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     });
 
     return NextResponse.json(assignment, { status: 201 });
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json(
         { error: "This person has already claimed this pitch in that role" },
         { status: 409 }
