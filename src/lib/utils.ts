@@ -515,6 +515,17 @@ export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
 
+/** Whether the viewer can edit a roster profile (/roster): their own linked
+ *  Person, or anyone's for admins. Viewing the roster needs only a session.
+ *  A Person with no linked User can therefore only be edited by an admin. */
+export function canEditRosterProfile(
+  role: string,
+  viewerPersonId: string | null | undefined,
+  personId: string
+): boolean {
+  return (!!viewerPersonId && viewerPersonId === personId) || hasAdminAccess(role)
+}
+
 // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
 
 /** Roster membership predicate for scheduling features — staff AND active.

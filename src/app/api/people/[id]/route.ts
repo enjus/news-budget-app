@@ -66,17 +66,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
-    const person = await prisma.person.update({
-      where: { id },
-      data: result.data,
-      include: {
-        _count: {
-          select: {
-            assignments: true,
-            videoAssignments: true,
+    // Marking someone inactive (typically: they've left) deletes their roster
+    // personal contact details (PersonPrivate) in the same transaction — a
+    // former employee's home address and personal phone shouldn't linger.
+    // Not restored on reactivation; they re-enter it. See docs/roster.md.
+    const person = await prisma.$transaction(async (tx) => {
+      if (result.data.isActive === false) {
+        await tx.personPrivate.deleteMany({ where: { personId: id } });
+      }
+      return tx.person.update({
+        where: { id },
+        data: result.data,
+        include: {
+          _count: {
+            select: {
+              assignments: true,
+              videoAssignments: true,
+            },
           },
         },
-      },
+      });
     });
 
     return NextResponse.json(person);

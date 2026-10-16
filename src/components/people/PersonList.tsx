@@ -49,6 +49,9 @@ export function PersonList() {
           <Link href={`/people/${person.id}`} className="hover:underline">
             {displayName(person.name)}
           </Link>
+          {person.title && (
+            <p className="text-xs font-normal text-muted-foreground">{person.title}</p>
+          )}
         </td>
         <td className="px-4 py-3 text-muted-foreground">{person.email ?? "—"}</td>
         <td className="px-4 py-3">{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</td>

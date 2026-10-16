@@ -12,3 +12,9 @@ export const PITCHES_ENABLED = process.env.NEXT_PUBLIC_PITCHES_ENABLED === "true
 // that flip *is* the cutover. The sub-nav still renders on /schedule/* when
 // this is off, so the routes stay navigable once you're inside them.
 export const SCHEDULE_ENABLED = process.env.NEXT_PUBLIC_SCHEDULE_ENABLED === "true";
+
+// Roster (/roster) is dark-launched so profiles can be filled in before
+// everyone sees it — the account-menu link and the cross-links from /me and
+// /people/[id] are hidden while this is off, but /roster and its API routes
+// work by direct URL regardless (same pattern as the two flags above).
+export const ROSTER_ENABLED = process.env.NEXT_PUBLIC_ROSTER_ENABLED === "true";
