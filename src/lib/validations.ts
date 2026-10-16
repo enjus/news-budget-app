@@ -57,6 +57,11 @@ export const createPersonSchema = z.object({
 });
 
 export const updatePersonSchema = createPersonSchema.partial().extend({
+  // Re-declared without the create schema's .default("OTHER"): Zod v4's
+  // .partial() keeps defaults, so a status-only PATCH ({ isActive: false })
+  // used to parse to { defaultRole: "OTHER", ... } and silently reset the
+  // person's role. Absent must mean "unchanged".
+  defaultRole: PersonRoleEnum.optional(),
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
   // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
