@@ -24,6 +24,16 @@ export function usePersonRosterActions(personId: string, onChanged: () => void) 
   }
 
   async function toggleActive(currentIsActive: boolean) {
+    // Deactivating also deletes the person's roster contact details
+    // (PATCH /api/people/[id]) — irreversible, so confirm first.
+    if (
+      currentIsActive &&
+      !confirm(
+        "Mark this person inactive? Their personal phone, personal email, and home address on the roster will be permanently deleted."
+      )
+    ) {
+      return
+    }
     setTogglingActive(true)
     try {
       await patchPerson({ isActive: !currentIsActive })
