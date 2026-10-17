@@ -48,9 +48,9 @@ const SECTIONS: SectionDef[] = [
   {
     id: "budget",
     label: "Budget",
-    // /budget honors the user's defaultView preference (src/app/budget/page.tsx).
+    // /budget honors the user's defaultView preference (src/app/(budget)/budget/page.tsx).
     href: "/budget",
-    match: ["/budget", "/teams", "/me", "/people", "/stories", "/videos"],
+    match: ["/budget", "/teams", "/me", "/people", "/stories", "/videos", "/tags"],
     enabled: true,
     inTopBar: true,
     tabs: (ctx) => [
@@ -146,14 +146,21 @@ export function sectionForPath(pathname: string): NavSectionId | null {
 
 /**
  * Browser-tab title for a section's routes ("Newsroom | Budget"). Exported as
- * `metadata` from a layout at each of the section's `match` prefixes, so the
- * title follows the same path→section mapping as the nav. Absolute rather
+ * `metadata` from a layout covering each of the section's `match` prefixes
+ * (Budget's are all under the src/app/(budget) route group), so the title
+ * follows the same path→section mapping as the nav; nav.test.ts checks every
+ * prefix has one. Absolute rather
  * than a root title template, so nested sections (/budget/pitches inside
  * /budget) don't depend on template inheritance.
  */
 export function sectionMetadata(id: NavSectionId): Metadata {
   const section = SECTIONS.find((s) => s.id === id)!
   return { title: { absolute: `Newsroom | ${section.label}` } }
+}
+
+/** Each section's `match` prefixes — for nav.test.ts's layout check. */
+export function sectionMatchPrefixes(): { id: NavSectionId; prefixes: string[] }[] {
+  return SECTIONS.map((s) => ({ id: s.id, prefixes: s.match }))
 }
 
 export function isTabActive(pathname: string, tab: NavTab): boolean {

@@ -21,7 +21,7 @@ import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, d
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { ContentRow } from "@/components/budget/ContentItemRow"
 import { VIDEOS_ENABLED } from "@/lib/features"
-import { TeamScheduleView } from "@/app/teams/TeamScheduleView"
+import { TeamScheduleView } from "./TeamScheduleView"
 
 const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Unpublished" },
