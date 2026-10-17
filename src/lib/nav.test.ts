@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { sectionForPath, isTabActive, navSections } from "./nav"
+import { sectionForPath, isTabActive, navSections, sectionMetadata } from "./nav"
 
 describe("sectionForPath", () => {
   it("prefers the longest matching prefix regardless of list order", () => {
@@ -70,5 +70,13 @@ describe("isTabActive", () => {
     const daily = { label: "Daily", href: "/budget/daily", match: ["/budget/daily"] }
     expect(isTabActive("/budget/daily/2026-09-26", daily)).toBe(true)
     expect(isTabActive("/budget/dailyx", daily)).toBe(false)
+  })
+})
+
+describe("sectionMetadata", () => {
+  it("titles tabs Newsroom | <section label>", () => {
+    expect(sectionMetadata("budget").title).toEqual({ absolute: "Newsroom | Budget" })
+    expect(sectionMetadata("pitches").title).toEqual({ absolute: "Newsroom | Pitches" })
+    expect(sectionMetadata("admin").title).toEqual({ absolute: "Newsroom | Admin" })
   })
 })

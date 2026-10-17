@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import { PITCHES_ENABLED, SCHEDULE_ENABLED } from "@/lib/features"
 import { hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 
@@ -141,6 +142,18 @@ export function sectionForPath(pathname: string): NavSectionId | null {
     }
   }
   return best?.id ?? null
+}
+
+/**
+ * Browser-tab title for a section's routes ("Newsroom | Budget"). Exported as
+ * `metadata` from a layout at each of the section's `match` prefixes, so the
+ * title follows the same path→section mapping as the nav. Absolute rather
+ * than a root title template, so nested sections (/budget/pitches inside
+ * /budget) don't depend on template inheritance.
+ */
+export function sectionMetadata(id: NavSectionId): Metadata {
+  const section = SECTIONS.find((s) => s.id === id)!
+  return { title: { absolute: `Newsroom | ${section.label}` } }
 }
 
 export function isTabActive(pathname: string, tab: NavTab): boolean {

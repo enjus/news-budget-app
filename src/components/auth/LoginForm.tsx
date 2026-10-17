@@ -28,7 +28,7 @@ export function LoginForm({ azureAdEnabled }: { azureAdEnabled?: boolean }) {
     if (result?.error) {
       setError("Invalid email or password.")
     } else {
-      window.location.href = apiPath("/budget/daily")
+      window.location.href = apiPath("/")
     }
   }
 
@@ -40,7 +40,7 @@ export function LoginForm({ azureAdEnabled }: { azureAdEnabled?: boolean }) {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("azure-ad", { callbackUrl: apiPath("/budget/daily") })}
+            onClick={() => signIn("azure-ad", { callbackUrl: apiPath("/") })}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="1" y="1" width="9" height="9" fill="#F25022" />
