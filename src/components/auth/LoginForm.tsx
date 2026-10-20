@@ -2,12 +2,20 @@
 
 import { useState } from "react"
 import { signIn } from "next-auth/react"
-import { apiPath } from "@/lib/api-path"
+import { signInRedirectPath } from "@/lib/api-path"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export function LoginForm({ azureAdEnabled }: { azureAdEnabled?: boolean }) {
+export function LoginForm({
+  azureAdEnabled,
+  callbackUrl,
+}: {
+  azureAdEnabled?: boolean
+  /** From /login?callbackUrl= — set by the auth middleware when it bounced a signed-out request. */
+  callbackUrl?: string
+}) {
+  const redirectTo = signInRedirectPath(callbackUrl)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -28,7 +36,7 @@ export function LoginForm({ azureAdEnabled }: { azureAdEnabled?: boolean }) {
     if (result?.error) {
       setError("Invalid email or password.")
     } else {
-      window.location.href = apiPath("/budget/daily")
+      window.location.href = redirectTo
     }
   }
 
@@ -40,7 +48,7 @@ export function LoginForm({ azureAdEnabled }: { azureAdEnabled?: boolean }) {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("azure-ad", { callbackUrl: apiPath("/budget/daily") })}
+            onClick={() => signIn("azure-ad", { callbackUrl: redirectTo })}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="1" y="1" width="9" height="9" fill="#F25022" />

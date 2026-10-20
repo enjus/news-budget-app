@@ -1,5 +1,7 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs"
+import path from "node:path"
 import { describe, it, expect } from "vitest"
-import { sectionForPath, isTabActive, navSections } from "./nav"
+import { sectionForPath, isTabActive, navSections, sectionMetadata, sectionMatchPrefixes } from "./nav"
 
 describe("sectionForPath", () => {
   it("prefers the longest matching prefix regardless of list order", () => {
@@ -9,7 +11,7 @@ describe("sectionForPath", () => {
   })
 
   it("assigns Budget's non-/budget routes to Budget", () => {
-    for (const p of ["/teams", "/me", "/people/abc", "/stories/abc", "/videos/new"]) {
+    for (const p of ["/teams", "/me", "/people/abc", "/stories/abc", "/videos/new", "/tags/breaking-news"]) {
       expect(sectionForPath(p)).toBe("budget")
     }
   })
@@ -71,4 +73,54 @@ describe("isTabActive", () => {
     expect(isTabActive("/budget/daily/2026-09-26", daily)).toBe(true)
     expect(isTabActive("/budget/dailyx", daily)).toBe(false)
   })
+})
+
+describe("sectionMetadata", () => {
+  it("titles tabs Newsroom | <section label>", () => {
+    expect(sectionMetadata("budget").title).toEqual({ absolute: "Newsroom | Budget" })
+    expect(sectionMetadata("pitches").title).toEqual({ absolute: "Newsroom | Pitches" })
+    expect(sectionMetadata("admin").title).toEqual({ absolute: "Newsroom | Admin" })
+  })
+})
+
+// Tab titles come from layouts, not nav.ts, so check every match prefix has a
+// layout (at or above it, route groups included) exporting its section's
+// sectionMetadata(). Otherwise a new prefix silently gets the plain title.
+describe("section layouts", () => {
+  const appDir = path.resolve(__dirname, "../app")
+
+  // The directory serving `segments`, looking through "(group)" folders.
+  function routeDir(dir: string, segments: string[]): string | null {
+    if (segments.length === 0) return dir
+    const [head, ...rest] = segments
+    if (existsSync(path.join(dir, head))) return routeDir(path.join(dir, head), rest)
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && /^\(.+\)$/.test(entry.name)) {
+        const found = routeDir(path.join(dir, entry.name), segments)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  // The section id of the nearest layout that calls sectionMetadata().
+  function titledSection(dir: string): string | null {
+    for (let d = dir; d.startsWith(appDir); d = path.dirname(d)) {
+      const layout = path.join(d, "layout.tsx")
+      if (!existsSync(layout)) continue
+      const m = readFileSync(layout, "utf8").match(/sectionMetadata\("(\w+)"\)/)
+      if (m) return m[1]
+    }
+    return null
+  }
+
+  for (const { id, prefixes } of sectionMatchPrefixes()) {
+    for (const prefix of prefixes) {
+      it(`${prefix} is titled as ${id}`, () => {
+        const dir = routeDir(appDir, prefix.split("/").filter(Boolean))
+        expect(dir, `no route folder for ${prefix}`).not.toBeNull()
+        expect(titledSection(dir!)).toBe(id)
+      })
+    }
+  }
 })

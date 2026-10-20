@@ -7,7 +7,7 @@ import { VIDEOS_ENABLED } from "@/lib/features"
 import { VideoFormWrapper } from "./VideoFormWrapper"
 
 export default async function NewVideoPage() {
-  if (!VIDEOS_ENABLED) redirect("/")
+  if (!VIDEOS_ENABLED) redirect("/budget")
 
   const session = await getServerSession(authOptions)
   if (!session || !canCreateContent(session.user.appRole)) {

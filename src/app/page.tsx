@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation"
+import { LinksWrapper } from "./homepage/LinksWrapper"
 
-export const dynamic = "force-dynamic"
-
-// /budget applies the user's defaultView preference.
+// The newsroom homepage: links and announcements. Budget is at /budget,
+// which applies the user's defaultView preference.
 export default function RootPage() {
-  redirect("/budget")
+  return <LinksWrapper />
 }

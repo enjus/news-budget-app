@@ -19,8 +19,10 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "News Budget",
-  description: "News budget tracking for stories and videos",
+  // Section layouts (budget, schedule, admin…) set "Newsroom | <Section>"
+  // via sectionMetadata() in src/lib/nav.ts; everything else is plain.
+  title: "Newsroom",
+  description: "Newsroom tools: the news budget, links and announcements",
 }
 
 export default function RootLayout({

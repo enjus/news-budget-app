@@ -35,7 +35,7 @@ export function TopNav() {
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4">
 
           {/* Logo */}
-          <Link href="/" className="shrink-0" aria-label="The Oregonian News Budget, home">
+          <Link href="/" className="shrink-0" aria-label="The Oregonian Newsroom, home">
             {/* Static imports so the paths pick up BASE_PATH. No `priority`:
                 one of the pair is display:none at every breakpoint, and lazy
                 images that aren't rendered never load. */}

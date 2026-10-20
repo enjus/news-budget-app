@@ -96,7 +96,7 @@ export default function SettingsPage() {
         <div>
           <p className="mb-2 text-sm font-medium">Default start view</p>
           <p className="mb-3 text-xs text-muted-foreground">
-            Where to land when opening the app on desktop. Mobile always opens the agenda view.
+            Where the Budget link lands on desktop. Mobile always opens the agenda view.
           </p>
           <div className="flex flex-wrap gap-2">
             {DEFAULT_VIEW_OPTIONS.map((opt) => (

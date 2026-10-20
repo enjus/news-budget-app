@@ -13,7 +13,7 @@ interface VideoPageProps {
 }
 
 export default async function VideoPage({ params }: VideoPageProps) {
-  if (!VIDEOS_ENABLED) redirect("/")
+  if (!VIDEOS_ENABLED) redirect("/budget")
 
   const [{ id }, session] = await Promise.all([params, getServerSession(authOptions)])
 

@@ -1,6 +1,7 @@
-import { LinksWrapper } from "./LinksWrapper"
+import { redirect } from "next/navigation"
 
-// Newsroom homepage: reachable by direct URL only — deliberately no TopNav entry yet.
+// The homepage moved to /; this keeps old /homepage bookmarks working.
+// Its components still live in this folder.
 export default function HomepagePage() {
-  return <LinksWrapper />
+  redirect("/")
 }
