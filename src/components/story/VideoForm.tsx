@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
+import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning"
 import { Check, ChevronsUpDown, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -122,7 +123,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
     control,
     watch,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<CreateVideoInput>({
     // Edit mode must validate against updateVideoSchema, not createVideoSchema —
     // onBudget isn't a real form field, and createVideoSchema's .default(true)
@@ -165,6 +166,12 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
           otherUrl: "",
         },
   })
+
+  // Create mode only — see the matching note in StoryForm.
+  useUnsavedChangesWarning(
+    !isEdit && !isSubmitting && (isDirty || pendingAssignments.length > 0),
+    "This video hasn't been created yet. Leave the page and lose what you've entered?"
+  )
 
   const { data: session } = useSession()
   const { onBlur: slugOnBlur, ...slugRegister } = register("slug")
@@ -510,7 +517,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                       <CommandItem
                         value="none-standalone"
                         onSelect={() => {
-                          setValue("storyId", null)
+                          setValue("storyId", null, { shouldDirty: true })
                           setStoryPickerOpen(false)
                         }}
                       >
@@ -524,7 +531,7 @@ function VideoForm({ video, initialValues, onSuccess }, ref) {
                           key={story.id}
                           value={story.id}
                           onSelect={() => {
-                            setValue("storyId", story.id)
+                            setValue("storyId", story.id, { shouldDirty: true })
                             setStoryPickerOpen(false)
                           }}
                         >
