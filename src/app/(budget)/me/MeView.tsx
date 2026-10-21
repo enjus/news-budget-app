@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
-import { FileText, Video, Send, Info, ArrowRight, Plus } from "lucide-react"
+import { FileText, Video, Send, Info, ArrowRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,6 +26,7 @@ import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 export function MeView() {
   const { data: session } = useSession()
@@ -37,24 +38,9 @@ export function MeView() {
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Me</h1>
-        {canCreate && (
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm">
-              <Link href="/stories/new">
-                <Plus className="size-4" />
-                New Story
-              </Link>
-            </Button>
-            {VIDEOS_ENABLED && (
-              <Button asChild size="sm">
-                <Link href="/videos/new">
-                  <Plus className="size-4" />
-                  New Video
-                </Link>
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <NewContentButtons />
+        </div>
       </div>
 
       {canCreate && <DraftsSection />}

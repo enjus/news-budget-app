@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import Link from "next/link"
 import { format, parseISO, addDays, subDays } from "date-fns"
 import {
-  ChevronLeft, ChevronRight, Plus,
+  ChevronLeft, ChevronRight,
   FileText, Video, LayoutGrid, List, CheckSquare,
 } from "lucide-react"
 
@@ -29,6 +29,7 @@ import { useTeams } from "@/lib/hooks/useTeams"
 import { resolveExcludedReporterTeams } from "@/lib/team-filter"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -318,21 +319,7 @@ export function DailyBudgetView({ date }: DailyBudgetViewProps) {
             {selectMode ? "Selecting…" : "Select"}
           </Button>
 
-          {/* New item buttons */}
-          <Button asChild size="sm">
-            <Link href="/stories/new">
-              <Plus className="size-4" />
-              New Story
-            </Link>
-          </Button>
-          {VIDEOS_ENABLED && (
-            <Button asChild size="sm">
-              <Link href="/videos/new">
-                <Plus className="size-4" />
-                New Video
-              </Link>
-            </Button>
-          )}
+          <NewContentButtons />
         </div>
       </div>
 

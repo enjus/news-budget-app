@@ -93,7 +93,6 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
               </Button>
             </div>
           )}
-
         </div>
       </div>
 

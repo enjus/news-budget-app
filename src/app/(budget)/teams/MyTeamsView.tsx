@@ -2,8 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useSession } from "next-auth/react"
-import { ChevronDown, ChevronRight, Users, LayoutGrid, List, Plus } from "lucide-react"
+import { ChevronDown, ChevronRight, Users, LayoutGrid, List } from "lucide-react"
 import { CollapsibleSection } from "@/components/CollapsibleSection"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -18,10 +17,11 @@ import {
 import { useMyTeams } from "@/lib/hooks/useTeams"
 import { useTeamContent } from "@/lib/hooks/useTeamContent"
 import { usePreferences, type TeamsView } from "@/lib/hooks/usePreferences"
-import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, displayName, todayString, classifyContentItems, canCreateContent } from "@/lib/utils"
+import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, displayName, todayString, classifyContentItems } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { ContentRow } from "@/components/budget/ContentItemRow"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 import { TeamScheduleView } from "./TeamScheduleView"
 
 const STATUS_OPTIONS = [
@@ -34,8 +34,6 @@ export function MyTeamsView() {
   const { teams, isLoading: teamsLoading } = useMyTeams()
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const { preferences, setPreferences } = usePreferences()
-  const { data: session } = useSession()
-  const canCreate = canCreateContent(session?.user?.appRole ?? "")
 
   // Auto-select first team once loaded
   const activeTeamId = selectedTeamId ?? teams[0]?.id ?? null
@@ -73,24 +71,9 @@ export function MyTeamsView() {
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">My Teams</h1>
-        {canCreate && (
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm">
-              <Link href="/stories/new">
-                <Plus className="size-4" />
-                New Story
-              </Link>
-            </Button>
-            {VIDEOS_ENABLED && (
-              <Button asChild size="sm">
-                <Link href="/videos/new">
-                  <Plus className="size-4" />
-                  New Video
-                </Link>
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <NewContentButtons />
+        </div>
       </div>
 
       {/* Team selector (if multiple) */}
