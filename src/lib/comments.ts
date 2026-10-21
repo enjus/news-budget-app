@@ -103,6 +103,10 @@ export async function createComment(
           select: {
             ...parentSelect,
             visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
+            onBudget: true,
+            pitchedAt: true,
+            pitchText: true,
+            expiresAt: true,
           },
         })
       : null;
@@ -150,6 +154,18 @@ export async function createComment(
     id: parent.id,
     slug: parent.slug,
     budgetLine: parent.budgetLine,
+    // A pitch's slug/budgetLine are placeholders derived from the tip, so its
+    // emails show the tip and claim status instead (see commentEmail()).
+    // Claims are single-claimant, so assignments[0] is the claimant.
+    ...(storyParent && !storyParent.onBudget && storyParent.pitchedAt
+      ? {
+          pitch: {
+            text: storyParent.pitchText ?? storyParent.budgetLine,
+            claimantName: storyParent.assignments[0]?.person.name ?? null,
+            expiresAt: storyParent.expiresAt,
+          },
+        }
+      : {}),
   };
   const notification = { item, kind, authorName, body };
 

@@ -100,6 +100,19 @@ export interface CommentedItem {
   id: string;
   slug: string;
   budgetLine: string;
+  /** Set when the item is a pitch (off-budget story with pitchedAt). Its slug
+   *  and budgetLine are placeholders derived from the tip, so pitch emails
+   *  show the tip and claim status instead. */
+  pitch?: PitchInfo;
+}
+
+export interface PitchInfo {
+  /** The tip as filed (pitchText, falling back to budgetLine). */
+  text: string;
+  /** Name of whoever claimed it, or null if unclaimed. */
+  claimantName: string | null;
+  /** Null = evergreen. */
+  expiresAt: Date | null;
 }
 
 interface CommentNotification {
@@ -108,6 +121,44 @@ interface CommentNotification {
   authorName: string;
   body: string;
   recipients: string[];
+}
+
+/** Longest tip prefix shown in a pitch email's subject. */
+const PITCH_SUBJECT_MAX = 55;
+
+/**
+ * Cut text to at most `max` characters at a word boundary, adding "…" when
+ * anything was dropped. Trailing punctuation before the cut ("spring —") is
+ * removed so the ellipsis doesn't follow a dangling dash or comma.
+ */
+export function truncateAtWord(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max + 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  const head = lastSpace > 0 ? cut.slice(0, lastSpace) : clean.slice(0, max);
+  return head.replace(/[\s\p{P}\p{S}]+$/u, "") + "…";
+}
+
+/**
+ * "Claimed by Marcus Lee · Expires Wed, Oct 28". expiresAt is a genuine
+ * instant (not newsroom-time-as-UTC like pub dates), so it's formatted in
+ * Pacific time. The date is absolute rather than "5 days left" so an old
+ * email doesn't go stale.
+ */
+export function pitchStatusLine(pitch: PitchInfo, now = new Date()): string {
+  const claim = pitch.claimantName ? `Claimed by ${pitch.claimantName}` : "Unclaimed";
+  if (!pitch.expiresAt) return `${claim} · Evergreen`;
+  const tz = "America/Los_Angeles";
+  const year = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: tz, year: "numeric" }).format(d);
+  const date = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(year(pitch.expiresAt) === year(now) ? {} : { year: "numeric" as const }),
+  }).format(pitch.expiresAt);
+  return `${claim} · Expires ${date}`;
 }
 
 function commentLink(kind: "story" | "video", id: string): string {
@@ -119,6 +170,26 @@ function commentEmail(
   lead: string
 ) {
   const link = commentLink(kind, item.id);
+
+  if (item.pitch) {
+    const status = pitchStatusLine(item.pitch);
+    const text =
+      `${lead}\n\n` +
+      `Pitch: ${item.pitch.text}\n` +
+      `${status}\n\n` +
+      `${authorName} wrote:\n${body}\n\n` +
+      `View the pitch: ${link}`;
+
+    const html =
+      `<p>${escapeHtml(lead)}</p>` +
+      `<p style="margin-bottom:4px"><strong>Pitch</strong></p>` +
+      `<blockquote style="margin:0 0 4px;padding-left:12px;border-left:3px solid #ccc">${escapeHtml(item.pitch.text).replace(/\n/g, "<br>")}</blockquote>` +
+      `<p style="color:#666;font-size:13px">${escapeHtml(status)}</p>` +
+      `<p><strong>${escapeHtml(authorName)} wrote:</strong><br>${linkifyToHtml(body)}</p>` +
+      `<p><a href="${link}">View the pitch in the News Budget</a></p>`;
+
+    return { text, html };
+  }
 
   const text =
     `${lead}\n\n` +
@@ -135,6 +206,13 @@ function commentEmail(
   return { text, html };
 }
 
+/** Subject line naming the item: the slug, or "Pitch: …" plus the tip's start. */
+function commentSubject(item: CommentedItem, prefix: string): string {
+  return item.pitch
+    ? `Pitch: ${prefix} ${truncateAtWord(item.pitch.text, PITCH_SUBJECT_MAX)}`
+    : `${prefix} ${item.slug}`;
+}
+
 /**
  * Notify People tagged in a comment. Sent on both "Post" and "Post and Notify All".
  * Fire-and-forget: failures are logged, never thrown.
@@ -144,13 +222,14 @@ export async function notifyCommentMention(
 ): Promise<void> {
   if (notification.recipients.length === 0) return;
   const { item, kind, authorName } = notification;
+  const noun = item.pitch ? "pitch" : kind;
   const { text, html } = commentEmail(
     notification,
-    `${authorName} mentioned you in a comment on a ${kind} in the News Budget.`
+    `${authorName} mentioned you in a comment on a ${noun} in the News Budget.`
   );
   await sendEmail({
     to: notification.recipients,
-    subject: `You were mentioned on ${item.slug}`,
+    subject: commentSubject(item, "You were mentioned on"),
     text,
     html,
   });
@@ -166,13 +245,15 @@ export async function notifyCommentTeam(
 ): Promise<void> {
   if (notification.recipients.length === 0) return;
   const { item, kind, authorName } = notification;
-  const { text, html } = commentEmail(
-    notification,
-    `${authorName} commented on a ${kind} you're assigned to in the News Budget.`
-  );
+  // One email goes to the whole team, which on a pitch can include visual
+  // credits as well as the claimant — so the wording can't say "you claimed".
+  const lead = item.pitch
+    ? `${authorName} commented on a pitch you're working on in the News Budget.`
+    : `${authorName} commented on a ${kind} you're assigned to in the News Budget.`;
+  const { text, html } = commentEmail(notification, lead);
   await sendEmail({
     to: notification.recipients,
-    subject: `New comment on ${item.slug}`,
+    subject: commentSubject(item, "New comment on"),
     text,
     html,
   });
