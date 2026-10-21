@@ -10,7 +10,6 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent } from "@dnd-kit/core"
 
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DndProvider } from "@/components/dnd/DndProvider"
 import { SortableCard } from "@/components/dnd/SortableCard"
@@ -20,6 +19,7 @@ import { cn, bucketToUtcStamp } from "@/lib/utils"
 import type { EnterpriseDateGroup } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -401,20 +401,7 @@ export function EnterpriseView() {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">{VIDEOS_ENABLED ? "Enterprise Stories & Videos" : "Enterprise Stories"}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <Button asChild size="sm">
-            <Link href="/stories/new?isEnterprise=true">
-              <Plus className="size-4" />
-              New Story
-            </Link>
-          </Button>
-          {VIDEOS_ENABLED && (
-            <Button asChild size="sm">
-              <Link href="/videos/new">
-                <Plus className="size-4" />
-                New Video
-              </Link>
-            </Button>
-          )}
+          <NewContentButtons storyHref="/stories/new?isEnterprise=true" />
         </div>
       </div>
 

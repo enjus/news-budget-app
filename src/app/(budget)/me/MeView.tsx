@@ -26,6 +26,7 @@ import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 export function MeView() {
   const { data: session } = useSession()
@@ -35,7 +36,12 @@ export function MeView() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-      <h1 className="text-xl font-semibold">Me</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Me</h1>
+        <div className="flex items-center gap-2">
+          <NewContentButtons />
+        </div>
+      </div>
 
       {canCreate && <DraftsSection />}
 

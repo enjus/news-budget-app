@@ -4,25 +4,22 @@ import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession, signOut } from "next-auth/react"
-import { Plus, Menu, X, LogOut, ShieldCheck, Settings, ExternalLink } from "lucide-react"
+import { Menu, X, LogOut, ShieldCheck, Settings, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
-import { cn, initials, hasAdminAccess, canCreateContent } from "@/lib/utils"
+import { cn, initials, hasAdminAccess } from "@/lib/utils"
 import { isTabActive, EXTERNAL_NAV_LINKS } from "@/lib/nav"
 import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED } from "@/lib/features"
 import masthead from "@/assets/brand/oregonian-masthead.png"
 import mark from "@/assets/brand/oregonian-mark.png"
 
 export function TopNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
   const { data: session } = useSession()
   const appRole = session?.user?.appRole ?? ""
   const isAdmin = hasAdminAccess(appRole)
-  const canCreate = canCreateContent(appRole)
   const { pathname, sections, current } = useNav()
   const topSections = sections.filter((s) => s.enabled && s.inTopBar)
   // The mobile menu stands in for SectionTabNav, so it also includes a
@@ -86,61 +83,8 @@ export function TopNav() {
           {/* Search — always visible */}
           <SearchCommand />
 
-          {/* Mobile create — kept out of the hamburger so it's one tap away */}
-          {canCreate && (
-            VIDEOS_ENABLED ? (
-              <Popover open={createOpen} onOpenChange={setCreateOpen}>
-                <PopoverTrigger asChild>
-                  <Button size="icon-sm" className="md:hidden" aria-label="Create new">
-                    <Plus className="size-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-40 p-1 md:hidden">
-                  {[
-                    { href: "/stories/new", label: "New Story" },
-                    { href: "/videos/new", label: "New Video" },
-                  ].map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setCreateOpen(false)}
-                      className="flex rounded-sm px-2 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Button asChild size="icon-sm" className="md:hidden">
-                <Link href="/stories/new" aria-label="New Story">
-                  <Plus className="size-4" />
-                </Link>
-              </Button>
-            )
-          )}
-
-          {/* Desktop action buttons + user menu */}
+          {/* Desktop user menu */}
           <div className="hidden md:flex items-center gap-2">
-            {canCreate && (
-              <>
-                <Button asChild size="sm">
-                  <Link href="/stories/new">
-                    <Plus className="size-4" />
-                    New Story
-                  </Link>
-                </Button>
-                {VIDEOS_ENABLED && (
-                  <Button asChild size="sm">
-                    <Link href="/videos/new">
-                      <Plus className="size-4" />
-                      New Video
-                    </Link>
-                  </Button>
-                )}
-              </>
-            )}
-
             {session?.user && (
               <Popover>
                 <PopoverTrigger asChild>

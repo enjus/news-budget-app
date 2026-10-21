@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import Link from "next/link"
 import { format, parseISO, addDays, subDays, isValid } from "date-fns"
 import { ChevronLeft, ChevronRight, FileText, Video } from "lucide-react"
 
@@ -93,15 +92,6 @@ export function TeamScheduleView({ team, mode }: TeamScheduleViewProps) {
                 Videos
               </Button>
             </div>
-          )}
-
-          <Button asChild size="sm">
-            <Link href="/stories/new">New Story</Link>
-          </Button>
-          {VIDEOS_ENABLED && (
-            <Button asChild size="sm">
-              <Link href="/videos/new">New Video</Link>
-            </Button>
           )}
         </div>
       </div>

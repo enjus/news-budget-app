@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
+import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning"
 import { X, Plus } from "lucide-react"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -88,7 +89,7 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
     control,
     watch,
     setValue,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<CreateStoryInput>({
     // Edit mode must validate against updateStorySchema, not createStorySchema:
     // onBudget/sortOrder aren't real form fields, and createStorySchema's
@@ -153,6 +154,14 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
   // so they can still be removed. Waits for the hook: an empty list while
   // loading would otherwise make every key look orphaned.
   const orphanTagKeys = tagsLoading ? [] : selectedTags.filter((k) => !tagByKey.has(k))
+
+  // Create mode only: edit mode auto-saves some fields, so isDirty there would
+  // nag about changes that are already saved.
+  useUnsavedChangesWarning(
+    !isEdit && !isSubmitting &&
+      (isDirty || pendingAssignments.length > 0 || pendingVisuals.length > 0 || selectedTags.length > 0),
+    "This story hasn't been created yet. Leave the page and lose what you've entered?"
+  )
 
   const { data: session } = useSession()
   const canEditPrintDate = canEditPrint(session?.user?.appRole ?? "")
