@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
-import { FileText, Video, Send, Info, ArrowRight } from "lucide-react"
+import { FileText, Video, Send, Info, ArrowRight, Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -35,7 +35,27 @@ export function MeView() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-      <h1 className="text-xl font-semibold">Me</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Me</h1>
+        {canCreate && (
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm">
+              <Link href="/stories/new">
+                <Plus className="size-4" />
+                New Story
+              </Link>
+            </Button>
+            {VIDEOS_ENABLED && (
+              <Button asChild size="sm">
+                <Link href="/videos/new">
+                  <Plus className="size-4" />
+                  New Video
+                </Link>
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
 
       {canCreate && <DraftsSection />}
 
