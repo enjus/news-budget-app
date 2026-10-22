@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommentSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, displayName } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 import {
   collectEmails,
@@ -104,6 +104,7 @@ export async function createComment(
             ...parentSelect,
             visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
             onBudget: true,
+            status: true,
             pitchedAt: true,
             pitchText: true,
             expiresAt: true,
@@ -160,9 +161,12 @@ export async function createComment(
     ...(storyParent && !storyParent.onBudget && storyParent.pitchedAt
       ? {
           pitch: {
-            text: storyParent.pitchText ?? storyParent.budgetLine,
-            claimantName: storyParent.assignments[0]?.person.name ?? null,
+            text: storyParent.pitchText?.trim() || storyParent.budgetLine,
+            claimantName: storyParent.assignments[0]
+              ? displayName(storyParent.assignments[0].person.name)
+              : null,
             expiresAt: storyParent.expiresAt,
+            shelved: storyParent.status === "SHELVED",
           },
         }
       : {}),

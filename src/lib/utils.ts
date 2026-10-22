@@ -174,12 +174,20 @@ export function formatPrintDate(
 
 /** Today as YYYY-MM-DD in Pacific Time (America/Los_Angeles) */
 export function todayString(): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+  return pacificDateString(new Date());
+}
+
+const PACIFIC_YMD = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** A real instant's Pacific calendar date as "yyyy-MM-dd" — comparable
+ *  against todayString(). */
+export function pacificDateString(date: Date): string {
+  const parts = PACIFIC_YMD.formatToParts(date);
   const y = parts.find((p) => p.type === "year")!.value;
   const m = parts.find((p) => p.type === "month")!.value;
   const d = parts.find((p) => p.type === "day")!.value;
@@ -255,19 +263,34 @@ export function classifyContentItems<T extends DatedContentItem>(
  *  current Pacific year. */
 export function formatTimestampPacific(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;
-  const year = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    year: "numeric",
-  }).format(d);
-
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     month: "short",
     day: "numeric",
-    ...(year === todayString().slice(0, 4) ? {} : { year: "numeric" as const }),
+    ...yearIfNotCurrent(d, todayString()),
     hour: "numeric",
     minute: "2-digit",
   }).format(d);
+}
+
+/** Intl option adding the year only when `d` falls outside `today`'s Pacific year. */
+function yearIfNotCurrent(d: Date, today: string) {
+  return pacificDateString(d).slice(0, 4) === today.slice(0, 4)
+    ? {}
+    : { year: "numeric" as const };
+}
+
+/** Date-only sibling of formatTimestampPacific(): "Wed, Oct 28" (plus the
+ *  year when it isn't the current Pacific year). `today` is injectable for
+ *  tests. */
+export function formatDatePacific(date: Date, today = todayString()): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...yearIfNotCurrent(date, today),
+  }).format(date);
 }
 
 /** Full Pacific-time timestamp with weekday and zone — for title/tooltips. */
