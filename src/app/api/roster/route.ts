@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkReadLimit } from "@/lib/api-helpers";
 import { ROSTER_LIST_SELECT } from "@/lib/roster-query";
+import { compareBySurname } from "@/lib/roster";
 
 export const dynamic = 'force-dynamic'
 
@@ -25,11 +26,12 @@ export async function GET() {
     const people = await prisma.person.findMany({
       where: { isActive: true },
       select: ROSTER_LIST_SELECT,
-      orderBy: { name: "asc" },
       take: 1000,
     });
 
-    return NextResponse.json(people);
+    // Sorted here, not in SQL: surname order needs the underscore convention
+    // (see compareBySurname), which an ORDER BY on the raw name can't express.
+    return NextResponse.json(people.sort(compareBySurname));
   } catch (error) {
     console.error("GET /api/roster error:", error);
     return NextResponse.json({ error: "Failed to fetch roster" }, { status: 500 });

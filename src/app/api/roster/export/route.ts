@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkReadLimit } from "@/lib/api-helpers";
 import { CSV_BOM, toCsvRow } from "@/lib/csv";
-import { buildRosterCsv } from "@/lib/roster";
+import { buildRosterCsv, compareBySurname } from "@/lib/roster";
 import { ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
 import { ROSTER_WHERE, todayString } from "@/lib/utils";
 
@@ -28,10 +28,9 @@ export async function GET() {
     const people = await prisma.person.findMany({
       where: ROSTER_WHERE,
       select: ROSTER_PROFILE_SELECT,
-      orderBy: { name: "asc" },
     });
 
-    const csv = buildRosterCsv(people).map(toCsvRow).join("\r\n") + "\r\n";
+    const csv = buildRosterCsv(people.sort(compareBySurname)).map(toCsvRow).join("\r\n") + "\r\n";
 
     return new Response(CSV_BOM + csv, {
       headers: {

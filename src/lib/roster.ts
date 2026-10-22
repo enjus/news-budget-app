@@ -1,7 +1,7 @@
 import { parsePhoneNumberFromString } from "libphonenumber-js/min"
 import { safeCsvText } from "@/lib/csv"
 import { languageLabel } from "@/lib/languages"
-import { displayName } from "@/lib/utils"
+import { displayName, surname } from "@/lib/utils"
 
 // Pure helpers for the roster profile (/roster): normalizing what people paste
 // into the social-handle and phone fields, and building the links/strings the
@@ -108,6 +108,19 @@ export function formatPhone(e164: string): string {
   const parsed = parsePhoneNumberFromString(e164)
   if (!parsed) return e164
   return parsed.country === "US" ? parsed.formatNational() : parsed.formatInternational()
+}
+
+const nameCollator = new Intl.Collator("en", { sensitivity: "base" })
+
+/** Roster order: by surname, then by full name. A multipart surname is stored
+ *  underscore-joined ("Alex Van_Der_Berg", "Ana de_la_Cruz"), so `surname()`
+ *  files it under its first word (V, d) rather than its last. Case- and
+ *  accent-insensitive, so "de la Cruz" sorts among the Ds. */
+export function compareBySurname(a: { name: string }, b: { name: string }): number {
+  return (
+    nameCollator.compare(surname(a.name), surname(b.name)) ||
+    nameCollator.compare(displayName(a.name), displayName(b.name))
+  )
 }
 
 export interface AddressParts {
