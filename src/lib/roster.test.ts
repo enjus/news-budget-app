@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   normalizeHandle, socialUrl, socialDisplay, normalizePhone, formatPhone, formatAddressLines,
-  buildRosterCsv, ROSTER_CSV_HEADER,
+  buildRosterCsv, ROSTER_CSV_HEADER, compareBySurname,
 } from "@/lib/roster"
 
 describe("normalizeHandle", () => {
@@ -164,5 +164,26 @@ describe("buildRosterCsv", () => {
   it("neutralizes formula-looking user input", () => {
     const [, row] = buildRosterCsv([{ ...base, title: "=1+1" }])
     expect(row[1]).toBe("'=1+1")
+  })
+})
+
+describe("compareBySurname", () => {
+  const order = (names: string[]) =>
+    names.map((name) => ({ name })).sort(compareBySurname).map((p) => p.name)
+
+  it("sorts by surname, not first name", () => {
+    expect(order(["Sam Okafor", "Jamie Rivera", "Zoe Adams"])).toEqual([
+      "Zoe Adams", "Sam Okafor", "Jamie Rivera",
+    ])
+  })
+
+  it("files an underscore-joined multipart surname under its first word", () => {
+    expect(order(["Pat Smith", "Ana de_la_Cruz", "Alex Van_Der_Berg", "Lee Dean"])).toEqual([
+      "Ana de_la_Cruz", "Lee Dean", "Pat Smith", "Alex Van_Der_Berg",
+    ])
+  })
+
+  it("breaks surname ties on the full name, ignoring case", () => {
+    expect(order(["sam Lee", "Ana Lee", "Mary Ann Lee"])).toEqual(["Ana Lee", "Mary Ann Lee", "sam Lee"])
   })
 })
