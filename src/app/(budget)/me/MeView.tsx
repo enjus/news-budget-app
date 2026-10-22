@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import useSWR from "swr"
-import { FileText, Video, Send, Info, ArrowRight } from "lucide-react"
+import { FileText, Video, Send, Info, ArrowRight, Contact } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,7 +25,7 @@ import {
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED } from "@/lib/features"
+import { ROSTER_ENABLED, VIDEOS_ENABLED } from "@/lib/features"
 import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 export function MeView() {
@@ -36,9 +36,23 @@ export function MeView() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Me</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {!ROSTER_ENABLED ? null : myPersonId ? (
+            <Link
+              href={`/roster/${myPersonId}`}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+            >
+              <Contact className="size-4" />
+              My roster profile
+              <ArrowRight className="size-3.5" />
+            </Link>
+          ) : session ? (
+            <p className="text-xs text-muted-foreground">
+              Your account isn&apos;t linked to a roster entry — ask an admin to link it.
+            </p>
+          ) : null}
           <NewContentButtons />
         </div>
       </div>

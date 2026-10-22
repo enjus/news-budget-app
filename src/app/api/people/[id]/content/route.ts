@@ -69,6 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         id: true,
         name: true,
         email: true,
+        title: true,
         defaultRole: true,
         isActive: true,
         isStaff: true,

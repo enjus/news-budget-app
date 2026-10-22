@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { addDays } from "date-fns";
 import bcrypt from "bcryptjs";
 import { DEFAULT_TAGS } from "../src/lib/tags";
@@ -219,6 +219,48 @@ async function main() {
 
   const reporters = [alice, carol];
   const editors   = [bob, frank];
+
+  // ─── Roster profiles ─────────────────────────────────────────────────────
+  // Obviously fake: 555-01xx numbers, example.com emails, made-up addresses.
+  // PersonPrivate rows are cleared by the person.deleteMany() cascade above.
+  const rosterProfiles: {
+    id: string;
+    profile: Prisma.PersonUpdateInput;
+    priv?: Omit<Prisma.PersonPrivateUncheckedCreateInput, "personId">;
+  }[] = [
+    {
+      id: alice.id,
+      profile: { title: "Oregon Ducks Beat Reporter", pronouns: "she/her", xHandle: "alicechen_news", blueskyHandle: "alicechen.bsky.social", languages: ["en", "zh", "yue"] },
+      priv: { personalPhone: "+15035550101", personalEmail: "alice.chen@example.com", addressLine1: "100 Example Ave", city: "Portland", region: "OR", postalCode: "97201" },
+    },
+    {
+      id: bob.id,
+      profile: { title: "Business Editor", pronouns: "he/him", linkedinSlug: "bob-martinez-example", languages: ["en", "es"] },
+      priv: { personalPhone: "+15035550102", addressLine1: "200 Sample St", addressLine2: "Apt 3", city: "Beaverton", region: "OR", postalCode: "97005" },
+    },
+    {
+      id: carol.id,
+      profile: { title: "Housing Reporter", pronouns: "they/them", instagramHandle: "carol.reports", blueskyHandle: "carolw.bsky.social", languages: ["en", "vi"] },
+      priv: { personalEmail: "carol.w@example.com" },
+    },
+    {
+      id: david.id,
+      profile: { title: "Staff Photographer", pronouns: "he/him", instagramHandle: "davidkim.photo", languages: ["en", "ko"] },
+      priv: { personalPhone: "+15035550104", addressLine1: "400 Placeholder Rd", city: "Gresham", region: "OR", postalCode: "97030" },
+    },
+    {
+      id: sam.id,
+      profile: { title: "Managing Editor", pronouns: "he/him", xHandle: "samokafor", languages: ["en", "fr"] },
+      priv: { personalPhone: "+15035550105", personalEmail: "sam.okafor@example.com" },
+    },
+    { id: maya.id, profile: { title: "Podcast Producer", pronouns: "she/her", languages: ["en", "hi", "pa"] } },
+  ];
+  for (const { id, profile, priv } of rosterProfiles) {
+    await prisma.person.update({
+      where: { id },
+      data: { ...profile, ...(priv ? { private: { create: priv } } : {}) },
+    });
+  }
 
   // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
   // David works Tuesday–Saturday: standing Monday off, standing Saturday on.
