@@ -64,7 +64,7 @@ export function RosterView() {
         <div className="flex flex-wrap gap-2">
           {myPersonId && (
             <Button asChild size="sm" variant="outline">
-              <Link href={`/roster/${myPersonId}`}>
+              <Link href="/roster/me">
                 <UserRound className="size-4" />
                 My profile
               </Link>
