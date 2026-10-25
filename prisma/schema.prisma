@@ -58,6 +58,9 @@ model Person {
   // Free-text job title ("Business Editor", "Oregon Ducks Beat Reporter") —
   // the newsroom-facing job name, which neither appRole nor defaultRole captures.
   title           String?
+  // Desk/work line, shown beside `email`. Not confidential, so it's a Person
+  // column rather than PersonPrivate. E.164, e.g. "+15035550123".
+  workPhone       String?
   pronouns        String?
   xHandle         String?  // normalized, no "@"
   blueskyHandle   String?  // e.g. "name.bsky.social" or a custom domain

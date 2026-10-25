@@ -154,6 +154,7 @@ export interface RosterCsvPerson extends SocialHandles {
   title: string | null
   pronouns: string | null
   email: string | null
+  workPhone: string | null
   languages: string[]
   private: (AddressParts & { personalPhone: string | null; personalEmail: string | null }) | null
 }
@@ -166,7 +167,7 @@ interface SocialHandles {
 }
 
 export const ROSTER_CSV_HEADER = [
-  "Name", "Title", "Pronouns", "Work email",
+  "Name", "Title", "Pronouns", "Work email", "Work phone",
   "Personal phone", "Personal email",
   "Address line 1", "Address line 2", "City", "State/region", "ZIP/postal code", "Country",
   "Languages", "X", "Bluesky", "LinkedIn", "Instagram",
@@ -188,6 +189,7 @@ export function buildRosterCsv(people: RosterCsvPerson[]): string[][] {
       p.title ?? "",
       p.pronouns ?? "",
       p.email ?? "",
+      p.workPhone ? formatPhone(p.workPhone) : "",
       priv?.personalPhone ? formatPhone(priv.personalPhone) : "",
       priv?.personalEmail ?? "",
       priv?.addressLine1 ?? "",

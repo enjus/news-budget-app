@@ -90,15 +90,28 @@ export function RosterProfileView({ id }: { id: string }) {
               </Badge>
             )}
           </div>
-          {(profile.title || profile.email) && (
+          {(profile.title || profile.email || profile.workPhone) && (
             <p className="text-sm text-muted-foreground">
-              {profile.title}
-              {profile.title && profile.email && " · "}
-              {profile.email && (
-                <a href={`mailto:${profile.email}`} className="hover:underline">
-                  {profile.email}
-                </a>
-              )}
+              {[
+                profile.title,
+                profile.email && (
+                  <a href={`mailto:${profile.email}`} className="hover:underline">
+                    {profile.email}
+                  </a>
+                ),
+                profile.workPhone && (
+                  <a href={`tel:${profile.workPhone}`} className="hover:underline">
+                    {formatPhone(profile.workPhone)}
+                  </a>
+                ),
+              ]
+                .filter(Boolean)
+                .map((part, i) => (
+                  <span key={i}>
+                    {i > 0 && " · "}
+                    {part}
+                  </span>
+                ))}
             </p>
           )}
           {canViewPeople(appRole) && (

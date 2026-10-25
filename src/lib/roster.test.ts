@@ -113,6 +113,7 @@ describe("buildRosterCsv", () => {
     title: null,
     pronouns: null,
     email: null,
+    workPhone: null,
     languages: [],
     xHandle: null,
     blueskyHandle: null,
@@ -132,6 +133,7 @@ describe("buildRosterCsv", () => {
         title: "Business Editor",
         pronouns: "they/them",
         email: "alex@newsroom.com",
+        workPhone: "+15035550199",
         languages: ["en", "es"],
         xHandle: "alex",
         linkedinSlug: "alex-vdb",
@@ -148,7 +150,7 @@ describe("buildRosterCsv", () => {
       },
     ])
     expect(row).toEqual([
-      "Alex Van Der Berg", "Business Editor", "they/them", "alex@newsroom.com",
+      "Alex Van Der Berg", "Business Editor", "they/them", "alex@newsroom.com", "(503) 555-0199",
       "(503) 555-0123", "alex@example.com",
       "1 Main St", "", "Portland", "OR", "97201", "",
       "English; Spanish", "https://x.com/alex", "", "https://www.linkedin.com/in/alex-vdb/", "",
@@ -158,7 +160,7 @@ describe("buildRosterCsv", () => {
 
   it("leaves contact columns blank when there are no personal details", () => {
     const [, row] = buildRosterCsv([base])
-    expect(row.slice(4, 12).every((c) => c === "")).toBe(true)
+    expect(row.slice(5, 13).every((c) => c === "")).toBe(true)
   })
 
   it("neutralizes formula-looking user input", () => {
