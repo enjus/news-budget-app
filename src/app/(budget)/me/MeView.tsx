@@ -41,7 +41,7 @@ export function MeView() {
         <div className="flex flex-wrap items-center gap-3">
           {!ROSTER_ENABLED ? null : myPersonId ? (
             <Link
-              href={`/roster/${myPersonId}`}
+              href="/roster/me"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
             >
               <Contact className="size-4" />
