@@ -4,8 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { mutate as mutateGlobal } from "swr"
-import { ArrowLeft, Copy, Eye, Mail, Pencil, Phone } from "lucide-react"
-import { toast } from "sonner"
+import { ArrowLeft, Eye, Mail, Pencil, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -56,15 +55,6 @@ export function RosterProfileView({ id }: { id: string }) {
   function handleReveal() {
     if (hasPrivateAck()) setRevealed(true)
     else setReminderOpen(true)
-  }
-
-  async function copyAddress() {
-    try {
-      await navigator.clipboard.writeText(addressLines.join("\n"))
-      toast.success("Address copied")
-    } catch {
-      toast.error("Couldn't copy — select the address instead")
-    }
   }
 
   return (
@@ -229,19 +219,12 @@ export function RosterProfileView({ id }: { id: string }) {
             {addressLines.length > 0 && (
               <>
                 <dt className="text-muted-foreground">Home</dt>
-                <dd className="space-y-1">
+                <dd>
                   <address className="not-italic">
                     {addressLines.map((line) => (
                       <div key={line}>{line}</div>
                     ))}
                   </address>
-                  <button
-                    onClick={copyAddress}
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <Copy className="size-3" />
-                    Copy address
-                  </button>
                 </dd>
               </>
             )}
