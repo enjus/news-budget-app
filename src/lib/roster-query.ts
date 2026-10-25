@@ -20,6 +20,7 @@ export const ROSTER_LIST_SELECT = {
 export const ROSTER_PROFILE_SELECT = {
   ...ROSTER_LIST_SELECT,
   email: true,
+  workPhone: true,
   isActive: true,
   user: { select: { id: true } },
   teamMemberships: {

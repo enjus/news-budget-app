@@ -1,6 +1,6 @@
 # Newsroom Roster (`/roster`)
 
-An internal staff directory: pronouns, languages spoken, social accounts (X, Bluesky, LinkedIn, Instagram), and personal contact details (personal phone, personal email, home address). It sits alongside the People tab (`/people`), which is the elevated-only view of per-person assignments, and is a different surface from it.
+An internal staff directory: job title, work phone, pronouns, languages spoken, social accounts (X, Bluesky, LinkedIn, Instagram), and personal contact details (personal phone, personal email, home address). It sits alongside the People tab (`/people`), which is the elevated-only view of per-person assignments, and is a different surface from it.
 
 ## Access model
 
@@ -18,10 +18,11 @@ An internal staff directory: pronouns, languages spoken, social accounts (X, Blu
 
 ## Data model
 
-- **Public fields** are columns on `Person`: `title`, `pronouns`, `xHandle`, `blueskyHandle`, `linkedinSlug`, `instagramHandle`, and `languages` (a `String[]` of codes from `ROSTER_LANGUAGES` in `src/lib/languages.ts`).
+- **Public fields** are columns on `Person`: `title`, `workPhone`, `pronouns`, `xHandle`, `blueskyHandle`, `linkedinSlug`, `instagramHandle`, and `languages` (a `String[]` of codes from `ROSTER_LANGUAGES` in `src/lib/languages.ts`).
 - **Personal contact details** are in `PersonPrivate`, a 1:1 table keyed by `personId` with cascade delete. **Do not move these onto `Person`.** `Person` is included in nearly every payload (story/video assignments, pickers, budget polls every 30 s), so those columns would ship home addresses to every screen. Only `/api/roster/[id]` selects `PersonPrivate`.
 - **Order.** The roster list and the CSV export sort by surname, then full name (`compareBySurname()` in `src/lib/roster.ts`), sorted in JS after the query rather than by SQL `ORDER BY`. The surname is the last word of `Person.name`, so a multipart surname must be stored underscore-joined (`Ana de_la_Cruz`, `Alex Van_Der_Berg`). This is the same convention the budget cards' `surname()` and the `PersonForm` hint use; `displayName()` turns the underscores back into spaces on screen.
 - **`title`** is a free-text job title ("Business Editor", "Podcast Producer", "Oregon Ducks Beat Reporter"). Neither `User.appRole` (permissions) nor `Person.defaultRole` (the assignment-picker default) can express these. The roster shows `title` and never the role. The People list and person page show it under the name. It's edited only via the roster form (self or admin), not `PersonForm`.
+- **`workPhone`** is the desk/work line, shown beside the work email (`Person.email`) in the profile header. It's public, not a `PersonPrivate` field, so it gets no confidentiality reminder and survives deactivation. Unlike `email` (edited in `PersonForm`), it's edited in the roster form, self or admin.
 - **Social fields** store the bare handle: no `@`, no URL. LinkedIn stores the `/in/<slug>` part. Known gap: a non-ASCII vanity slug is accepted when pasted as a profile URL (stored percent-encoded) but rejected when typed bare. Phone numbers are stored as E.164.
 
 ## Validation and normalization
@@ -35,7 +36,7 @@ An internal staff directory: pronouns, languages spoken, social accounts (X, Blu
 | Route | Gate | Returns |
 |---|---|---|
 | `GET /api/roster` | session | Active people, public fields only (`ROSTER_LIST_SELECT`). No query filters; `RosterView` filters client-side. |
-| `GET /api/roster/[id]` | session | `ROSTER_PROFILE_SELECT`: public fields, work email, `isActive`, and `private`. `Cache-Control: no-store`. |
+| `GET /api/roster/[id]` | session | `ROSTER_PROFILE_SELECT`: public fields, work email and phone, `isActive`, and `private`. `Cache-Control: no-store`. |
 | `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` deletes the row, so a `PersonPrivate` row always has at least one value. |
 | `GET /api/roster/export` | session | Active staff only (`ROSTER_WHERE`: `isStaff` and `isActive`, so freelancers are excluded), personal contact details included, as `newsroom-roster-YYYY-MM-DD.csv` (UTF-8 with BOM for Excel, CRLF rows, `no-store`). |
 

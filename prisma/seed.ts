@@ -235,7 +235,7 @@ async function main() {
     },
     {
       id: bob.id,
-      profile: { title: "Business Editor", pronouns: "he/him", linkedinSlug: "bob-martinez-example", languages: ["en", "es"] },
+      profile: { title: "Business Editor", workPhone: "+15035550112", pronouns: "he/him", linkedinSlug: "bob-martinez-example", languages: ["en", "es"] },
       priv: { personalPhone: "+15035550102", addressLine1: "200 Sample St", addressLine2: "Apt 3", city: "Beaverton", region: "OR", postalCode: "97005" },
     },
     {
@@ -250,7 +250,7 @@ async function main() {
     },
     {
       id: sam.id,
-      profile: { title: "Managing Editor", pronouns: "he/him", xHandle: "samokafor", languages: ["en", "fr"] },
+      profile: { title: "Managing Editor", workPhone: "+15035550115", pronouns: "he/him", xHandle: "samokafor", languages: ["en", "fr"] },
       priv: { personalPhone: "+15035550105", personalEmail: "sam.okafor@example.com" },
     },
     { id: maya.id, profile: { title: "Podcast Producer", pronouns: "she/her", languages: ["en", "hi", "pa"] } },

@@ -104,8 +104,8 @@ const socialHandleField = (platform: SocialPlatform) =>
       return handle;
     });
 
-export const personPrivateSchema = z.object({
-  personalPhone: z
+const phoneField = () =>
+  z
     .string()
     .max(40)
     .nullable()
@@ -118,7 +118,10 @@ export const personPrivateSchema = z.object({
         return z.NEVER;
       }
       return phone;
-    }),
+    });
+
+export const personPrivateSchema = z.object({
+  personalPhone: phoneField(),
   personalEmail: blankToNull(z.string().trim().email("Invalid email address").max(200)),
   addressLine1: optionalText(200),
   addressLine2: optionalText(200),
@@ -130,6 +133,7 @@ export const personPrivateSchema = z.object({
 
 export const updateRosterProfileSchema = z.object({
   title: optionalText(100),
+  workPhone: phoneField(),
   pronouns: optionalText(40),
   xHandle: socialHandleField("x"),
   blueskyHandle: socialHandleField("bluesky"),

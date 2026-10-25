@@ -29,6 +29,7 @@ import { LanguagePicker } from "./LanguagePicker"
 function toFormValues(p: RosterProfile): UpdateRosterProfileInput {
   return {
     title: p.title ?? "",
+    workPhone: p.workPhone ? formatPhone(p.workPhone) : "",
     pronouns: p.pronouns ?? "",
     xHandle: p.xHandle ?? "",
     blueskyHandle: p.blueskyHandle ?? "",
@@ -125,6 +126,17 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
                 aria-invalid={!!errors.title}
               />
               {fieldError(errors.title?.message)}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rp-work-phone">Work phone</Label>
+              <Input
+                id="rp-work-phone"
+                type="tel"
+                {...register("workPhone")}
+                placeholder="(503) 555-0123"
+                aria-invalid={!!errors.workPhone}
+              />
+              {fieldError(errors.workPhone?.message)}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="rp-pronouns">Pronouns</Label>
