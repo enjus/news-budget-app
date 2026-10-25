@@ -69,6 +69,11 @@ describe("normalizePhone / formatPhone", () => {
     expect(normalizePhone("+44 20 7946 0958")).toBe("+442079460958")
   })
 
+  it("rejects a number with an extension rather than dropping it", () => {
+    expect(normalizePhone("503-555-0100 x123")).toBeUndefined()
+    expect(normalizePhone("(503) 555-0100 ext. 45")).toBeUndefined()
+  })
+
   it("returns null for blank and undefined for junk", () => {
     expect(normalizePhone("")).toBeNull()
     expect(normalizePhone("12345")).toBeUndefined()

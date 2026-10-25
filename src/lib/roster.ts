@@ -95,12 +95,14 @@ export function socialDisplay(platform: SocialPlatform, handle: string): string 
 /**
  * Normalize a typed phone number to E.164, assuming US when no country code
  * is given. Returns null for blank input, undefined when it isn't a valid number.
+ * Extensions are rejected rather than kept: E.164 has no room for one, so it
+ * would be silently dropped, and newsroom desk lines don't use them.
  */
 export function normalizePhone(input: string | null | undefined): string | null | undefined {
   const value = (input ?? "").trim()
   if (value === "") return null
   const parsed = parsePhoneNumberFromString(value, "US")
-  return parsed?.isValid() ? parsed.number : undefined
+  return parsed?.isValid() && !parsed.ext ? parsed.number : undefined
 }
 
 /** "+15035550123" → "(503) 555-0123"; non-US numbers in international form. */
