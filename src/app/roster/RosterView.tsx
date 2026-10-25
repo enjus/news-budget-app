@@ -70,10 +70,14 @@ export function RosterView() {
               </Link>
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
-            <Download className="size-4" />
-            Download CSV
-          </Button>
+          {/* The export is staff only (ROSTER_WHERE), so it's hidden under
+              "Everyone" rather than implying freelancers are included. */}
+          {staffOnly && (
+            <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
+              <Download className="size-4" />
+              Download CSV
+            </Button>
+          )}
         </div>
       </div>
 
