@@ -35,7 +35,7 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 
 | Route | Gate | Returns |
 |---|---|---|
-| `GET /api/roster` | session | Active people, public fields only (`ROSTER_LIST_SELECT`). No query filters; `RosterView` filters client-side. |
+| `GET /api/roster` | session | Active people, public fields plus work email and phone (`ROSTER_LIST_SELECT`), never `PersonPrivate`. No query filters; `RosterView` filters client-side. |
 | `GET /api/roster/[id]` | session | `ROSTER_PROFILE_SELECT`: public fields, work email and phone, `isActive`, and `private`. `Cache-Control: no-store`. |
 | `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` deletes the row, so a `PersonPrivate` row always has at least one value. |
 | `GET /api/roster/export` | session | Active staff only (`ROSTER_WHERE`: `isStaff` and `isActive`, so freelancers are excluded), personal contact details included, as `newsroom-roster-YYYY-MM-DD.csv` (UTF-8 with BOM for Excel, CRLF rows, `no-store`). |

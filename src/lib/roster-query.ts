@@ -8,6 +8,8 @@ export const ROSTER_LIST_SELECT = {
   id: true,
   name: true,
   title: true,
+  email: true,
+  workPhone: true,
   isStaff: true,
   pronouns: true,
   xHandle: true,
@@ -19,8 +21,6 @@ export const ROSTER_LIST_SELECT = {
 
 export const ROSTER_PROFILE_SELECT = {
   ...ROSTER_LIST_SELECT,
-  email: true,
-  workPhone: true,
   isActive: true,
   user: { select: { id: true } },
   teamMemberships: {
