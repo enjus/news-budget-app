@@ -21,6 +21,7 @@ import { PERSON_ROLE_LABELS, STORY_STATUS_LABELS, TEAM_MEMBER_ROLE_LABELS, cn, d
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { ContentRow } from "@/components/budget/ContentItemRow"
 import { VIDEOS_ENABLED } from "@/lib/features"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 import { TeamScheduleView } from "./TeamScheduleView"
 
 const STATUS_OPTIONS = [
@@ -70,6 +71,9 @@ export function MyTeamsView() {
     <div className="mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">My Teams</h1>
+        <div className="flex items-center gap-2">
+          <NewContentButtons />
+        </div>
       </div>
 
       {/* Team selector (if multiple) */}

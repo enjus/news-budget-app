@@ -5,6 +5,7 @@ import Link from "next/link"
 import useSWR from "swr"
 import { format, parseISO, addDays } from "date-fns"
 import { Plus, CalendarDays, ChevronDown } from "lucide-react"
+import { NewContentButtons } from "@/components/budget/NewContentButtons"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
@@ -305,12 +306,8 @@ export function EditionView() {
             </PopoverContent>
           </Popover>
 
-          <Button asChild size="sm">
-            <Link href="/stories/new">
-              <Plus className="size-4" />
-              New Story
-            </Link>
-          </Button>
+          {/* No video button: print editions carry no video. */}
+          <NewContentButtons showVideo={false} />
         </div>
       </div>
 

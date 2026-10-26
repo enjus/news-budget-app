@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/command"
 import { cn, displayName, STORY_STATUS_LABELS } from "@/lib/utils"
 import { usePeople } from "@/lib/hooks/usePeople"
+import { confirmLeave } from "@/lib/hooks/useUnsavedChangesWarning"
 import type { SearchResult } from "@/app/api/search/route"
 import { apiPath } from "@/lib/api-path"
 
@@ -132,6 +133,7 @@ export function SearchCommand() {
   const navigate = useCallback(
     (result: SearchResult) => {
       handleOpenChange(false)
+      if (!confirmLeave()) return
       router.push(result.type === "story" ? `/stories/${result.id}` : `/videos/${result.id}`)
     },
     [router, handleOpenChange]
