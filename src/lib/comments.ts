@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createCommentSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, displayName } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 import {
   collectEmails,
@@ -103,6 +103,11 @@ export async function createComment(
           select: {
             ...parentSelect,
             visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
+            onBudget: true,
+            status: true,
+            pitchedAt: true,
+            pitchText: true,
+            expiresAt: true,
           },
         })
       : null;
@@ -150,6 +155,21 @@ export async function createComment(
     id: parent.id,
     slug: parent.slug,
     budgetLine: parent.budgetLine,
+    // A pitch's slug/budgetLine are placeholders derived from the tip, so its
+    // emails show the tip and claim status instead (see commentEmail()).
+    // Claims are single-claimant, so assignments[0] is the claimant.
+    ...(storyParent && !storyParent.onBudget && storyParent.pitchedAt
+      ? {
+          pitch: {
+            text: storyParent.pitchText?.trim() || storyParent.budgetLine,
+            claimantName: storyParent.assignments[0]
+              ? displayName(storyParent.assignments[0].person.name)
+              : null,
+            expiresAt: storyParent.expiresAt,
+            shelved: storyParent.status === "SHELVED",
+          },
+        }
+      : {}),
   };
   const notification = { item, kind, authorName, body };
 
