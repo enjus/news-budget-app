@@ -17,11 +17,12 @@ import {
 import { SocialLinks } from "@/components/roster/SocialLinks"
 import { LanguageChip } from "@/components/roster/LanguageChip"
 import { PrivateReminderDialog } from "@/components/roster/PrivateReminderDialog"
+import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { apiPath } from "@/lib/api-path"
 import { useRoster } from "@/lib/hooks/useRoster"
 import { languageLabel } from "@/lib/languages"
 import { formatPhone } from "@/lib/roster"
-import { cn, displayName } from "@/lib/utils"
+import { displayName } from "@/lib/utils"
 
 export function RosterView() {
   const { data: session } = useSession()
@@ -29,7 +30,7 @@ export function RosterView() {
   const { people, isLoading, error } = useRoster()
   const [query, setQuery] = useState("")
   const [language, setLanguage] = useState("all")
-  const [staffOnly, setStaffOnly] = useState(true)
+  const [staffFilter, setStaffFilter] = useState<StaffFilterValue>("staff")
   const [exportOpen, setExportOpen] = useState(false)
 
   // A plain navigation to the CSV route: the response's Content-Disposition
@@ -51,7 +52,7 @@ export function RosterView() {
 
   const q = query.trim().toLowerCase()
   const visible = people.filter((p) => {
-    if (staffOnly && !p.isStaff) return false
+    if (!matchesStaffFilter(p, staffFilter)) return false
     if (language !== "all" && !p.languages.includes(language)) return false
     if (q && !displayName(p.name).toLowerCase().includes(q)) return false
     return true
@@ -77,8 +78,8 @@ export function RosterView() {
             </Button>
           )}
           {/* The export is staff only (ROSTER_WHERE), so it's hidden under
-              "Everyone" rather than implying freelancers are included. */}
-          {staffOnly && (
+              the other filters rather than implying freelancers are included. */}
+          {staffFilter === "staff" && (
             <Button size="sm" variant="outline" onClick={() => setExportOpen(true)}>
               <Download className="size-4" />
               Download CSV
@@ -130,20 +131,7 @@ export function RosterView() {
           </SelectContent>
         </Select>
 
-        <div className="flex w-fit overflow-hidden rounded-md border text-sm">
-          {([true, false] as const).map((v) => (
-            <button
-              key={String(v)}
-              onClick={() => setStaffOnly(v)}
-              className={cn(
-                "px-3 py-1 transition-colors",
-                staffOnly === v ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-              )}
-            >
-              {v ? "Staff only" : "Everyone"}
-            </button>
-          ))}
-        </div>
+        <StaffFilter value={staffFilter} onChange={setStaffFilter} />
       </div>
 
       {error ? (

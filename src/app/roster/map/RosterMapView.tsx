@@ -10,9 +10,10 @@ import { ArrowLeft, MapPin, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LocationPickerDialog } from "@/components/roster/LocationPickerDialog"
 import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/components/roster/PrivateReminderDialog"
+import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { useRosterMap, useRosterProfile } from "@/lib/hooks/useRoster"
 import { CONTRIBUTOR_COLOR, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
-import { cn, displayName } from "@/lib/utils"
+import { displayName } from "@/lib/utils"
 import type { RosterMapPin } from "@/types/index"
 
 const MapCanvas = dynamic(() => import("@/components/roster/MapCanvas"), {
@@ -20,21 +21,10 @@ const MapCanvas = dynamic(() => import("@/components/roster/MapCanvas"), {
   loading: () => <div className="size-full animate-pulse bg-muted" />,
 })
 
-type Filter = "staff" | "contributors" | "all"
-const FILTER_LABELS: Record<Filter, string> = {
-  staff: "Staff",
-  contributors: "Contributors",
-  all: "Everyone",
-}
-
 const noopSubscribe = () => () => {}
 
 const SOURCE_ID = "people"
 const LAYER_ID = "people-dots"
-
-function matchesFilter(pin: RosterMapPin, filter: Filter) {
-  return filter === "all" || pin.isStaff === (filter === "staff")
-}
 
 function toGeoJSON(pins: RosterMapPin[]): GeoJSON.FeatureCollection {
   return {
@@ -71,13 +61,13 @@ export function RosterMapView() {
       ? { latitude: myProfile.private.latitude, longitude: myProfile.private.longitude }
       : null
 
-  const [filter, setFilter] = useState<Filter>("staff")
+  const [filter, setFilter] = useState<StaffFilterValue>("staff")
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const fittedRef = useRef(false)
 
-  const visible = pins.filter((p) => matchesFilter(p, filter))
-  const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesFilter(p, filter))
+  const visible = pins.filter((p) => matchesStaffFilter(p, filter))
+  const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesStaffFilter(p, filter))
 
   // Push pins into the map; fit to them the first time there are any.
   useEffect(() => {
@@ -180,20 +170,7 @@ export function RosterMapView() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex w-fit overflow-hidden rounded-md border text-sm">
-          {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "px-3 py-1 transition-colors",
-                filter === f ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-              )}
-            >
-              {FILTER_LABELS[f]}
-            </button>
-          ))}
-        </div>
+        <StaffFilter value={filter} onChange={setFilter} />
 
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
