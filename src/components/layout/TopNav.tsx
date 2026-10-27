@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession, signOut } from "next-auth/react"
-import { Menu, X, LogOut, ShieldCheck, Settings, ExternalLink } from "lucide-react"
+import { Menu, X, LogOut, ShieldCheck, Settings, ExternalLink, Contact } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SearchCommand } from "@/components/layout/SearchCommand"
@@ -12,6 +12,7 @@ import { cn, initials, hasAdminAccess } from "@/lib/utils"
 import { isTabActive, EXTERNAL_NAV_LINKS } from "@/lib/nav"
 import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
+import { ROSTER_ENABLED } from "@/lib/features"
 import masthead from "@/assets/brand/oregonian-masthead.png"
 import mark from "@/assets/brand/oregonian-mark.png"
 
@@ -227,6 +228,12 @@ function AccountLinks({
         <Link href="/admin/users" className={row}>
           <ShieldCheck className={icon} />
           Admin
+        </Link>
+      )}
+      {ROSTER_ENABLED && (
+        <Link href="/roster" className={row}>
+          <Contact className={icon} />
+          Roster
         </Link>
       )}
       <Link href="/settings" className={row}>

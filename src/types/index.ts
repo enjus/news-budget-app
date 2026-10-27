@@ -1,4 +1,5 @@
 import type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, StoryTag, Prisma } from "@prisma/client";
+import type { ROSTER_LIST_SELECT, ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
 
 export type { Story, Person, StoryAssignment, Visual, Video, VideoAssignment, Team, TeamMember, StoryTag };
 
@@ -108,6 +109,22 @@ export type PersonWithCounts = Prisma.PersonGetPayload<{
     user: { select: { id: true } };
   };
 }>;
+
+/** A row on /roster (GET /api/roster) — public profile fields only. */
+export type RosterListItem = Prisma.PersonGetPayload<{ select: typeof ROSTER_LIST_SELECT }>;
+
+/** One profile on /roster/[id] (GET /api/roster/[id]), including personal contact details. */
+export type RosterProfile = Prisma.PersonGetPayload<{ select: typeof ROSTER_PROFILE_SELECT }>;
+
+/** One dot on /roster/map (GET /api/roster/map), flattened from ROSTER_MAP_SELECT. */
+export interface RosterMapPin {
+  id: string;
+  name: string;
+  title: string | null;
+  isStaff: boolean;
+  latitude: number;
+  longitude: number;
+}
 
 export type AssignmentWithPerson = Prisma.StoryAssignmentGetPayload<{
   include: { person: true };

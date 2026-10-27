@@ -2,25 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { dateOnly, displayName, toDateString } from "@/lib/utils";
 import { clampToScheduleStart, isBeforeScheduleStart, SCHEDULE_START_LABEL, resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
 import { loadScheduleWindow, type AvailabilityRow } from "@/lib/schedule-queries";
+import { toCsvRow } from "@/lib/csv";
 
 export const dynamic = 'force-dynamic'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_RANGE_DAYS = 366;
-
-function csvField(value: string): string {
-  // \r alone (no \n) is still a row-boundary character for plenty of CSV
-  // consumers (old Mac line endings, paste artifacts) — quote on any of
-  // \r, \n, or a comma/quote, not just \n.
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function toCsvRow(fields: string[]): string {
-  return fields.map(csvField).join(",");
-}
 
 // A fuller-fidelity label than the UI chip's (which leaves plain "working
 // normally" blank as a visual convention) — a CSV export is the record, so

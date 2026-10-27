@@ -66,17 +66,30 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
-    const person = await prisma.person.update({
-      where: { id },
-      data: result.data,
-      include: {
-        _count: {
-          select: {
-            assignments: true,
-            videoAssignments: true,
+    // Marking someone inactive (typically: they've left) deletes their roster
+    // personal contact details (PersonPrivate) in the same transaction — a
+    // former employee's home address and personal phone shouldn't linger.
+    // Not restored on reactivation; they re-enter it. See docs/roster.md.
+    // Person is updated first so its row lock orders this against a
+    // concurrent PUT /api/roster/[id]/location, which re-checks isActive under
+    // the same lock — the pin can't be re-created after the delete.
+    const person = await prisma.$transaction(async (tx) => {
+      const updated = await tx.person.update({
+        where: { id },
+        data: result.data,
+        include: {
+          _count: {
+            select: {
+              assignments: true,
+              videoAssignments: true,
+            },
           },
         },
-      },
+      });
+      if (result.data.isActive === false) {
+        await tx.personPrivate.deleteMany({ where: { personId: id } });
+      }
+      return updated;
     });
 
     return NextResponse.json(person);

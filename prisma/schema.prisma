@@ -52,9 +52,28 @@ model Person {
   // roster membership. Freelancers stay isActive:true, isStaff:false — still
   // assignable via PersonPicker/PersonSelect (those filter on isActive only).
   isStaff     Boolean  @default(false)
+  // Roster profile (/roster) — visible to every signed-in user. Editable only
+  // by the person themself or an admin, via PATCH /api/roster/[id]; never
+  // through createPersonSchema/updatePersonSchema. See docs/roster.md.
+  // Free-text job title ("Business Editor", "Oregon Ducks Beat Reporter") —
+  // the newsroom-facing job name, which neither appRole nor defaultRole captures.
+  title           String?
+  // Desk/work line, shown beside `email`. Not confidential, so it's a Person
+  // column rather than PersonPrivate. E.164, e.g. "+15035550123".
+  workPhone       String?
+  pronouns        String?
+  xHandle         String?  // normalized, no "@"
+  blueskyHandle   String?  // e.g. "name.bsky.social" or a custom domain
+  linkedinSlug    String?  // the linkedin.com/in/<slug> part
+  instagramHandle String?  // normalized, no "@"
+  languages       String[] @default([]) // codes from ROSTER_LANGUAGES (src/lib/languages.ts)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Personal contact details live in their own table, NOT as Person columns:
+  // Person is included in nearly every payload (assignments, pickers, budget
+  // polls), and home addresses shouldn't ride along in all of them.
+  private          PersonPrivate?
   user             User?
   assignments      StoryAssignment[]
   visuals          Visual[]
@@ -64,6 +83,30 @@ model Person {
   workSchedules    WorkSchedule[]
   availability     Availability[]
   shifts           ShiftAssignment[]
+}
+
+// Personal contact details for the roster (/roster). 1:1 with Person, kept
+// separate so they're only ever loaded by the /api/roster/[id] routes. Visible
+// to every signed-in user behind a client-side "not for public distribution"
+// reminder — trust-based, not an access boundary. See docs/roster.md.
+model PersonPrivate {
+  personId      String   @id
+  person        Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personalPhone String?  // E.164, e.g. "+15035550123"
+  personalEmail String?
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  region        String?  // state / province
+  postalCode    String?
+  country       String?
+  // Roster map pin (/roster/map), placed by hand — never geocoded from the
+  // address, so the two can disagree. Both set or both null. Written only by
+  // /api/roster/[id]/location, never by the profile form. See docs/roster.md.
+  latitude          Float?
+  longitude         Float?
+  locationUpdatedAt DateTime?
+  updatedAt     DateTime @updatedAt
 }
 
 // Per-weekday override on a Mon–Fri default. No rows at all = the standard

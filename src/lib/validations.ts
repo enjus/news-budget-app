@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { isBeforeScheduleStart, SCHEDULE_START_LABEL } from "@/lib/schedule";
 import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
+import { normalizeHandle, normalizePhone, SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "@/lib/roster";
+import { ROSTER_LANGUAGE_CODES } from "@/lib/languages";
 
 // ─── Slug ──────────────────────────────────────────────────────────────────────
 // Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
@@ -41,6 +43,14 @@ const optionalUrl = z.preprocess(
   z.string().url("Must be a valid URL").nullable().optional()
 );
 
+// Optional free-text/URL/date fields: a blank or whitespace-only string from a
+// cleared form input is stored as null rather than "". Shared by the roster
+// profile and newsroom-links schemas below.
+const blankToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), schema.nullable().optional());
+
+const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
+
 // ─── Person ───────────────────────────────────────────────────────────────────
 
 export const createPersonSchema = z.object({
@@ -57,10 +67,91 @@ export const createPersonSchema = z.object({
 });
 
 export const updatePersonSchema = createPersonSchema.partial().extend({
+  // Re-declared without the create schema's .default("OTHER"): Zod v4's
+  // .partial() keeps defaults, so a status-only PATCH ({ isActive: false })
+  // used to parse to { defaultRole: "OTHER", ... } and silently reset the
+  // person's role. Absent must mean "unchanged".
+  defaultRole: PersonRoleEnum.optional(),
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
   // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
   isStaff: z.boolean().optional(),
+});
+
+// ─── Roster profile (/roster) ──────────────────────────────────────────────
+// Deliberately separate from createPersonSchema/updatePersonSchema: those feed
+// PATCH /api/people/[id], which any content creator can call for anyone. The
+// roster fields are self-or-admin only, enforced by PATCH /api/roster/[id].
+// Every field is optional (PATCH semantics); blank strings become null so a
+// cleared input actually clears the stored value.
+
+const socialHandleField = (platform: SocialPlatform) =>
+  z
+    .string()
+    .max(300)
+    .nullable()
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined) return undefined;
+      const handle = normalizeHandle(platform, v);
+      if (handle === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          message: `Not a valid ${SOCIAL_PLATFORM_LABELS[platform]} handle or profile URL`,
+        });
+        return z.NEVER;
+      }
+      return handle;
+    });
+
+const phoneField = () =>
+  z
+    .string()
+    .max(40)
+    .nullable()
+    .optional()
+    .transform((v, ctx) => {
+      if (v === undefined) return undefined;
+      const phone = normalizePhone(v);
+      if (phone === undefined) {
+        ctx.addIssue({ code: "custom", message: "Not a valid phone number" });
+        return z.NEVER;
+      }
+      return phone;
+    });
+
+export const personPrivateSchema = z.object({
+  personalPhone: phoneField(),
+  personalEmail: blankToNull(z.string().trim().email("Invalid email address").max(200)),
+  addressLine1: optionalText(200),
+  addressLine2: optionalText(200),
+  city: optionalText(100),
+  region: optionalText(100),
+  postalCode: optionalText(20),
+  country: optionalText(100),
+});
+
+export const updateRosterProfileSchema = z.object({
+  title: optionalText(100),
+  workPhone: phoneField(),
+  pronouns: optionalText(40),
+  xHandle: socialHandleField("x"),
+  blueskyHandle: socialHandleField("bluesky"),
+  linkedinSlug: socialHandleField("linkedin"),
+  instagramHandle: socialHandleField("instagram"),
+  languages: z
+    .array(z.enum(ROSTER_LANGUAGE_CODES))
+    .max(30)
+    .transform((codes) => Array.from(new Set(codes)))
+    .optional(),
+  private: personPrivateSchema.optional(),
+});
+
+// Body for PUT /api/roster/[id]/location — a hand-placed map pin. Separate from
+// updateRosterProfileSchema so the profile form never touches coordinates.
+export const rosterLocationSchema = z.object({
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
 });
 
 // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
@@ -371,13 +462,6 @@ export const updateTagSchema = tagFieldsSchema.partial().extend({
 
 // ─── Newsroom Links (admin) ──────────────────────────────────────────────────
 
-// Optional free-text/URL/date fields: a blank or whitespace-only string from a
-// cleared form input is stored as null rather than "".
-const blankToNull = <T extends z.ZodTypeAny>(schema: T) =>
-  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? null : v), schema.nullable().optional());
-
-const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
-
 // Admin-entered hrefs render for every user, so only http(s) is accepted —
 // never javascript:/data: URLs.
 const linkUrlSchema = z
@@ -557,6 +641,7 @@ export const updateUserSchema = z.object({
 
 export type CreatePersonInput = z.infer<typeof createPersonSchema>;
 export type UpdatePersonInput = z.infer<typeof updatePersonSchema>;
+export type UpdateRosterProfileInput = z.input<typeof updateRosterProfileSchema>;
 export type ReplaceWorkScheduleInput = z.infer<typeof replaceWorkScheduleSchema>;
 export type CreateAvailabilityInput = z.infer<typeof createAvailabilitySchema>;
 export type UpdateAvailabilityInput = z.infer<typeof updateAvailabilitySchema>;

@@ -31,6 +31,7 @@ import {
   classifyContentItems,
 } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
+import { ROSTER_ENABLED } from "@/lib/features"
 
 const PAST_INITIAL_COUNT = 10
 
@@ -51,6 +52,7 @@ interface PersonData {
     id: string
     name: string
     email: string | null
+    title: string | null
     defaultRole: string
     isActive: boolean
     isStaff: boolean
@@ -173,6 +175,7 @@ export function PersonView({ id }: PersonViewProps) {
               </Badge>
             )}
           </div>
+          {person.title && <p className="text-sm">{person.title}</p>}
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             {person.email && (
               <>
@@ -181,6 +184,14 @@ export function PersonView({ id }: PersonViewProps) {
               </>
             )}
             <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
+            {ROSTER_ENABLED && (
+              <>
+                <span>·</span>
+                <Link href={`/roster/${person.id}`} className="hover:text-foreground hover:underline">
+                  Roster profile →
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
