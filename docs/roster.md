@@ -47,12 +47,34 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 - **Format:** built by `buildRosterCsv()` in `src/lib/roster.ts` (tested). Phones are human-formatted, languages are labels, and social accounts are full URLs. Every user-entered cell passes through `safeCsvText()` (`src/lib/csv.ts`), which prefixes `'` to anything a spreadsheet would run as a formula (`=`, `+`, `-`, `@`), except phone-number-shaped values.
 - **Shared helpers:** `csvField`/`toCsvRow` live in `src/lib/csv.ts`, shared with `/api/schedule/export`.
 
-## Deferred: mapping
+## Planned: roster map (`/roster/map`)
 
-Geocoded address search and a manually correctable map pin are planned once a mapping platform is chosen. Expected additions:
-- `latitude`, `longitude`, and `locationSource` (`GEOCODED | MANUAL`) on `PersonPrivate`, as an additive `db push`
-- a server-side geocode proxy
-- an `AddressPicker` flow: search, then a draggable pin
-- optionally, a roster map with a "who lives closest" tool
+A map of where people live, placed by hand. There is **no address geocoding**: a pin is dropped and moved by a person, never derived from the home address. That removes the need for a geocode proxy and sidesteps geocoding providers' terms on storing results.
 
-When choosing a platform, check its terms on storing geocoded coordinates. Mapbox allows it only with `permanent=true` geocoding (billed per request) and requires results to be shown on a Mapbox map.
+### Data
+- `latitude` and `longitude` (nullable `Float`) on `PersonPrivate`, as an additive `db push`. Nobody has a location by default; a Person is on the map only once someone places them.
+- The pin is a `PersonPrivate` field because it is effectively a home address. **Do not put coordinates on `Person`**, for the same payload reason as the address.
+- Coordinates count as a value for the "an all-blank `private` deletes the row" rule in `PATCH /api/roster/[id]`. Removing a pin clears both coordinates. If nothing else in `PersonPrivate` is set, that deletes the row.
+- The pin and the home address are independent and can disagree after a move. Planned nudges, to update a pin and to refresh the profile periodically, will cover this. No consistency check runs between the two.
+
+### Who can place a pin
+- Same as other profile edits: the person themself or an admin (`canEditRosterProfile()`), through `PATCH /api/roster/[id]` and `updateRosterProfileSchema`. Validate latitude in [-90, 90] and longitude in [-180, 180], and require both or neither.
+- Active non-staff contributors (`isStaff: false`, `isActive: true`) can be mapped. They have no linked `User`, so only admins can place them. That is intended for now and could be loosened later.
+- Inactive people are never mapped. Deactivation already deletes `PersonPrivate`, coordinates included, and the map query filters on `isActive` anyway.
+
+### Placing a pin ("Add me" / "Edit location")
+- The pin starts at The Oregonian's Portland office, a fixed constant. Device location is **not** the default: on a laptop it comes from Wi-Fi or IP, so anyone clicking from work would land on the office anyway, and home ISPs can be miles off.
+- A separate **"Use my location"** button calls the browser Geolocation API. It needs HTTPS (or localhost) and a permission prompt. On denial or error, keep the pin where it is and show a short message. Show the button only when you are editing your own location, never when an admin is placing someone else: the admin's device location would be meaningless.
+- **Center-pin interaction:** the pin stays fixed at the center of the map and the person pans the map underneath it, rather than dragging a marker. This avoids the pan-vs-drag conflict on phones and works the same on desktop. The saved coordinates are the map center.
+- **No saving the default:** Save stays disabled until the map has moved off the office starting point, so an untouched pin can't be mistaken for real data.
+- Copy tells people precision isn't needed: *"Within a few blocks is fine."*
+
+### The map page
+- `GET /api/roster/map` (session gate): active people with coordinates, returning only `id`, `name`, `title`, `isStaff`, `latitude`, and `longitude`. It never returns other `PersonPrivate` fields, so the map doesn't become a bulk address export. `Cache-Control: no-store`.
+- A filter switches between staff, contributors, or both (`isStaff`). Staff and contributors are told apart by color **and** fill: filled dots for staff, hollow (outlined) dots for contributors, so the distinction doesn't rely on color alone. Draw them as plain circle layers, not image markers. Exact-coordinate overlaps are unlikely when pins are approximate, so there is no clustering or spiderfying. A click popup links to the roster profile.
+- Shows the same "Confidential — not for public distribution" reminder as personal contact details (`PrivateReminderDialog`).
+- Lives under the `ROSTER_ENABLED` dark launch, linked from `/roster`. `/roster` belongs to no nav section, so no new nav layout is needed.
+- Optional later: a "who lives closest" tool working from pin coordinates.
+
+### Platform
+**MapLibre GL JS** with **OpenFreeMap** vector tiles: both are free, need no API key, and put no restriction on storing coordinates. On-screen OpenStreetMap/OpenFreeMap attribution is required. Load the map component client-side only (`next/dynamic` with `ssr: false`), since MapLibre needs `window` and WebGL.
