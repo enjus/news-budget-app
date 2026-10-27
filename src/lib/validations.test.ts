@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest"
-import { createPersonSchema, updatePersonSchema } from "@/lib/validations"
+import { createPersonSchema, rosterLocationSchema, updatePersonSchema } from "@/lib/validations"
+
+describe("rosterLocationSchema", () => {
+  it("accepts a valid pin", () => {
+    expect(rosterLocationSchema.parse({ latitude: 45.5, longitude: -122.6 })).toEqual({
+      latitude: 45.5,
+      longitude: -122.6,
+    })
+  })
+
+  it("rejects out-of-range, non-numeric, and half-set coordinates", () => {
+    expect(rosterLocationSchema.safeParse({ latitude: 91, longitude: 0 }).success).toBe(false)
+    expect(rosterLocationSchema.safeParse({ latitude: 0, longitude: -181 }).success).toBe(false)
+    expect(rosterLocationSchema.safeParse({ latitude: NaN, longitude: 0 }).success).toBe(false)
+    expect(rosterLocationSchema.safeParse({ latitude: "45.5", longitude: "-122.6" }).success).toBe(false)
+    expect(rosterLocationSchema.safeParse({ latitude: 45.5 }).success).toBe(false)
+  })
+})
 
 // Regression: Zod v4's .partial() keeps .default(), so updatePersonSchema
 // used to fill in defaultRole: "OTHER" on every status-only PATCH (Mark

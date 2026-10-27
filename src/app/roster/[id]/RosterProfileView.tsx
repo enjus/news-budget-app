@@ -4,16 +4,18 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { mutate as mutateGlobal } from "swr"
-import { ArrowLeft, Eye, Mail, Pencil, Phone } from "lucide-react"
+import { ArrowLeft, Eye, Mail, MapPin, Pencil, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SocialLinks, socialEntries } from "@/components/roster/SocialLinks"
 import { RosterProfileForm } from "@/components/roster/RosterProfileForm"
+import { LocationPickerDialog } from "@/components/roster/LocationPickerDialog"
 import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/components/roster/PrivateReminderDialog"
 import { useRosterProfile } from "@/lib/hooks/useRoster"
 import { LanguageChip } from "@/components/roster/LanguageChip"
 import { formatAddressLines, formatPhone } from "@/lib/roster"
+import type { RosterProfile } from "@/types/index"
 import { TEAM_MEMBER_ROLE_LABELS, canEditRosterProfile, canViewPeople, displayName } from "@/lib/utils"
 
 export function RosterProfileView({ id }: { id: string }) {
@@ -48,9 +50,25 @@ export function RosterProfileView({ id }: { id: string }) {
 
   const priv = profile.private
   const addressLines = priv ? formatAddressLines(priv) : []
-  const hasPrivate = !!(priv?.personalPhone || priv?.personalEmail || addressLines.length)
+  const hasContact = !!(priv?.personalPhone || priv?.personalEmail || addressLines.length)
+  const pin =
+    priv?.latitude != null && priv.longitude != null
+      ? { latitude: priv.latitude, longitude: priv.longitude }
+      : null
+  // A map pin is as private as the address, so it sits behind the same reveal.
+  const hasPrivate = hasContact || !!pin
   // Your own details need no reminder.
   const showPrivate = isSelf || revealed
+  // Inactive people are never mapped (the location API refuses them). With no
+  // pin there's nothing to hide, so editors get "Add to map" before revealing.
+  const showLocation =
+    profile.isActive && (showPrivate ? !!pin || canEdit : !pin && canEdit)
+  const onSaved = (updated: RosterProfile) => {
+    mutate(updated, { revalidate: false })
+    // The list caches pronouns/languages/socials too — refetch it so
+    // going back to /roster doesn't show the pre-edit values.
+    mutateGlobal("/api/roster")
+  }
 
   function handleReveal() {
     if (hasPrivateAck()) setRevealed(true)
@@ -115,12 +133,7 @@ export function RosterProfileView({ id }: { id: string }) {
           <RosterProfileForm
             profile={profile}
             isSelf={isSelf}
-            onSaved={(updated) => {
-              mutate(updated, { revalidate: false })
-              // The list caches pronouns/languages/socials too — refetch it so
-              // going back to /roster doesn't show the pre-edit values.
-              mutateGlobal("/api/roster")
-            }}
+            onSaved={onSaved}
             trigger={
               <Button size="sm" variant="outline">
                 <Pencil className="size-4" />
@@ -190,7 +203,7 @@ export function RosterProfileView({ id }: { id: string }) {
             <Eye className="size-4" />
             Show contact details
           </Button>
-        ) : (
+        ) : hasContact && (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {priv?.personalPhone && (
               <>
@@ -229,6 +242,38 @@ export function RosterProfileView({ id }: { id: string }) {
               </>
             )}
           </dl>
+        )}
+
+        {showLocation && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <MapPin className="size-3.5" />
+              {pin ? (
+                <>
+                  On the{" "}
+                  <Link href="/roster/map" className="hover:text-foreground hover:underline">
+                    roster map
+                  </Link>
+                </>
+              ) : (
+                "Not on the roster map"
+              )}
+            </span>
+            {canEdit && (
+              <LocationPickerDialog
+                personId={profile.id}
+                personName={profile.name}
+                isSelf={isSelf}
+                current={pin}
+                onSaved={onSaved}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    {pin ? "Edit location" : "Add to map"}
+                  </Button>
+                }
+              />
+            )}
+          </div>
         )}
       </section>
 

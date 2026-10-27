@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { Download, Search, UserRound } from "lucide-react"
+import { Download, Map as MapIcon, Search, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -62,6 +62,12 @@ export function RosterView() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Roster</h1>
         <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/roster/map">
+              <MapIcon className="size-4" />
+              Map
+            </Link>
+          </Button>
           {myPersonId && (
             <Button asChild size="sm" variant="outline">
               <Link href="/roster/me">

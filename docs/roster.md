@@ -37,7 +37,10 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 |---|---|---|
 | `GET /api/roster` | session | Active people, public fields plus work email and phone (`ROSTER_LIST_SELECT`), never `PersonPrivate`. No query filters; `RosterView` filters client-side. |
 | `GET /api/roster/[id]` | session | `ROSTER_PROFILE_SELECT`: public fields, work email and phone, `isActive`, and `private`. `Cache-Control: no-store`. |
-| `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` deletes the row, so a `PersonPrivate` row always has at least one value. |
+| `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` deletes the row, so a `PersonPrivate` row always has at least one value — unless the row holds a map pin, in which case only the eight contact fields are cleared (`PRIVATE_CONTACT_FIELDS`). Never touches coordinates. |
+| `PUT /api/roster/[id]/location` | `canEditRosterProfile` | Body `{ latitude, longitude }` (`rosterLocationSchema`). Upserts the pin, rounded to 5 decimals, and sets `locationUpdatedAt`. 400 for an inactive person. Returns `ROSTER_PROFILE_SELECT`. |
+| `DELETE /api/roster/[id]/location` | `canEditRosterProfile` | Clears the pin; deletes the `PersonPrivate` row if no contact field is left. Returns `ROSTER_PROFILE_SELECT`. |
+| `GET /api/roster/map` | session | Active people with a pin: `id`, `name`, `title`, `isStaff`, `latitude`, `longitude` only (`ROSTER_MAP_SELECT`, flattened). `no-store`. |
 | `GET /api/roster/export` | session | Active staff only (`ROSTER_WHERE`: `isStaff` and `isActive`, so freelancers are excluded), personal contact details included, as `newsroom-roster-YYYY-MM-DD.csv` (UTF-8 with BOM for Excel, CRLF rows, `no-store`). |
 
 ## Offline backup (CSV export)
@@ -47,34 +50,38 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 - **Format:** built by `buildRosterCsv()` in `src/lib/roster.ts` (tested). Phones are human-formatted, languages are labels, and social accounts are full URLs. Every user-entered cell passes through `safeCsvText()` (`src/lib/csv.ts`), which prefixes `'` to anything a spreadsheet would run as a formula (`=`, `+`, `-`, `@`), except phone-number-shaped values.
 - **Shared helpers:** `csvField`/`toCsvRow` live in `src/lib/csv.ts`, shared with `/api/schedule/export`.
 
-## Planned: roster map (`/roster/map`)
+## Roster map (`/roster/map`)
 
 A map of where people live, placed by hand. There is **no address geocoding**: a pin is dropped and moved by a person, never derived from the home address. That removes the need for a geocode proxy and sidesteps geocoding providers' terms on storing results.
 
 ### Data
-- `latitude` and `longitude` (nullable `Float`) on `PersonPrivate`, as an additive `db push`. Nobody has a location by default; a Person is on the map only once someone places them.
+- `latitude`, `longitude` (nullable `Float`), and `locationUpdatedAt` on `PersonPrivate`. Nobody has a location by default; a Person is on the map only once someone places them. `locationUpdatedAt` is set on every save, for the planned nudges below.
 - The pin is a `PersonPrivate` field because it is effectively a home address. **Do not put coordinates on `Person`**, for the same payload reason as the address.
-- Coordinates count as a value for the "an all-blank `private` deletes the row" rule in `PATCH /api/roster/[id]`. Removing a pin clears both coordinates. If nothing else in `PersonPrivate` is set, that deletes the row.
+- **Coordinates are written only by `/api/roster/[id]/location`, never by the profile form.** The form always sends a full `private` object, so if coordinates were part of it, saving a profile with no contact details would have deleted the pin. Instead, `PATCH /api/roster/[id]` treats a row holding a pin as non-empty: an all-blank `private` clears only the contact fields. Removing a pin deletes the row if nothing else is set.
 - The pin and the home address are independent and can disagree after a move. Planned nudges, to update a pin and to refresh the profile periodically, will cover this. No consistency check runs between the two.
 
 ### Who can place a pin
-- Same as other profile edits: the person themself or an admin (`canEditRosterProfile()`), through `PATCH /api/roster/[id]` and `updateRosterProfileSchema`. Validate latitude in [-90, 90] and longitude in [-180, 180], and require both or neither.
+- Same as other profile edits: the person themself or an admin (`canEditRosterProfile()`), through `PUT`/`DELETE /api/roster/[id]/location`. `rosterLocationSchema` requires both coordinates, latitude in [-90, 90] and longitude in [-180, 180].
 - Active non-staff contributors (`isStaff: false`, `isActive: true`) can be mapped. They have no linked `User`, so only admins can place them. That is intended for now and could be loosened later.
-- Inactive people are never mapped. Deactivation already deletes `PersonPrivate`, coordinates included, and the map query filters on `isActive` anyway.
+- Inactive people are never mapped. Deactivation already deletes `PersonPrivate`, coordinates included, the map query filters on `isActive`, and the location route refuses inactive people.
 
-### Placing a pin ("Add me" / "Edit location")
-- The pin starts at The Oregonian's Portland office, a fixed constant. Device location is **not** the default: on a laptop it comes from Wi-Fi or IP, so anyone clicking from work would land on the office anyway, and home ISPs can be miles off.
-- A separate **"Use my location"** button calls the browser Geolocation API. It needs HTTPS (or localhost) and a permission prompt. On denial or error, keep the pin where it is and show a short message. Show the button only when you are editing your own location, never when an admin is placing someone else: the admin's device location would be meaningless.
+### Placing a pin (`LocationPickerDialog`)
+- Opened from "Add me" / "Edit my location" on the map page, and from "Add to map" / "Edit location" in a profile's Personal contact section (for anyone who can edit it). On a profile, an existing pin sits behind "Show contact details" like the address; with no pin there's nothing to hide, so editors see "Add to map" right away.
+- The pin starts at the saved location, otherwise at The Oregonian's Portland office (`OFFICE_LOCATION` in `src/lib/roster-map.ts`). Device location is **not** the default: on a laptop it comes from Wi-Fi or IP, so anyone clicking from work would land on the office anyway, and home ISPs can be miles off.
+- A separate **"Use my location"** button calls the browser Geolocation API. It needs HTTPS (or localhost), a permission prompt, and `geolocation=(self)` in the `Permissions-Policy` header (`next.config.ts`; it used to be `geolocation=()`, which blocks the API outright). On denial or error, keep the pin where it is and show a short message. Show the button only when you are editing your own location, never when an admin is placing someone else: the admin's device location would be meaningless.
 - **Center-pin interaction:** the pin stays fixed at the center of the map and the person pans the map underneath it, rather than dragging a marker. This avoids the pan-vs-drag conflict on phones and works the same on desktop. The saved coordinates are the map center.
-- **No saving the default:** Save stays disabled until the map has moved off the office starting point, so an untouched pin can't be mistaken for real data.
+- **No saving the default:** Save stays disabled until the map has moved off its starting point (`hasMoved()`, compared at the stored 5-decimal precision), so an untouched office pin can't be mistaken for real data.
 - Copy tells people precision isn't needed: *"Within a few blocks is fine."*
 
-### The map page
-- `GET /api/roster/map` (session gate): active people with coordinates, returning only `id`, `name`, `title`, `isStaff`, `latitude`, and `longitude`. It never returns other `PersonPrivate` fields, so the map doesn't become a bulk address export. `Cache-Control: no-store`.
-- A filter switches between staff, contributors, or both (`isStaff`). Staff and contributors are told apart by color **and** fill: filled dots for staff, hollow (outlined) dots for contributors, so the distinction doesn't rely on color alone. Draw them as plain circle layers, not image markers. Exact-coordinate overlaps are unlikely when pins are approximate, so there is no clustering or spiderfying. A click popup links to the roster profile.
-- Shows the same "Confidential — not for public distribution" reminder as personal contact details (`PrivateReminderDialog`).
-- Lives under the `ROSTER_ENABLED` dark launch, linked from `/roster`. `/roster` belongs to no nav section, so no new nav layout is needed.
+### The map page (`RosterMapView`)
+- Data comes from `GET /api/roster/map` (`useRosterMap()`), which never returns other `PersonPrivate` fields, so the map doesn't become a bulk address export.
+- The "Confidential — not for public distribution" reminder (`PrivateReminderDialog`, with an extra line about the map) shows before any pins are fetched. It shares the once-per-browser-session acknowledgement with the profile reminder; Cancel goes back to `/roster`.
+- A filter switches between Staff (default), Contributors, and Everyone (`isStaff`). Staff and contributors are told apart by color **and** fill: filled dots for staff, hollow (outlined) dots for contributors (`STAFF_COLOR`/`CONTRIBUTOR_COLOR`), so the distinction doesn't rely on color alone. They're one GeoJSON `circle` layer, not image markers. Exact-coordinate overlaps are unlikely when pins are approximate, so there is no clustering.
+- Clicking a dot lists who's there in a React-rendered card linking to their profile, not a MapLibre HTML popup, so user-entered names and titles never become HTML.
+- Lives under the `ROSTER_ENABLED` dark launch, linked by a "Map" button on `/roster`. `/roster` belongs to no nav section, so no nav layout is needed.
 - Optional later: a "who lives closest" tool working from pin coordinates.
 
 ### Platform
-**MapLibre GL JS** with **OpenFreeMap** vector tiles: both are free, need no API key, and put no restriction on storing coordinates. On-screen OpenStreetMap/OpenFreeMap attribution is required. Load the map component client-side only (`next/dynamic` with `ssr: false`), since MapLibre needs `window` and WebGL.
+**MapLibre GL JS** (`maplibre-gl`, pinned exact) with **OpenFreeMap** vector tiles (`positron` light, `dark` dark): both are free, need no API key, and put no restriction on storing coordinates. Attribution is required and MapLibre's control shows it. Notes:
+- `MapCanvas` is the shared wrapper. It's browser-only (WebGL, `window`), so it's always loaded with `next/dynamic` and `ssr: false`. It rebuilds the map when the app theme flips rather than calling `setStyle()`, which would drop callers' layers.
+- **Worker file.** MapLibre 6 loads its tile worker from a file next to its own module, which no longer resolves once Next bundles it. `scripts/copy-maplibre-worker.mjs` (run from `postinstall`) copies `maplibre-gl-worker.mjs` into `public/maplibre/` (gitignored, and excluded from ESLint), and `MapCanvas` calls `setWorkerUrl()` with it, adding `NEXT_PUBLIC_BASE_PATH` by hand. If the map renders without tiles after a MapLibre upgrade, check that copy first.

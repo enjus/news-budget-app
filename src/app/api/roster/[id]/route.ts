@@ -11,7 +11,7 @@ import {
   requireJSON,
   validationErrorResponse,
 } from "@/lib/api-helpers";
-import { ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
+import { PRIVATE_CONTACT_FIELDS, ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
 
 export const dynamic = 'force-dynamic'
 
@@ -77,13 +77,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     // The form always sends `private`. All-blank means "no contact details":
     // drop the row rather than keeping an empty one, so a PersonPrivate row
-    // existing always means there's something in it.
+    // existing always means there's something in it. A row holding a map pin
+    // isn't empty, though — the form never sends coordinates (they're written
+    // by /location), so clear just the contact fields and keep the pin.
     const privateIsEmpty =
       !!privateData && Object.values(privateData).every((v) => v === null || v === undefined);
 
     const person = await prisma.$transaction(async (tx) => {
       if (privateIsEmpty) {
-        await tx.personPrivate.deleteMany({ where: { personId: id } });
+        const existing = await tx.personPrivate.findUnique({
+          where: { personId: id },
+          select: { latitude: true },
+        });
+        if (existing?.latitude != null) {
+          await tx.personPrivate.update({
+            where: { personId: id },
+            data: Object.fromEntries(PRIVATE_CONTACT_FIELDS.map((f) => [f, null])),
+          });
+        } else {
+          await tx.personPrivate.deleteMany({ where: { personId: id } });
+        }
       }
       return tx.person.update({
         where: { id },

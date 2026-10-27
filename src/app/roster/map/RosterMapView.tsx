@@ -1,0 +1,286 @@
+"use client"
+
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
+import dynamic from "next/dynamic"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
+import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl"
+import { ArrowLeft, MapPin, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { LocationPickerDialog } from "@/components/roster/LocationPickerDialog"
+import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/components/roster/PrivateReminderDialog"
+import { useRosterMap, useRosterProfile } from "@/lib/hooks/useRoster"
+import { CONTRIBUTOR_COLOR, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
+import { cn, displayName } from "@/lib/utils"
+import type { RosterMapPin } from "@/types/index"
+
+const MapCanvas = dynamic(() => import("@/components/roster/MapCanvas"), {
+  ssr: false,
+  loading: () => <div className="size-full animate-pulse bg-muted" />,
+})
+
+type Filter = "staff" | "contributors" | "all"
+const FILTER_LABELS: Record<Filter, string> = {
+  staff: "Staff",
+  contributors: "Contributors",
+  all: "Everyone",
+}
+
+const noopSubscribe = () => () => {}
+
+const SOURCE_ID = "people"
+const LAYER_ID = "people-dots"
+
+function matchesFilter(pin: RosterMapPin, filter: Filter) {
+  return filter === "all" || pin.isStaff === (filter === "staff")
+}
+
+function toGeoJSON(pins: RosterMapPin[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: pins.map((p) => ({
+      type: "Feature",
+      properties: { id: p.id, isStaff: p.isStaff },
+      geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+    })),
+  }
+}
+
+export function RosterMapView() {
+  const router = useRouter()
+  const { data: session } = useSession()
+  const myPersonId = session?.user?.personId
+
+  // Pins aren't fetched until the confidentiality reminder is acknowledged
+  // (once per browser session, shared with the profile reminder).
+  // sessionStorage only exists in the browser: the server snapshot says "not
+  // acknowledged, not hydrated" so nothing opens until the client has checked.
+  const storedAck = useSyncExternalStore(noopSubscribe, hasPrivateAck, () => false)
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
+  const [confirmed, setConfirmed] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const confirmedRef = useRef(false)
+  const acked = storedAck || confirmed
+  const reminderOpen = hydrated && !acked && !leaving
+
+  const { pins, isLoading, error } = useRosterMap(acked)
+  const { profile: myProfile, mutate: mutateMyProfile } = useRosterProfile(myPersonId)
+  const myPin =
+    myProfile?.private?.latitude != null && myProfile.private.longitude != null
+      ? { latitude: myProfile.private.latitude, longitude: myProfile.private.longitude }
+      : null
+
+  const [filter, setFilter] = useState<Filter>("staff")
+  const [map, setMap] = useState<MapLibreMap | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const fittedRef = useRef(false)
+
+  const visible = pins.filter((p) => matchesFilter(p, filter))
+  const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesFilter(p, filter))
+
+  // Push pins into the map; fit to them the first time there are any.
+  useEffect(() => {
+    if (!map) return
+    ;(map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(toGeoJSON(pins))
+    if (!fittedRef.current && pins.length > 0) {
+      fittedRef.current = true
+      const lngs = pins.map((p) => p.longitude)
+      const lats = pins.map((p) => p.latitude)
+      map.fitBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        { padding: 48, maxZoom: 12, duration: 0 }
+      )
+    }
+  }, [map, pins])
+
+  useEffect(() => {
+    if (!map) return
+    map.setFilter(
+      LAYER_ID,
+      filter === "all" ? null : ["==", ["get", "isStaff"], filter === "staff"]
+    )
+  }, [map, filter])
+
+  function handleReady(m: MapLibreMap) {
+    m.addSource(SOURCE_ID, { type: "geojson", data: toGeoJSON([]) })
+    // Staff: filled dot with a white ring. Contributors: hollow ring. Fill as
+    // well as color, so the two read apart without relying on color alone.
+    m.addLayer({
+      id: LAYER_ID,
+      type: "circle",
+      source: SOURCE_ID,
+      paint: {
+        "circle-radius": 7,
+        "circle-color": ["case", ["get", "isStaff"], STAFF_COLOR, CONTRIBUTOR_COLOR],
+        "circle-opacity": ["case", ["get", "isStaff"], 1, 0],
+        "circle-stroke-color": ["case", ["get", "isStaff"], "#ffffff", CONTRIBUTOR_COLOR],
+        "circle-stroke-width": ["case", ["get", "isStaff"], 1.5, 2.5],
+      },
+    })
+
+    const onClick = (e: MapMouseEvent) => {
+      const { x, y } = e.point
+      const hits = m.queryRenderedFeatures(
+        [
+          [x - 6, y - 6],
+          [x + 6, y + 6],
+        ],
+        { layers: [LAYER_ID] }
+      )
+      setSelectedIds(Array.from(new Set(hits.map((f) => String(f.properties.id)))))
+    }
+    const onEnter = () => (m.getCanvas().style.cursor = "pointer")
+    const onLeave = () => (m.getCanvas().style.cursor = "")
+    m.on("click", onClick)
+    m.on("mouseenter", LAYER_ID, onEnter)
+    m.on("mouseleave", LAYER_ID, onLeave)
+
+    // A theme flip rebuilds the map; refit to the pins on the new one.
+    fittedRef.current = false
+    setMap(m)
+    return () => {
+      m.off("click", onClick)
+      m.off("mouseenter", LAYER_ID, onEnter)
+      m.off("mouseleave", LAYER_ID, onLeave)
+      setMap(null)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Link
+        href="/roster"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-3.5" />
+        Roster
+      </Link>
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold tracking-tight">Roster map</h1>
+        {myPersonId && myProfile?.isActive && (
+          <LocationPickerDialog
+            personId={myPersonId}
+            personName={myProfile.name}
+            isSelf
+            current={myPin}
+            onSaved={(updated) => mutateMyProfile(updated, { revalidate: false })}
+            trigger={
+              <Button size="sm" variant="outline">
+                <MapPin className="size-4" />
+                {myPin ? "Edit my location" : "Add me"}
+              </Button>
+            }
+          />
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex w-fit overflow-hidden rounded-md border text-sm">
+          {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-3 py-1 transition-colors",
+                filter === f ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+              )}
+            >
+              {FILTER_LABELS[f]}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block size-3 rounded-full border border-white"
+              style={{ backgroundColor: STAFF_COLOR }}
+            />
+            Staff
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span
+              className="inline-block size-3 rounded-full border-2"
+              style={{ borderColor: CONTRIBUTOR_COLOR }}
+            />
+            Contributor
+          </span>
+          {acked && !isLoading && (
+            <span>
+              {visible.length} {visible.length === 1 ? "person" : "people"}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="relative h-[70dvh] min-h-80 overflow-hidden rounded-lg border">
+        {acked && (
+          <MapCanvas className="size-full" center={OFFICE_LOCATION} zoom={9} onReady={handleReady} />
+        )}
+
+        {acked && !isLoading && !error && pins.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 top-4 mx-auto w-fit rounded-md bg-background/90 px-3 py-2 text-sm shadow">
+            No one has added a location yet.
+          </div>
+        )}
+        {error && (
+          <div className="absolute inset-x-0 top-4 mx-auto w-fit rounded-md bg-background/90 px-3 py-2 text-sm shadow">
+            Couldn&apos;t load the map.
+          </div>
+        )}
+
+        {selected.length > 0 && (
+          <div className="absolute inset-x-2 bottom-8 max-h-[40%] overflow-y-auto rounded-md border bg-background p-3 shadow-lg sm:inset-x-auto sm:left-2 sm:w-72">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {selected.length === 1 ? "1 person here" : `${selected.length} people here`}
+              </span>
+              <button
+                onClick={() => setSelectedIds([])}
+                aria-label="Close"
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <ul className="space-y-2">
+              {selected.map((p) => (
+                <li key={p.id}>
+                  <Link href={`/roster/${p.id}`} className="font-medium hover:underline">
+                    {displayName(p.name)}
+                  </Link>
+                  <div className="text-xs text-muted-foreground">
+                    {[p.title, p.isStaff ? "Staff" : "Contributor"].filter(Boolean).join(" · ")}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      <PrivateReminderDialog
+        open={reminderOpen}
+        onOpenChange={(open) => {
+          // Cancel/Escape without confirming: no map, back to the list.
+          if (!open && !confirmedRef.current) {
+            setLeaving(true)
+            router.push("/roster")
+          }
+        }}
+        onConfirm={() => {
+          confirmedRef.current = true
+          setPrivateAck()
+          setConfirmed(true)
+        }}
+        confirmLabel="Show the map"
+        extra="The map shows approximately where people live."
+      />
+    </div>
+  )
+}

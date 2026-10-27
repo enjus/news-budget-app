@@ -100,6 +100,12 @@ model PersonPrivate {
   region        String?  // state / province
   postalCode    String?
   country       String?
+  // Roster map pin (/roster/map), placed by hand — never geocoded from the
+  // address, so the two can disagree. Both set or both null. Written only by
+  // /api/roster/[id]/location, never by the profile form. See docs/roster.md.
+  latitude          Float?
+  longitude         Float?
+  locationUpdatedAt DateTime?
   updatedAt     DateTime @updatedAt
 }
 

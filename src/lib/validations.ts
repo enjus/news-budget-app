@@ -147,6 +147,13 @@ export const updateRosterProfileSchema = z.object({
   private: personPrivateSchema.optional(),
 });
 
+// Body for PUT /api/roster/[id]/location — a hand-placed map pin. Separate from
+// updateRosterProfileSchema so the profile form never touches coordinates.
+export const rosterLocationSchema = z.object({
+  latitude: z.number().finite().min(-90).max(90),
+  longitude: z.number().finite().min(-180).max(180),
+});
+
 // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
 export const WorkScheduleSegmentEnum = z.enum(["FULL_DAY", "OFF"]);
 export const CalendarMarkerKindEnum = z.enum(["HOLIDAY", "BLACKOUT", "NOTE"]);

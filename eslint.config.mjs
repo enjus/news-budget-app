@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Each worktree is a full checkout of the repo — without this, lint
     // re-walks and reports on every worktree's copy of every file.
     ".claude/worktrees/**",
+    // MapLibre's minified worker, copied in by scripts/copy-maplibre-worker.mjs.
+    "public/maplibre/**",
   ]),
 ]);
 
