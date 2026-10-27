@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rosterLocationSchema } from "@/lib/validations";
@@ -9,7 +10,7 @@ import {
   requireJSON,
   validationErrorResponse,
 } from "@/lib/api-helpers";
-import { PRIVATE_CONTACT_FIELDS, ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
+import { ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
 import { roundCoord } from "@/lib/roster-map";
 
 export const dynamic = 'force-dynamic'
@@ -45,12 +46,26 @@ async function gate(id: string): Promise<Gate> {
   if (!person) {
     return { error: NextResponse.json({ error: "Person not found" }, { status: 404 }) };
   }
-  if (!person.isActive) {
-    return {
-      error: NextResponse.json({ error: "Inactive people can't be mapped" }, { status: 400 }),
-    };
-  }
+  if (!person.isActive) return { error: inactiveResponse() };
   return { error: null };
+}
+
+function inactiveResponse() {
+  return NextResponse.json({ error: "Inactive people can't be mapped" }, { status: 400 });
+}
+
+class InactiveError extends Error {}
+
+// Re-checks isActive while taking the Person row lock (a no-op write), so a
+// concurrent deactivation — which updates Person before deleting
+// PersonPrivate, see PATCH /api/people/[id] — either waits for this write and
+// then deletes the pin, or commits first and makes this write bail out.
+async function lockActivePerson(tx: Prisma.TransactionClient, id: string) {
+  const { count } = await tx.person.updateMany({
+    where: { id, isActive: true },
+    data: { isActive: true },
+  });
+  if (count === 0) throw new InactiveError();
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
@@ -71,21 +86,25 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       locationUpdatedAt: new Date(),
     };
 
-    const person = await prisma.person.update({
-      where: { id },
-      data: { private: { upsert: { create: data, update: data } } },
-      select: ROSTER_PROFILE_SELECT,
+    const person = await prisma.$transaction(async (tx) => {
+      await lockActivePerson(tx, id);
+      return tx.person.update({
+        where: { id },
+        data: { private: { upsert: { create: data, update: data } } },
+        select: ROSTER_PROFILE_SELECT,
+      });
     });
 
     return NextResponse.json(person);
   } catch (error) {
+    if (error instanceof InactiveError) return inactiveResponse();
     console.error("PUT /api/roster/[id]/location error:", error);
     return NextResponse.json({ error: "Failed to save location" }, { status: 500 });
   }
 }
 
-// Removes the pin. If the row then holds nothing else, it's deleted, keeping
-// the "a PersonPrivate row always has a value" rule from the profile PATCH.
+// Removes the pin. The row stays even if nothing else is in it — an empty
+// PersonPrivate row reads the same as no row everywhere.
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
@@ -93,18 +112,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     if (error) return error;
 
     const person = await prisma.$transaction(async (tx) => {
-      const row = await tx.personPrivate.findUnique({ where: { personId: id } });
-      if (row) {
-        const hasContact = PRIVATE_CONTACT_FIELDS.some((f) => row[f] !== null);
-        if (hasContact) {
-          await tx.personPrivate.update({
-            where: { personId: id },
-            data: { latitude: null, longitude: null, locationUpdatedAt: null },
-          });
-        } else {
-          await tx.personPrivate.delete({ where: { personId: id } });
-        }
-      }
+      await tx.personPrivate.updateMany({
+        where: { personId: id },
+        data: { latitude: null, longitude: null, locationUpdatedAt: null },
+      });
       return tx.person.findUniqueOrThrow({ where: { id }, select: ROSTER_PROFILE_SELECT });
     });
 

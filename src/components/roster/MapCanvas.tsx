@@ -4,11 +4,12 @@ import { useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
 import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
+import { apiPath } from "@/lib/api-path"
 import { MAP_STYLE_DARK, MAP_STYLE_LIGHT, type LatLng } from "@/lib/roster-map"
 
 // Served from public/ by scripts/copy-maplibre-worker.mjs — MapLibre can't find
-// its worker on its own once bundled. basePath has to be added by hand here.
-setWorkerUrl(`${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/maplibre/maplibre-gl-worker.mjs`)
+// its worker on its own once bundled, and apiPath() adds the basePath.
+setWorkerUrl(apiPath("/maplibre/maplibre-gl-worker.mjs"))
 
 /** A bare MapLibre map with OpenFreeMap tiles, light or dark to match the app
  *  theme. Callers add their own sources, layers, and handlers in `onReady`.

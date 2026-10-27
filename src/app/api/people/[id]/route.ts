@@ -70,11 +70,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // personal contact details (PersonPrivate) in the same transaction — a
     // former employee's home address and personal phone shouldn't linger.
     // Not restored on reactivation; they re-enter it. See docs/roster.md.
+    // Person is updated first so its row lock orders this against a
+    // concurrent PUT /api/roster/[id]/location, which re-checks isActive under
+    // the same lock — the pin can't be re-created after the delete.
     const person = await prisma.$transaction(async (tx) => {
-      if (result.data.isActive === false) {
-        await tx.personPrivate.deleteMany({ where: { personId: id } });
-      }
-      return tx.person.update({
+      const updated = await tx.person.update({
         where: { id },
         data: result.data,
         include: {
@@ -86,6 +86,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           },
         },
       });
+      if (result.data.isActive === false) {
+        await tx.personPrivate.deleteMany({ where: { personId: id } });
+      }
+      return updated;
     });
 
     return NextResponse.json(person);

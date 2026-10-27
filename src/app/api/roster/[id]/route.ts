@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { updateRosterProfileSchema } from "@/lib/validations";
+import { personPrivateSchema, updateRosterProfileSchema } from "@/lib/validations";
 import { canEditRosterProfile } from "@/lib/utils";
 import {
   checkReadLimit,
@@ -11,7 +11,7 @@ import {
   requireJSON,
   validationErrorResponse,
 } from "@/lib/api-helpers";
-import { PRIVATE_CONTACT_FIELDS, ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
+import { ROSTER_PROFILE_SELECT } from "@/lib/roster-query";
 
 export const dynamic = 'force-dynamic'
 
@@ -76,27 +76,18 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const { private: privateData, ...publicData } = result.data;
 
     // The form always sends `private`. All-blank means "no contact details":
-    // drop the row rather than keeping an empty one, so a PersonPrivate row
-    // existing always means there's something in it. A row holding a map pin
-    // isn't empty, though — the form never sends coordinates (they're written
-    // by /location), so clear just the contact fields and keep the pin.
+    // clear the contact fields on an existing row (keeping any map pin, which
+    // the form never sends — it's written by /location) without creating an
+    // empty row for someone who has none.
     const privateIsEmpty =
       !!privateData && Object.values(privateData).every((v) => v === null || v === undefined);
 
     const person = await prisma.$transaction(async (tx) => {
       if (privateIsEmpty) {
-        const existing = await tx.personPrivate.findUnique({
+        await tx.personPrivate.updateMany({
           where: { personId: id },
-          select: { latitude: true },
+          data: Object.fromEntries(personPrivateSchema.keyof().options.map((f) => [f, null])),
         });
-        if (existing?.latitude != null) {
-          await tx.personPrivate.update({
-            where: { personId: id },
-            data: Object.fromEntries(PRIVATE_CONTACT_FIELDS.map((f) => [f, null])),
-          });
-        } else {
-          await tx.personPrivate.deleteMany({ where: { personId: id } });
-        }
       }
       return tx.person.update({
         where: { id },

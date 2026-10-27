@@ -69,14 +69,20 @@ export function RosterMapView() {
   const visible = pins.filter((p) => matchesStaffFilter(p, filter))
   const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesStaffFilter(p, filter))
 
-  // Push pins into the map; fit to them the first time there are any.
+  // Push pins into the map; fit to the filtered ones the first time there are
+  // any, so dots the filter hides don't widen the view.
   useEffect(() => {
     if (!map) return
     ;(map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(toGeoJSON(pins))
-    if (!fittedRef.current && pins.length > 0) {
+  }, [map, pins])
+
+  useEffect(() => {
+    if (!map || fittedRef.current) return
+    const fitTo = pins.filter((p) => matchesStaffFilter(p, filter))
+    if (fitTo.length > 0) {
       fittedRef.current = true
-      const lngs = pins.map((p) => p.longitude)
-      const lats = pins.map((p) => p.latitude)
+      const lngs = fitTo.map((p) => p.longitude)
+      const lats = fitTo.map((p) => p.latitude)
       map.fitBounds(
         [
           [Math.min(...lngs), Math.min(...lats)],
@@ -85,7 +91,7 @@ export function RosterMapView() {
         { padding: 48, maxZoom: 12, duration: 0 }
       )
     }
-  }, [map, pins])
+  }, [map, pins, filter])
 
   useEffect(() => {
     if (!map) return
@@ -200,9 +206,11 @@ export function RosterMapView() {
           <MapCanvas className="size-full" center={OFFICE_LOCATION} zoom={9} onReady={handleReady} />
         )}
 
-        {acked && !isLoading && !error && pins.length === 0 && (
+        {acked && !isLoading && !error && visible.length === 0 && (
           <div className="pointer-events-none absolute inset-x-0 top-4 mx-auto w-fit rounded-md bg-background/90 px-3 py-2 text-sm shadow">
-            No one has added a location yet.
+            {pins.length === 0
+              ? "No one has added a location yet."
+              : `No ${filter === "staff" ? "staff" : "contributors"} on the map yet.`}
           </div>
         )}
         {error && (

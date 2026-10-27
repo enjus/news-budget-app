@@ -104,7 +104,7 @@ export function LocationPickerDialog({
       toast.success(method === "PUT" ? "Map location saved" : "Removed from the map")
       onSaved(json as RosterProfile)
       mutateGlobal("/api/roster/map")
-      setOpen(false)
+      handleOpenChange(false)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -140,6 +140,9 @@ export function LocationPickerDialog({
                   setCenter({ latitude: c.lat, longitude: c.lng })
                 }
                 m.on("move", onMove)
+                // Sync to the new map's center: a theme flip rebuilds the map
+                // at `start`, which may not be where the last one was panned.
+                onMove()
                 return () => m.off("move", onMove)
               }}
             />

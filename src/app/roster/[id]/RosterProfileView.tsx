@@ -69,6 +69,8 @@ export function RosterProfileView({ id }: { id: string }) {
     // going back to /roster doesn't show the pre-edit values.
     mutateGlobal("/api/roster")
   }
+  // The list carries no location, so a pin change only updates the profile.
+  const onLocationSaved = (updated: RosterProfile) => mutate(updated, { revalidate: false })
 
   function handleReveal() {
     if (hasPrivateAck()) setRevealed(true)
@@ -194,16 +196,16 @@ export function RosterProfileView({ id }: { id: string }) {
           <span className="text-xs text-muted-foreground">Not for public distribution</span>
         </div>
 
-        {!hasPrivate ? (
-          <p className="text-sm text-muted-foreground">
-            None listed{canEdit && " — use Edit to add a phone, email, or address"}.
-          </p>
-        ) : !showPrivate ? (
+        {hasPrivate && !showPrivate ? (
           <Button size="sm" variant="outline" onClick={handleReveal}>
             <Eye className="size-4" />
             Show contact details
           </Button>
-        ) : hasContact && (
+        ) : !hasContact ? (
+          <p className="text-sm text-muted-foreground">
+            None listed{canEdit && " — use Edit to add a phone, email, or address"}.
+          </p>
+        ) : (
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             {priv?.personalPhone && (
               <>
@@ -265,7 +267,7 @@ export function RosterProfileView({ id }: { id: string }) {
                 personName={profile.name}
                 isSelf={isSelf}
                 current={pin}
-                onSaved={onSaved}
+                onSaved={onLocationSaved}
                 trigger={
                   <Button size="sm" variant="outline">
                     {pin ? "Edit location" : "Add to map"}

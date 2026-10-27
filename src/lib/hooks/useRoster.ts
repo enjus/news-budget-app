@@ -16,6 +16,10 @@ export function useRosterProfile(id: string | null | undefined) {
   return { profile: data, isLoading, error, mutate }
 }
 
+// Stable fallback: RosterMapView pushes `pins` into the map in an effect, so a
+// fresh [] per render would re-upload an empty source on every re-render.
+const NO_PINS: RosterMapPin[] = []
+
 /** Dots for /roster/map: active people with a pin (GET /api/roster/map).
  *  Pass `false` to hold off until the confidentiality reminder is
  *  acknowledged. */
@@ -23,5 +27,5 @@ export function useRosterMap(enabled = true) {
   const { data, isLoading, error, mutate } = useSWR<RosterMapPin[]>(
     enabled ? "/api/roster/map" : null
   )
-  return { pins: data ?? [], isLoading, error, mutate }
+  return { pins: data ?? NO_PINS, isLoading, error, mutate }
 }

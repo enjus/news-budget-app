@@ -54,15 +54,3 @@ export const ROSTER_MAP_SELECT = {
   private: { select: { latitude: true, longitude: true } },
 } satisfies Prisma.PersonSelect
 
-/** Contact fields cleared when the profile form saves an all-blank `private`
- *  but the row still holds a map pin (so the row can't simply be deleted). */
-export const PRIVATE_CONTACT_FIELDS = [
-  "personalPhone",
-  "personalEmail",
-  "addressLine1",
-  "addressLine2",
-  "city",
-  "region",
-  "postalCode",
-  "country",
-] as const
