@@ -88,9 +88,14 @@ function MembersDialog({
   onMutate,
 }: {
   team: { id: string; name: string; members: Array<{ id: string; role: string; person: { id: string; name: string; defaultRole: string } }> }
-  onMutate: () => void
+  onMutate: () => Promise<unknown>
 }) {
   const [open, setOpen] = useState(false)
+  // Role picked but not yet confirmed by the refetch, keyed by member id —
+  // shown in place of the server value so the Select doesn't snap back
+  // while the PATCH is in flight, and locks that row so two quick picks
+  // can't race each other.
+  const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({})
   const existingPersonIds = team.members.map((m) => m.person.id)
 
   async function handleAddMember(person: Person, role: string) {
@@ -111,24 +116,35 @@ function MembersDialog({
   }
 
   async function handleRoleChange(memberId: string, memberName: string, role: string) {
-    const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    })
-    if (!res.ok) {
-      toast.error("Failed to change role")
-      return
+    setPendingRoles((p) => ({ ...p, [memberId]: role }))
+    try {
+      const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      })
+      if (!res.ok) {
+        toast.error("Failed to change role")
+        return
+      }
+      toast.success(`${memberName} is now ${TEAM_MEMBER_ROLE_LABELS[role]?.toLowerCase() ?? role}`)
+      await onMutate()
+    } finally {
+      setPendingRoles((p) => {
+        const next = { ...p }
+        delete next[memberId]
+        return next
+      })
     }
-    toast.success(`${memberName} is now ${TEAM_MEMBER_ROLE_LABELS[role]?.toLowerCase() ?? role}`)
-    onMutate()
   }
 
   async function handleRemoveMember(memberId: string, memberName: string) {
     const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
       method: "DELETE",
     })
-    if (!res.ok) {
+    // 404: already removed (double-click, or another admin got there first)
+    // — just refresh so the row disappears.
+    if (!res.ok && res.status !== 404) {
       toast.error("Failed to remove member")
       return
     }
@@ -158,7 +174,8 @@ function MembersDialog({
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{displayName(m.person.name)}</span>
                     <Select
-                      value={m.role}
+                      value={pendingRoles[m.id] ?? m.role}
+                      disabled={m.id in pendingRoles}
                       onValueChange={(role) => handleRoleChange(m.id, displayName(m.person.name), role)}
                     >
                       <SelectTrigger size="sm" className="h-7 w-28 text-xs" aria-label={`${displayName(m.person.name)}'s team role`}>

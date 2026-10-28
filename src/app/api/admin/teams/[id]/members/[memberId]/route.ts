@@ -43,7 +43,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const limited = checkWriteLimit(session.user.id)
   if (limited) return limited
 
-  const { memberId } = await params
-  await prisma.teamMember.delete({ where: { id: memberId } })
+  // Same teamId scoping as PATCH; deleteMany so an already-removed member
+  // (double-click, stale dialog) is a 404 rather than a P2025 500.
+  const { id: teamId, memberId } = await params
+  const { count } = await prisma.teamMember.deleteMany({ where: { id: memberId, teamId } })
+  if (count === 0) {
+    return Response.json({ error: "Member not found" }, { status: 404 })
+  }
   return new Response(null, { status: 204 })
 }
