@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PersonPicker } from "@/components/people/PersonPicker"
 import { useAdminTeams } from "@/lib/hooks/useTeams"
-import { displayName, PERSON_ROLE_LABELS, TEAM_MEMBER_ROLE_LABELS } from "@/lib/utils"
+import { displayName, PERSON_ROLE_LABELS, TEAM_MEMBER_ROLE_LABELS, TEAM_MEMBER_ROLE_ORDER } from "@/lib/utils"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -110,6 +110,20 @@ function MembersDialog({
     onMutate()
   }
 
+  async function handleRoleChange(memberId: string, memberName: string, role: string) {
+    const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    })
+    if (!res.ok) {
+      toast.error("Failed to change role")
+      return
+    }
+    toast.success(`${memberName} is now ${TEAM_MEMBER_ROLE_LABELS[role]?.toLowerCase() ?? role}`)
+    onMutate()
+  }
+
   async function handleRemoveMember(memberId: string, memberName: string) {
     const res = await fetch(apiPath(`/api/admin/teams/${team.id}/members/${memberId}`), {
       method: "DELETE",
@@ -143,9 +157,21 @@ function MembersDialog({
                 <div key={m.id} className="flex items-center justify-between rounded-md border px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{displayName(m.person.name)}</span>
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                      {TEAM_MEMBER_ROLE_LABELS[m.role] ?? m.role}
-                    </Badge>
+                    <Select
+                      value={m.role}
+                      onValueChange={(role) => handleRoleChange(m.id, displayName(m.person.name), role)}
+                    >
+                      <SelectTrigger size="sm" className="h-7 w-28 text-xs" aria-label={`${displayName(m.person.name)}'s team role`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEAM_MEMBER_ROLE_ORDER.map((r) => (
+                          <SelectItem key={r} value={r}>
+                            {TEAM_MEMBER_ROLE_LABELS[r]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <span className="text-xs text-muted-foreground">
                       {PERSON_ROLE_LABELS[m.person.defaultRole] ?? m.person.defaultRole}
                     </span>

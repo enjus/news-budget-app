@@ -11,7 +11,7 @@ import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import { WeekEditor } from "@/components/schedule/WeekEditor"
 import { PresetPicker } from "@/components/schedule/PresetPicker"
-import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate, displayName } from "@/lib/utils"
+import { addDays, dateOnly, toDateString, mondayOf, todayString, weekdayAbbrev, shortDate, displayName, teamRoleRank } from "@/lib/utils"
 import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, clampToScheduleStart, isBeforeScheduleStart, scheduleToday } from "@/lib/schedule"
 import { FloorDateInput } from "@/components/schedule/FloorDateInput"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
@@ -108,8 +108,8 @@ export function teamHeaderSummary(people: WeekSchedulePerson[], weekDates: strin
   return parts.join(", ")
 }
 
-function isEditorOf(person: WeekSchedulePerson, teamId: string): boolean {
-  return person.teamRoles.some((tr) => tr.teamId === teamId && tr.role === "EDITOR")
+function roleRankIn(person: WeekSchedulePerson, teamId: string): number {
+  return teamRoleRank(person.teamRoles.find((tr) => tr.teamId === teamId)?.role ?? "MEMBER")
 }
 
 interface DragState {
@@ -467,15 +467,14 @@ export function TeamsView({
           </div>
 
           {visibleTeams.map((team) => {
-            // Editors surface first for at-a-glance "who's in charge here";
-            // within each group, order stays whatever filteredPeople already
-            // has it in (name-sorted, from the roster query) — a plain
-            // .sort() would be unstable-safe here anyway, but relying on
-            // Array.prototype.sort's stability keeps it a one-line partition
-            // rather than a second name comparison.
+            // The team lead, then editors, surface first for at-a-glance
+            // "who's in charge here"; within each role, order stays whatever
+            // filteredPeople already has it in (name-sorted, from the roster
+            // query) — Array.prototype.sort is stable, so ranking by role
+            // alone keeps that without a second name comparison.
             const teamPeople = filteredPeople
               .filter((p) => p.teamIds.includes(team.id))
-              .sort((a, b) => Number(isEditorOf(b, team.id)) - Number(isEditorOf(a, team.id)))
+              .sort((a, b) => roleRankIn(a, team.id) - roleRankIn(b, team.id))
             if (teamPeople.length === 0) return null
             const summary = isMonth ? "" : teamHeaderSummary(teamPeople, weekDates, columns)
             return (
