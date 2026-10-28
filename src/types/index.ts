@@ -116,12 +116,9 @@ export type RosterListItem = Prisma.PersonGetPayload<{ select: typeof ROSTER_LIS
 /** One profile on /roster/[id] (GET /api/roster/[id]), including personal contact details. */
 export type RosterProfile = Prisma.PersonGetPayload<{ select: typeof ROSTER_PROFILE_SELECT }>;
 
-/** One dot on /roster/map (GET /api/roster/map), flattened from ROSTER_MAP_SELECT. */
-export interface RosterMapPin {
-  id: string;
-  name: string;
-  title: string | null;
-  isStaff: boolean;
+/** One dot on /roster/map (GET /api/roster/map), flattened from ROSTER_MAP_SELECT:
+ *  a roster row plus its pin. */
+export interface RosterMapPin extends RosterListItem {
   latitude: number;
   longitude: number;
 }

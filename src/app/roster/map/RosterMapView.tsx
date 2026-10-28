@@ -5,13 +5,15 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import type { GeoJSONSource, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl"
+import type { GeoJSONSource, LngLatBounds, Map as MapLibreMap, MapMouseEvent } from "maplibre-gl"
 import { ArrowLeft, MapPin, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LocationPickerDialog } from "@/components/roster/LocationPickerDialog"
 import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/components/roster/PrivateReminderDialog"
+import { RosterRow } from "@/components/roster/RosterRow"
 import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { useRosterMap, useRosterProfile } from "@/lib/hooks/useRoster"
+import { compareBySurname } from "@/lib/roster"
 import { CONTRIBUTOR_COLOR, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
 import { displayName } from "@/lib/utils"
 import type { RosterMapPin } from "@/types/index"
@@ -25,6 +27,18 @@ const noopSubscribe = () => () => {}
 
 const SOURCE_ID = "people"
 const LAYER_ID = "people-dots"
+
+function fitToPins(map: MapLibreMap, pins: RosterMapPin[], duration = 0) {
+  const lngs = pins.map((p) => p.longitude)
+  const lats = pins.map((p) => p.latitude)
+  map.fitBounds(
+    [
+      [Math.min(...lngs), Math.min(...lats)],
+      [Math.max(...lngs), Math.max(...lats)],
+    ],
+    { padding: 48, maxZoom: 12, duration }
+  )
+}
 
 function toGeoJSON(pins: RosterMapPin[]): GeoJSON.FeatureCollection {
   return {
@@ -64,10 +78,16 @@ export function RosterMapView() {
   const [filter, setFilter] = useState<StaffFilterValue>("staff")
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  // The map's current view, updated when a pan/zoom settles; the table lists
+  // only the filtered people whose pins fall inside it.
+  const [viewBounds, setViewBounds] = useState<LngLatBounds | null>(null)
   const fittedRef = useRef(false)
 
   const visible = pins.filter((p) => matchesStaffFilter(p, filter))
   const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesStaffFilter(p, filter))
+  const inView = visible
+    .filter((p) => !viewBounds || viewBounds.contains([p.longitude, p.latitude]))
+    .sort(compareBySurname)
 
   // Push pins into the map; fit to the filtered ones the first time there are
   // any, so dots the filter hides don't widen the view.
@@ -81,15 +101,7 @@ export function RosterMapView() {
     const fitTo = pins.filter((p) => matchesStaffFilter(p, filter))
     if (fitTo.length > 0) {
       fittedRef.current = true
-      const lngs = fitTo.map((p) => p.longitude)
-      const lats = fitTo.map((p) => p.latitude)
-      map.fitBounds(
-        [
-          [Math.min(...lngs), Math.min(...lats)],
-          [Math.max(...lngs), Math.max(...lats)],
-        ],
-        { padding: 48, maxZoom: 12, duration: 0 }
-      )
+      fitToPins(map, fitTo)
     }
   }, [map, pins, filter])
 
@@ -129,20 +141,27 @@ export function RosterMapView() {
       )
       setSelectedIds(Array.from(new Set(hits.map((f) => String(f.properties.id)))))
     }
+    // moveend fires once per settled pan/zoom (and after resizes and fits),
+    // so the table doesn't re-render on every animation frame.
+    const onMoveEnd = () => setViewBounds(m.getBounds())
     const onEnter = () => (m.getCanvas().style.cursor = "pointer")
     const onLeave = () => (m.getCanvas().style.cursor = "")
     m.on("click", onClick)
+    m.on("moveend", onMoveEnd)
     m.on("mouseenter", LAYER_ID, onEnter)
     m.on("mouseleave", LAYER_ID, onLeave)
 
     // A theme flip rebuilds the map; refit to the pins on the new one.
     fittedRef.current = false
+    setViewBounds(m.getBounds())
     setMap(m)
     return () => {
       m.off("click", onClick)
+      m.off("moveend", onMoveEnd)
       m.off("mouseenter", LAYER_ID, onEnter)
       m.off("mouseleave", LAYER_ID, onLeave)
       setMap(null)
+      setViewBounds(null)
     }
   }
 
@@ -201,7 +220,7 @@ export function RosterMapView() {
         </div>
       </div>
 
-      <div className="relative h-[70dvh] min-h-80 overflow-hidden rounded-lg border">
+      <div className="relative h-[50dvh] min-h-80 overflow-hidden rounded-lg border">
         {acked && (
           <MapCanvas className="size-full" center={OFFICE_LOCATION} zoom={9} onReady={handleReady} />
         )}
@@ -248,6 +267,37 @@ export function RosterMapView() {
           </div>
         )}
       </div>
+
+      {acked && !isLoading && !error && visible.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold">
+              {inView.length === visible.length
+                ? `Everyone on the map (${visible.length})`
+                : `${inView.length} of ${visible.length} in view`}
+            </h2>
+            {map && inView.length < visible.length && (
+              <button
+                onClick={() => fitToPins(map, visible, 500)}
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Zoom to everyone
+              </button>
+            )}
+          </div>
+          {inView.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center">
+              <p className="text-sm text-muted-foreground">No one in this part of the map.</p>
+            </div>
+          ) : (
+            <ul className="divide-y rounded-lg border">
+              {inView.map((p) => (
+                <RosterRow key={p.id} person={p} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <PrivateReminderDialog
         open={reminderOpen}

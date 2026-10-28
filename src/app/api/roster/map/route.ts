@@ -8,9 +8,10 @@ import type { RosterMapPin } from "@/types/index";
 
 export const dynamic = 'force-dynamic'
 
-// Dots for /roster/map: active people who have placed a pin. Only name, title,
-// staff status, and coordinates — never addresses or other PersonPrivate
-// fields. Same audience as the roster profiles (any signed-in user).
+// Dots for /roster/map: active people who have placed a pin, with the same
+// public fields as GET /api/roster (they fill the table under the map) plus
+// coordinates — never addresses or other PersonPrivate fields. Same audience
+// as the roster list (any signed-in user).
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
