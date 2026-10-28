@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { checkReadLimit } from "@/lib/api-helpers";
+import { compareBySurname } from "@/lib/roster";
 import { ROSTER_MAP_SELECT } from "@/lib/roster-query";
 import type { RosterMapPin } from "@/types/index";
 
@@ -37,7 +38,9 @@ export async function GET() {
       longitude: priv!.longitude!,
     }));
 
-    return NextResponse.json(pins, { headers: { "Cache-Control": "no-store" } });
+    // Surname order, like GET /api/roster, so the table under the map doesn't
+    // re-sort on every render (see compareBySurname for why not ORDER BY).
+    return NextResponse.json(pins.sort(compareBySurname), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("GET /api/roster/map error:", error);
     return NextResponse.json({ error: "Failed to fetch roster map" }, { status: 500 });

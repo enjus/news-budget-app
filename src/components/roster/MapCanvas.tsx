@@ -44,7 +44,15 @@ export default function MapCanvas({
       center: [center.longitude, center.latitude],
       zoom,
       attributionControl: { compact: true },
+      // North-up and flat only: there's no compass to reset a rotated view,
+      // and getBounds() on a rotated or tilted map covers more than is
+      // visible, which would skew the in-view table on /roster/map.
+      dragRotate: false,
+      pitchWithRotate: false,
+      maxPitch: 0,
     })
+    map.touchZoomRotate.disableRotation()
+    map.keyboard.disableRotation()
     map.addControl(new NavigationControl({ showCompass: false }), "top-right")
 
     let cleanup: void | (() => void)

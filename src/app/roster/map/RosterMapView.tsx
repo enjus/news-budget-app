@@ -13,7 +13,6 @@ import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/component
 import { RosterRow } from "@/components/roster/RosterRow"
 import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { useRosterMap, useRosterProfile } from "@/lib/hooks/useRoster"
-import { compareBySurname } from "@/lib/roster"
 import { CONTRIBUTOR_COLOR, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
 import { displayName } from "@/lib/utils"
 import type { RosterMapPin } from "@/types/index"
@@ -85,9 +84,10 @@ export function RosterMapView() {
 
   const visible = pins.filter((p) => matchesStaffFilter(p, filter))
   const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesStaffFilter(p, filter))
-  const inView = visible
-    .filter((p) => !viewBounds || viewBounds.contains([p.longitude, p.latitude]))
-    .sort(compareBySurname)
+  // Pins arrive in surname order from the API, so filtering keeps the table sorted.
+  const inView = visible.filter(
+    (p) => !viewBounds || viewBounds.contains([p.longitude, p.latitude])
+  )
 
   // Push pins into the map; fit to the filtered ones the first time there are
   // any, so dots the filter hides don't widen the view.
@@ -160,8 +160,9 @@ export function RosterMapView() {
       m.off("moveend", onMoveEnd)
       m.off("mouseenter", LAYER_ID, onEnter)
       m.off("mouseleave", LAYER_ID, onLeave)
+      // viewBounds is left as is: a theme flip rebuilds the map, and clearing
+      // it would flash the whole list until the new map reports its view.
       setMap(null)
-      setViewBounds(null)
     }
   }
 
@@ -212,11 +213,6 @@ export function RosterMapView() {
             />
             Contributor
           </span>
-          {acked && !isLoading && (
-            <span>
-              {visible.length} {visible.length === 1 ? "person" : "people"}
-            </span>
-          )}
         </div>
       </div>
 
@@ -273,7 +269,7 @@ export function RosterMapView() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">
               {inView.length === visible.length
-                ? `Everyone on the map (${visible.length})`
+                ? `All ${visible.length} in view`
                 : `${inView.length} of ${visible.length} in view`}
             </h2>
             {map && inView.length < visible.length && (
