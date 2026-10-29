@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { createTeamSchema } from "@/lib/validations"
-import { hasAdminAccess } from "@/lib/utils"
+import { hasAdminAccess, sortByTeamRole } from "@/lib/utils"
 import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
@@ -17,14 +17,15 @@ export async function GET() {
     include: {
       members: {
         include: { person: true },
-        orderBy: { role: "asc" }, // EDITORs first, then MEMBERs
+        orderBy: { createdAt: "asc" },
       },
       _count: { select: { members: true } },
     },
     orderBy: { name: "asc" },
   })
 
-  return Response.json({ teams })
+  // Lead, then editors, then members — see TEAM_MEMBER_ROLE_ORDER.
+  return Response.json({ teams: teams.map((t) => ({ ...t, members: sortByTeamRole(t.members) })) })
 }
 
 export async function POST(req: Request) {

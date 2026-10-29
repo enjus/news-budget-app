@@ -522,7 +522,7 @@ async function main() {
   // Metro team: Sam (editor), Alice + Carol (reporters), David (photographer), Morgan + Riley (demo accounts)
   await prisma.teamMember.createMany({
     data: [
-      { teamId: metroTeam.id, personId: sam.id,    role: "EDITOR" },
+      { teamId: metroTeam.id, personId: sam.id,    role: "LEAD"   },
       { teamId: metroTeam.id, personId: bob.id,    role: "EDITOR" },
       { teamId: metroTeam.id, personId: alice.id,  role: "MEMBER" },
       { teamId: metroTeam.id, personId: carol.id,  role: "MEMBER" },
@@ -535,7 +535,7 @@ async function main() {
   // Investigations: Jamie (editor), Alice + Carol (reporters), Elena (graphics)
   await prisma.teamMember.createMany({
     data: [
-      { teamId: enterpriseTeam.id, personId: jamie.id, role: "EDITOR" },
+      { teamId: enterpriseTeam.id, personId: jamie.id, role: "LEAD"   },
       { teamId: enterpriseTeam.id, personId: frank.id, role: "EDITOR" },
       { teamId: enterpriseTeam.id, personId: alice.id, role: "MEMBER" },
       { teamId: enterpriseTeam.id, personId: carol.id, role: "MEMBER" },

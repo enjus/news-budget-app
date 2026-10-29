@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { updateTeamSchema } from "@/lib/validations"
-import { hasAdminAccess } from "@/lib/utils"
+import { hasAdminAccess, sortByTeamRole } from "@/lib/utils"
 import { checkWriteLimit } from "@/lib/api-helpers"
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +19,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     include: {
       members: {
         include: { person: true },
-        orderBy: { role: "asc" },
+        orderBy: { createdAt: "asc" },
       },
     },
   })
@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ error: "Team not found" }, { status: 404 })
   }
 
-  return Response.json({ team })
+  return Response.json({ team: { ...team, members: sortByTeamRole(team.members) } })
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
