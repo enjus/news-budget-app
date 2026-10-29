@@ -44,13 +44,11 @@ export const ROSTER_PROFILE_SELECT = {
   },
 } satisfies Prisma.PersonSelect
 
-// The roster map (GET /api/roster/map): just enough to draw and label a dot.
-// Never the rest of PersonPrivate — the map shouldn't double as an address export.
+// The roster map (GET /api/roster/map): the same public fields as the list,
+// which feed the in-view table, plus the pin. Never the rest of PersonPrivate —
+// the map shouldn't double as an address export.
 export const ROSTER_MAP_SELECT = {
-  id: true,
-  name: true,
-  title: true,
-  isStaff: true,
+  ...ROSTER_LIST_SELECT,
   private: { select: { latitude: true, longitude: true } },
 } satisfies Prisma.PersonSelect
 
