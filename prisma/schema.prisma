@@ -217,7 +217,7 @@ model TeamMember {
   teamId   String
   person   Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
   personId String
-  // TeamRole: EDITOR | MEMBER
+  // TeamRole: LEAD | EDITOR | MEMBER (display order — see TEAM_MEMBER_ROLE_ORDER)
   role     String   @default("MEMBER")
   createdAt DateTime @default(now())
 

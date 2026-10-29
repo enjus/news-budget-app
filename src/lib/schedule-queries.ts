@@ -15,9 +15,9 @@ export interface RosterMember {
   id: string
   name: string
   teamIds: string[]
-  /** Role per team membership (EDITOR|MEMBER) — a person can be an editor on
-   *  one team and a plain member on another, so this is keyed by team, not
-   *  global. Added for /schedule/teams' "editors at the top" ordering. */
+  /** Role per team membership (LEAD|EDITOR|MEMBER) — a person can lead one
+   *  team and be a plain member on another, so this is keyed by team, not
+   *  global. Drives /schedule/teams' "lead, then editors, at the top" ordering. */
   teamRoles: { teamId: string; role: string }[]
 }
 

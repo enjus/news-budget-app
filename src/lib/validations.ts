@@ -603,7 +603,7 @@ export const createVideoAssignmentSchema = z.object({
 
 // ─── Team ─────────────────────────────────────────────────────────────────────
 
-export const TeamMemberRoleEnum = z.enum(["EDITOR", "MEMBER"]);
+export const TeamMemberRoleEnum = z.enum(["LEAD", "EDITOR", "MEMBER"]);
 
 export const createTeamSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -615,6 +615,10 @@ export const updateTeamSchema = createTeamSchema.partial();
 export const addTeamMemberSchema = z.object({
   personId: z.string().cuid(),
   role: TeamMemberRoleEnum.default("MEMBER"),
+});
+
+export const updateTeamMemberSchema = z.object({
+  role: TeamMemberRoleEnum,
 });
 
 // ─── User (admin) ────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasAdminAccess } from "@/lib/utils"
+import { hasAdminAccess, sortByTeamRole } from "@/lib/utils"
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +27,7 @@ export async function GET() {
     include: {
       members: {
         include: { person: true },
-        orderBy: { role: "asc" },
+        orderBy: { createdAt: "asc" },
       },
     },
     orderBy: { name: "asc" },
@@ -37,7 +37,7 @@ export async function GET() {
     const myMembership = personId
       ? team.members.find((m) => m.personId === personId)
       : undefined
-    return { ...team, myRole: myMembership?.role ?? "MEMBER" }
+    return { ...team, members: sortByTeamRole(team.members), myRole: myMembership?.role ?? "MEMBER" }
   })
 
   return Response.json({ teams: teamsWithMyRole })
