@@ -76,7 +76,8 @@ model Person {
   private          PersonPrivate?
   user             User?
   assignments      StoryAssignment[]
-  visuals          Visual[]
+  visuals          Visual[]          @relation("visualAssigned")
+  visualsRequested Visual[]          @relation("visualsRequested")
   videoAssignments VideoAssignment[]
   teamMemberships  TeamMember[]
   commentMentions  CommentMention[]
@@ -315,17 +316,46 @@ model Tag {
   updatedAt  DateTime  @updatedAt
 }
 
+// A visual is a lifecycle row: PLANNED rows are the original "arranged in-house"
+// credits; REQUESTED and later rows are asks tracked to delivery (see
+// docs/visual-requests-slice-1.md). The status sets live in src/lib/visual-requests.ts.
+// storyId is nullable so delivered work can outlive a deleted story (SetNull
+// replaces the old cascade — story delete clears the rest explicitly).
 model Visual {
-  id          String   @id @default(cuid())
-  story       Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
-  storyId     String
+  id            String    @id @default(cuid())
+  story         Story?    @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  storyId       String?
   // VisualType: PHOTO | GRAPHIC | MAP | VIDEO
-  type        String
-  description String?
-  person      Person?  @relation(fields: [personId], references: [id], onDelete: SetNull)
-  personId    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  type          String
+  // VisualStatus: PLANNED | REQUESTED | ASSIGNED | IN_PROGRESS | DELIVERED | DECLINED | CANCELED
+  status        String    @default("PLANNED")
+  description   String?
+  // The assignee, and the credit once delivered.
+  person        Person?   @relation("visualAssigned", fields: [personId], references: [id], onDelete: SetNull)
+  personId      String?
+  requestedBy   Person?   @relation("visualsRequested", fields: [requestedById], references: [id], onDelete: SetNull)
+  requestedById String?
+  // VisualPriority: NORMAL | URGENT (cosmetic)
+  priority      String    @default("NORMAL")
+  eventDateTime DateTime?
+  location      String?
+  deadline      DateTime?
+  notes         String?
+  // https link to the requester's data (SharePoint/OneDrive/Sheets) — never a file upload.
+  // Validated by parseDataUrl() in src/lib/visual-requests.ts.
+  dataUrl       String?
+  declineReason String?
+  // archive + icalSequence are unused until later slices; here so they need no second db push.
+  archived      Boolean   @default(false)
+  archivedAt    DateTime?
+  icalSequence  Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([storyId])
+  @@index([personId])
+  @@index([archived])
 }
 
 // Videos can be standalone (storyId = null) or attached to a story.

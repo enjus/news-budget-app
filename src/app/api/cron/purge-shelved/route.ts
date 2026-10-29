@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { deleteStoriesWithVisuals } from "@/lib/story-delete"
 
 export const dynamic = "force-dynamic"
 
@@ -35,14 +36,16 @@ export async function GET(request: NextRequest) {
     data: { status: "SHELVED", shelvedAt: now },
   })
 
+  // Stories go through the visual-aware delete (Visual.storyId is SetNull, not cascade),
+  // in small batches so a backlog can't exceed the transaction timeout.
   const [stories, videos] = await Promise.all([
-    prisma.story.deleteMany({ where: { status: "SHELVED", shelvedAt: { lte: cutoff } } }),
+    deleteStoriesWithVisuals(prisma, { status: "SHELVED", shelvedAt: { lte: cutoff } }),
     prisma.video.deleteMany({ where: { status: "SHELVED", shelvedAt: { lte: cutoff } } }),
   ])
 
   return NextResponse.json({
     shelvedExpiredPitches: shelvedExpiredPitches.count,
-    purged: { stories: stories.count, videos: videos.count },
+    purged: { stories, videos: videos.count },
     cutoffDate: cutoff.toISOString(),
   })
 }

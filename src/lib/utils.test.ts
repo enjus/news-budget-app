@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
+import { classifyContentItems, itemDateStr, formatBudgetLineCopy, dedupeVisualCredits, placedVisuals, type DatedContentItem } from "./utils"
+import type { StoryListItem } from "@/types"
 
 function item(overrides: Partial<DatedContentItem> & { slug: string }): DatedContentItem {
   return {
@@ -88,5 +89,59 @@ describe("classifyContentItems", () => {
       TODAY
     )
     expect(tbd.map((i) => i.slug)).toEqual(["APPLE", "ZEBRA"])
+  })
+})
+
+describe("formatBudgetLineCopy visual credits", () => {
+  const story = (visuals: { type: string; status: string; name: string }[]) =>
+    ({
+      slug: "council-vote",
+      budgetLine: "Council votes",
+      wordCount: null,
+      assignments: [],
+      visuals: visuals.map((v, i) => ({ id: String(i), type: v.type, status: v.status, person: { name: v.name } })),
+    }) as unknown as StoryListItem
+
+  it("credits planned and delivered visuals only", () => {
+    const copy = formatBudgetLineCopy(
+      story([
+        { type: "PHOTO", status: "PLANNED", name: "Ann Smith" },
+        { type: "PHOTO", status: "DELIVERED", name: "Bo Jones" },
+        { type: "PHOTO", status: "REQUESTED", name: "Cy Requested" },
+        { type: "PHOTO", status: "ASSIGNED", name: "Di Assigned" },
+        { type: "PHOTO", status: "IN_PROGRESS", name: "Ed Working" },
+        { type: "PHOTO", status: "DECLINED", name: "Flo Declined" },
+        { type: "GRAPHIC", status: "CANCELED", name: "Gus Canceled" },
+      ])
+    )
+    expect(copy).toContain("Photos by SMITH & JONES")
+    expect(copy).not.toMatch(/Requested|Assigned|Working|Declined|Canceled|Graphic by/i)
+  })
+})
+
+describe("dedupeVisualCredits", () => {
+  it("collapses duplicate story+type credits", () => {
+    const out = dedupeVisualCredits([
+      { storyId: "s1", type: "PHOTO", n: 1 },
+      { storyId: "s1", type: "PHOTO", n: 2 },
+      { storyId: "s1", type: "GRAPHIC", n: 3 },
+    ])
+    expect(out.map((v) => v.n)).toEqual([1, 3])
+  })
+
+  it("drops unplaced visuals instead of collapsing them into one null:PHOTO entry", () => {
+    const out = dedupeVisualCredits([
+      { storyId: null, type: "PHOTO", n: 1 },
+      { storyId: null, type: "PHOTO", n: 2 },
+      { storyId: "s1", type: "PHOTO", n: 3 },
+    ])
+    expect(out.map((v) => v.n)).toEqual([3])
+  })
+})
+
+describe("placedVisuals", () => {
+  it("keeps only credits whose story exists", () => {
+    const out = placedVisuals([{ story: { id: "a" } }, { story: null }, { story: { id: "b" } }])
+    expect(out.map((v) => v.story.id)).toEqual(["a", "b"])
   })
 })

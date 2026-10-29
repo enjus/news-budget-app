@@ -18,3 +18,9 @@ export const SCHEDULE_ENABLED = process.env.NEXT_PUBLIC_SCHEDULE_ENABLED === "tr
 // /people/[id] are hidden while this is off, but /roster and its API routes
 // work by direct URL regardless (same pattern as the two flags above).
 export const ROSTER_ENABLED = process.env.NEXT_PUBLIC_ROSTER_ENABLED === "true";
+
+// Visual requests (issue #23, slice 1) are dark-launched: this only hides the
+// "Request" form in VisualSection. The API accepts requests by direct call
+// regardless. Keep it off in production until slice 3 (the /requests dashboard)
+// exists, since that is the only place unplaced visuals can be seen.
+export const VISUAL_REQUESTS_ENABLED = process.env.NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED === "true";

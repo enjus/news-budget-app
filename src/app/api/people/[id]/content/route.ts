@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { dedupeVisualCredits, todayString } from "@/lib/utils";
+import { dedupeVisualCredits, placedVisuals, todayString } from "@/lib/utils";
+import { CREDITED_STATUSES } from "@/lib/visual-statuses";
 
 export const dynamic = 'force-dynamic'
 
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           include: { story: { select: storySelect } },
         }),
         prisma.visual.findMany({
-          where: { personId: id, story: { status: { not: "SHELVED" } } },
+          where: { personId: id, status: { in: [...CREDITED_STATUSES] }, story: { status: { not: "SHELVED" } } },
           include: { story: { select: storySelect } },
         }),
         prisma.videoAssignment.findMany({
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
       const items: PersonContentItem[] = [
         ...storyAssignments.map(toStoryItem),
-        ...dedupeVisualCredits(visualCredits).map((v) => toStoryItem({ role: v.type, story: v.story })),
+        ...placedVisuals(dedupeVisualCredits(visualCredits)).map((v) => toStoryItem({ role: v.type, story: v.story })),
         ...videoAssignments.map(toVideoItem),
       ];
 
@@ -151,6 +152,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.visual.findMany({
         where: {
           personId: id,
+          status: { in: [...CREDITED_STATUSES] },
           story: { status: { not: "SHELVED" }, OR: [{ onlinePubDateTBD: true }, { onlinePubDate: null }, { onlinePubDate: { gte: todayStart } }] },
         },
         include: { story: { select: storySelect } },
@@ -161,6 +163,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       prisma.visual.findMany({
         where: {
           personId: id,
+          status: { in: [...CREDITED_STATUSES] },
           story: { status: { not: "SHELVED" }, onlinePubDateTBD: false, onlinePubDate: { lt: todayStart } },
         },
         include: { story: { select: storySelect } },
@@ -191,13 +194,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     // DB level (see `distinct` above), so no further JS-level dedupe is needed.
     const upcomingItems: PersonContentItem[] = [
       ...storyUpcoming.map(toStoryItem),
-      ...visualUpcoming.map((v) => toStoryItem({ role: v.type, story: v.story })),
+      ...placedVisuals(visualUpcoming).map((v) => toStoryItem({ role: v.type, story: v.story })),
       ...videoUpcoming.map(toVideoItem),
     ];
 
     const mergedPast: PersonContentItem[] = [
       ...storyPast.map(toStoryItem),
-      ...visualPast.map((v) => toStoryItem({ role: v.type, story: v.story })),
+      ...placedVisuals(visualPast).map((v) => toStoryItem({ role: v.type, story: v.story })),
       ...videoPast.map(toVideoItem),
     ].sort((a, b) => new Date(b.onlinePubDate!).getTime() - new Date(a.onlinePubDate!).getTime());
 

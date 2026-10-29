@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { truncateAtWord, pitchStatusLine } from "@/lib/notifications"
+import { truncateAtWord, pitchStatusLine, collectEmails } from "@/lib/notifications"
 
 const TIP =
   "Tipster says Multnomah County's new shelter on SE 82nd won't open until spring — contractor walked off the job"
@@ -79,5 +79,31 @@ describe("pitchStatusLine", () => {
     expect(
       pitchStatusLine({ ...base, shelved: true, expiresAt: new Date("2026-10-14T19:00:00Z") }, today)
     ).toBe("Shelved · Unclaimed · Expired Wed, Oct 14")
+  })
+})
+
+describe("collectEmails visuals", () => {
+  const visual = (status: string, email: string, isActive = true) => ({
+    status,
+    person: { name: email, email, isActive },
+  })
+
+  it("emails assignees of planned, assigned, in-progress and delivered visuals", () => {
+    const visuals = ["PLANNED", "ASSIGNED", "IN_PROGRESS", "DELIVERED"].map((s) => visual(s, `${s.toLowerCase()}@x.com`))
+    expect(collectEmails([], visuals).sort()).toEqual([
+      "assigned@x.com",
+      "delivered@x.com",
+      "in_progress@x.com",
+      "planned@x.com",
+    ])
+  })
+
+  it("skips requested, declined and canceled visuals", () => {
+    const visuals = ["REQUESTED", "DECLINED", "CANCELED"].map((s) => visual(s, `${s.toLowerCase()}@x.com`))
+    expect(collectEmails([], visuals)).toEqual([])
+  })
+
+  it("still skips inactive people on notifiable visuals", () => {
+    expect(collectEmails([], [visual("ASSIGNED", "gone@x.com", false)])).toEqual([])
   })
 })

@@ -1,6 +1,7 @@
 import { sendEmail } from "@/lib/email";
 import { linkifyToHtml } from "@/lib/comment-text";
 import { formatDatePacific, pacificDateString, todayString } from "@/lib/utils";
+import { isNotifiableStatus } from "@/lib/visual-statuses";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -18,6 +19,7 @@ export interface AssignedPerson {
 }
 /** Minimal shape of a visual element's credited person. */
 interface CreditedVisual {
+  status: string;
   person: { name: string; email: string | null; isActive: boolean } | null;
 }
 
@@ -270,13 +272,15 @@ export async function notifyCommentTeam(
   });
 }
 
-/** Dedupe + extract valid emails from assignments and (for stories) credited visuals. */
+/** Dedupe + extract valid emails from assignments and (for stories) assigned visuals (NOTIFIABLE_STATUSES only). */
 export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
   for (const a of assignments) {
     if (a.person?.email && a.person.isActive) emails.add(a.person.email);
   }
   for (const v of visuals) {
+    // A merely-requested visual has no assignee to tell; declined/canceled ones are off the story.
+    if (!isNotifiableStatus(v.status)) continue;
     if (v.person?.email && v.person.isActive) emails.add(v.person.email);
   }
   return Array.from(emails);
