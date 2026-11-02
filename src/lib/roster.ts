@@ -1,3 +1,4 @@
+import { subMonths } from "date-fns"
 import { parsePhoneNumberFromString } from "libphonenumber-js/min"
 import { safeCsvText } from "@/lib/csv"
 import { languageLabel } from "@/lib/languages"
@@ -146,6 +147,34 @@ export function formatAddressLines(a: AddressParts): string[] {
   return [a.addressLine1, a.addressLine2, cityLine, country].filter(
     (line): line is string => !!line && line.trim() !== ""
   )
+}
+
+const ADDRESS_FIELDS = [
+  "addressLine1", "addressLine2", "city", "region", "postalCode", "country",
+] as const
+
+const normalizeAddressPart = (v: string | null | undefined) =>
+  (v ?? "").trim().replace(/\s+/g, " ").toLowerCase()
+
+/**
+ * Whether saving `next` replaces or removes the address in `saved`, which is
+ * what clears a map pin. Ignores case and spacing, so tidying "main st" into
+ * "Main St" doesn't count, and fields absent from `next` are left alone. A
+ * first address (nothing saved yet) doesn't count: it isn't evidence of a move.
+ */
+export function addressChanged(saved: AddressParts, next: AddressParts): boolean {
+  if (ADDRESS_FIELDS.every((f) => normalizeAddressPart(saved[f]) === "")) return false
+  return ADDRESS_FIELDS.some(
+    (f) => next[f] !== undefined && normalizeAddressPart(saved[f]) !== normalizeAddressPart(next[f])
+  )
+}
+
+export const ROSTER_REVIEW_MONTHS = 6
+
+/** The review nudge is due if the person has never reviewed their own profile,
+ *  or last did so ROSTER_REVIEW_MONTHS or more ago. */
+export function isRosterReviewDue(reviewedAt: Date | null, now: Date): boolean {
+  return !reviewedAt || reviewedAt <= subMonths(now, ROSTER_REVIEW_MONTHS)
 }
 
 // ─── CSV export ─────────────────────────────────────────────────────────────

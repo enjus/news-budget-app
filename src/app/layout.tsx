@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { TopNav } from "@/components/layout/TopNav"
 import { SectionTabNav } from "@/components/layout/SectionTabNav"
+import { RosterNudges } from "@/components/roster/RosterNudges"
 import { Toaster } from "@/components/ui/sonner"
 import { SWRProvider } from "@/components/providers/SWRProvider"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
@@ -39,6 +40,7 @@ export default function RootLayout({
               <div className="flex min-h-screen flex-col">
                 <TopNav />
                 <SectionTabNav />
+                <RosterNudges />
                 <main className="flex-1">
                   {children}
                 </main>

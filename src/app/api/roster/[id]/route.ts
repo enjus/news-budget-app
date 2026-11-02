@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { personPrivateSchema, updateRosterProfileSchema } from "@/lib/validations";
 import { canEditRosterProfile } from "@/lib/utils";
+import { addressChanged } from "@/lib/roster";
 import {
   checkReadLimit,
   checkWriteLimit,
@@ -76,25 +77,39 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const { private: privateData, ...publicData } = result.data;
 
     // The form always sends `private`. All-blank means "no contact details":
-    // clear the contact fields on an existing row (keeping any map pin, which
-    // the form never sends — it's written by /location) without creating an
-    // empty row for someone who has none.
+    // clear the contact fields on an existing row without creating an empty
+    // row for someone who has none.
     const privateIsEmpty =
       !!privateData && Object.values(privateData).every((v) => v === null || v === undefined);
 
     const person = await prisma.$transaction(async (tx) => {
+      // A pin was placed for the old address, so a new one takes it off the
+      // map until it's placed again. Whoever edits; the person gets the prompt.
+      const saved = privateData
+        ? await tx.personPrivate.findUnique({ where: { personId: id } })
+        : null;
+      const pinReset =
+        saved?.latitude != null && privateData && addressChanged(saved, privateData)
+          ? { latitude: null, longitude: null, locationUpdatedAt: null, mapResetAt: new Date() }
+          : {};
+
       if (privateIsEmpty) {
         await tx.personPrivate.updateMany({
           where: { personId: id },
-          data: Object.fromEntries(personPrivateSchema.keyof().options.map((f) => [f, null])),
+          data: {
+            ...Object.fromEntries(personPrivateSchema.keyof().options.map((f) => [f, null])),
+            ...pinReset,
+          },
         });
       }
       return tx.person.update({
         where: { id },
         data: {
           ...publicData,
+          // An admin's edit doesn't mean the person has reviewed their profile.
+          ...(session.user.personId === id ? { rosterReviewedAt: new Date() } : {}),
           ...(privateData && !privateIsEmpty
-            ? { private: { upsert: { create: privateData, update: privateData } } }
+            ? { private: { upsert: { create: privateData, update: { ...privateData, ...pinReset } } } }
             : {}),
         },
         select: ROSTER_PROFILE_SELECT,
