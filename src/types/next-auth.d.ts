@@ -26,7 +26,7 @@ declare module "next-auth/jwt" {
     personDefaultRole?: string | null
     /** Set when the periodic role-refresh finds the underlying User row gone
      *  (deleted, not just an unreachable DB) — see src/lib/auth.ts and
-     *  middleware.ts's `authorized` callback. */
+     *  src/proxy.ts's `authorized` callback. */
     revoked?: boolean
   }
 }

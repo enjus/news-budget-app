@@ -1,5 +1,10 @@
 import { withAuth } from "next-auth/middleware"
 
+// Next.js 16 "proxy" (formerly middleware). It must live in src/ because the
+// app lives in src/app: a root-level file is silently ignored, which is how
+// signed-out visitors used to reach every page (and the homepage showed
+// "Links couldn't be loaded" instead of bouncing to /login).
+
 export default withAuth({
   pages: {
     signIn: "/login",
@@ -14,5 +19,5 @@ export default withAuth({
 })
 
 export const config = {
-  matcher: ["/((?!login|api/auth/|api/cron/|_next/static|_next/image|favicon\\.ico).*)"],
+  matcher: ["/((?!login|api/auth/|api/cron/|_next/static|_next/image|favicon\\.ico|icon\\.png).*)"],
 }
