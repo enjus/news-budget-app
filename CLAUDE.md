@@ -67,7 +67,7 @@ Two levels: `TopNav` shows the tools (Budget, Pitches, Schedule — the last two
 
 ### Authentication
 
-NextAuth v4 (credentials + optional Azure AD SSO, JWT sessions); config in `src/lib/auth.ts`, route protection in `src/proxy.ts` (Next 16's renamed middleware — it must sit in `src/` alongside `src/app`; a root-level file is silently ignored, which once left every page reachable signed-out). Its matcher covers `/api/*` too, so a signed-out API call gets a redirect to `/login`, not a 401. Session user shape: `{ id, name, email, appRole, personId }`.
+NextAuth v4 (credentials + optional Azure AD SSO, JWT sessions); config in `src/lib/auth.ts`, route protection in `src/proxy.ts` (Next 16's middleware; it must sit in `src/` next to `src/app`, and a root-level file is silently ignored). It checks the JWT with `getToken()` rather than `withAuth()`, whose `NEXTAUTH_URL`-path skip would disable the gate under `BASE_PATH`. Signed-out page requests redirect to `/login`, and signed-out `/api/*` calls get a 401. Session user shape: `{ id, name, email, appRole, personId }`.
 
 **Azure AD SSO** (optional): When `AZURE_AD_CLIENT_ID` is set, the login page shows a "Sign in with Microsoft" button. SSO users are matched by email to existing `User` records or auto-created as `PRODUCER` if they belong to the Azure AD group specified by `AZURE_AD_ALLOWED_GROUP_ID`. The `passwordHash` field is nullable — SSO-only users have no password. See `docs/azure-sso-setup.md` for Azure Portal configuration.
 
