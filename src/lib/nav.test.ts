@@ -54,6 +54,17 @@ describe("navSections", () => {
     expect(budget.tabs.map((t) => t.label)).toEqual(["Daily", "Enterprise", "Editions", "Shelved", "Metro", "People", "Me"])
   })
 
+  it("always shows Pitches and Schedule in the top bar, for every role", () => {
+    for (const appRole of ["VIEWER", "PRODUCER", "ADMIN"]) {
+      const sections = navSections({ ...ctx, appRole })
+      for (const id of ["pitches", "schedule"]) {
+        const section = sections.find((s) => s.id === id)!
+        expect(section.enabled).toBe(true)
+        expect(section.inTopBar).toBe(true)
+      }
+    }
+  })
+
   it("enables Admin only for admins, and never in the top bar", () => {
     const forRole = (appRole: string) => navSections({ ...ctx, appRole }).find((s) => s.id === "admin")!
     expect(forRole("PRODUCER").enabled).toBe(false)

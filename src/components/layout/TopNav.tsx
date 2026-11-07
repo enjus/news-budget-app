@@ -23,8 +23,9 @@ export function TopNav() {
   const isAdmin = hasAdminAccess(appRole)
   const { pathname, sections, current } = useNav()
   const topSections = sections.filter((s) => s.enabled && s.inTopBar)
-  // The mobile menu stands in for SectionTabNav, so it also includes a
-  // flagged-off section when you're already inside it by direct URL.
+  // The mobile menu stands in for SectionTabNav, so it also includes the
+  // current section when it's disabled (role- or flag-gated) and you're
+  // inside it by direct URL.
   const menuSections = sections.filter((s) => s.enabled || s.id === current?.id)
 
   return (
