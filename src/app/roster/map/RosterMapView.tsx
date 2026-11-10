@@ -13,7 +13,7 @@ import { PrivateReminderDialog, hasPrivateAck, setPrivateAck } from "@/component
 import { RosterRow } from "@/components/roster/RosterRow"
 import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { useRosterMap, useRosterProfile } from "@/lib/hooks/useRoster"
-import { CONTRIBUTOR_COLOR, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
+import { CONTRIBUTOR_COLOR, METRO_BOUNDS, OFFICE_LOCATION, STAFF_COLOR } from "@/lib/roster-map"
 import { displayName } from "@/lib/utils"
 import type { RosterMapPin } from "@/types/index"
 
@@ -80,7 +80,6 @@ export function RosterMapView() {
   // The map's current view, updated when a pan/zoom settles; the table lists
   // only the filtered people whose pins fall inside it.
   const [viewBounds, setViewBounds] = useState<LngLatBounds | null>(null)
-  const fittedRef = useRef(false)
 
   const visible = pins.filter((p) => matchesStaffFilter(p, filter))
   const selected = pins.filter((p) => selectedIds.includes(p.id) && matchesStaffFilter(p, filter))
@@ -89,21 +88,13 @@ export function RosterMapView() {
     (p) => !viewBounds || viewBounds.contains([p.longitude, p.latitude])
   )
 
-  // Push pins into the map; fit to the filtered ones the first time there are
-  // any, so dots the filter hides don't widen the view.
+  // Push pins into the map. The view stays on the metro area (set in
+  // handleReady) rather than fitting to the pins, so an out-of-state outlier
+  // doesn't zoom everyone else into a cluster.
   useEffect(() => {
     if (!map) return
     ;(map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(toGeoJSON(pins))
   }, [map, pins])
-
-  useEffect(() => {
-    if (!map || fittedRef.current) return
-    const fitTo = pins.filter((p) => matchesStaffFilter(p, filter))
-    if (fitTo.length > 0) {
-      fittedRef.current = true
-      fitToPins(map, fitTo)
-    }
-  }, [map, pins, filter])
 
   useEffect(() => {
     if (!map) return
@@ -151,8 +142,8 @@ export function RosterMapView() {
     m.on("mouseenter", LAYER_ID, onEnter)
     m.on("mouseleave", LAYER_ID, onLeave)
 
-    // A theme flip rebuilds the map; refit to the pins on the new one.
-    fittedRef.current = false
+    // Start on the Portland metro. Also runs when a theme flip rebuilds the map.
+    m.fitBounds(METRO_BOUNDS, { padding: 24, duration: 0 })
     setViewBounds(m.getBounds())
     setMap(m)
     return () => {
