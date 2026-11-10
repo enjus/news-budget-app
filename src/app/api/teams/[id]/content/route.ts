@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasAdminAccess, todayString, dedupeVisualCredits } from "@/lib/utils"
+import { hasAdminAccess, todayString, dedupeVisualCredits, sortByTeamRole } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 export const dynamic = 'force-dynamic'
@@ -69,7 +69,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       include: {
         members: {
           include: { person: true },
-          orderBy: { role: "asc" },
+          orderBy: { createdAt: "asc" },
         },
       },
     })
@@ -95,7 +95,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     // TBD/upcoming items are capped (PAST_CAP, TBD_CAP) since either can
     // accumulate unboundedly, matching /api/budget/daily and /api/budget/agenda.
     const memberContent = await Promise.all(
-      team.members.map(async (member) => {
+      sortByTeamRole(team.members).map(async (member) => {
         const [storyUpcoming, storyPast, visualUpcoming, visualPast, videoUpcoming, videoPast] = await Promise.all([
           prisma.storyAssignment.findMany({
             where: {

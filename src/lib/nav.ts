@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { PITCHES_ENABLED, SCHEDULE_ENABLED } from "@/lib/features"
 import { hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
 
 // Single source of truth for the two-level nav: TopNav renders the sections,
@@ -78,7 +77,7 @@ const SECTIONS: SectionDef[] = [
     label: "Pitches",
     href: "/budget/pitches",
     match: ["/budget/pitches"],
-    enabled: PITCHES_ENABLED,
+    enabled: true,
     inTopBar: true,
     tabs: () => [],
   },
@@ -87,7 +86,7 @@ const SECTIONS: SectionDef[] = [
     label: "Schedule",
     href: "/schedule/today",
     match: ["/schedule"],
-    enabled: SCHEDULE_ENABLED,
+    enabled: true,
     inTopBar: true,
     tabs: () => [
       { label: "Today", href: "/schedule/today", match: ["/schedule/today"] },

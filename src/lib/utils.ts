@@ -464,9 +464,27 @@ export function dedupeVisualCredits<T extends { storyId: string; type: string }>
 }
 
 export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
+  LEAD: "Team lead",
   EDITOR: "Editor",
   MEMBER: "Member",
 };
+
+/** Display order for team members: the lead first, then editors, then
+ *  everyone else. Explicit because the stored strings don't sort this way —
+ *  `orderBy: { role: "asc" }` would put LEAD between EDITOR and MEMBER. */
+export const TEAM_MEMBER_ROLE_ORDER = ["LEAD", "EDITOR", "MEMBER"] as const;
+
+/** Rank for sorting by team role; unknown values sort last. */
+export function teamRoleRank(role: string): number {
+  const i = (TEAM_MEMBER_ROLE_ORDER as readonly string[]).indexOf(role);
+  return i === -1 ? TEAM_MEMBER_ROLE_ORDER.length : i;
+}
+
+/** Stable sort of team memberships by role rank — order within a role is
+ *  left as the query returned it. */
+export function sortByTeamRole<T extends { role: string }>(members: T[]): T[] {
+  return [...members].sort((a, b) => teamRoleRank(a.role) - teamRoleRank(b.role));
+}
 
 // ─── App Role Permissions ─────────────────────────────────────────────────────
 

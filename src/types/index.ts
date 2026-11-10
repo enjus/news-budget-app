@@ -121,12 +121,9 @@ export interface RosterStatus {
   mapResetPending: boolean;
 }
 
-/** One dot on /roster/map (GET /api/roster/map), flattened from ROSTER_MAP_SELECT. */
-export interface RosterMapPin {
-  id: string;
-  name: string;
-  title: string | null;
-  isStaff: boolean;
+/** One dot on /roster/map (GET /api/roster/map), flattened from ROSTER_MAP_SELECT:
+ *  a roster row plus its pin. */
+export interface RosterMapPin extends RosterListItem {
   latitude: number;
   longitude: number;
 }

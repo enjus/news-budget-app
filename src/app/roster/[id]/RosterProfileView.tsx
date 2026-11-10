@@ -159,7 +159,7 @@ export function RosterProfileView({ id }: { id: string }) {
               {profile.teamMemberships.map(({ team, role }) => (
                 <li key={team.id}>
                   {team.name}
-                  {role === "EDITOR" && (
+                  {role !== "MEMBER" && TEAM_MEMBER_ROLE_LABELS[role] && (
                     <span className="text-muted-foreground"> · {TEAM_MEMBER_ROLE_LABELS[role]}</span>
                   )}
                 </li>
