@@ -67,6 +67,9 @@ model Person {
   linkedinSlug    String?  // the linkedin.com/in/<slug> part
   instagramHandle String?  // normalized, no "@"
   languages       String[] @default([]) // codes from ROSTER_LANGUAGES (src/lib/languages.ts)
+  // When the person last saved or confirmed their own profile; null = never.
+  // Drives the six-month review nudge. Admin edits don't set it.
+  rosterReviewedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -101,11 +104,16 @@ model PersonPrivate {
   postalCode    String?
   country       String?
   // Roster map pin (/roster/map), placed by hand — never geocoded from the
-  // address, so the two can disagree. Both set or both null. Written only by
-  // /api/roster/[id]/location, never by the profile form. See docs/roster.md.
+  // address. Both set or both null. Placed only through
+  // /api/roster/[id]/location; a profile save can only clear it, when the
+  // address changes. See docs/roster.md.
   latitude          Float?
   longitude         Float?
   locationUpdatedAt DateTime?
+  // Set when an address change cleared the pin, so the person can be prompted
+  // to re-add it (no pin alone could just mean they never joined the map).
+  // Cleared when they place a pin or opt out.
+  mapResetAt        DateTime?
   updatedAt     DateTime @updatedAt
 }
 

@@ -1,8 +1,51 @@
 import { describe, it, expect } from "vitest"
 import {
   normalizeHandle, socialUrl, socialDisplay, normalizePhone, formatPhone, formatAddressLines,
-  buildRosterCsv, ROSTER_CSV_HEADER, compareBySurname,
+  buildRosterCsv, ROSTER_CSV_HEADER, compareBySurname, addressChanged, isRosterReviewDue,
 } from "@/lib/roster"
+
+describe("addressChanged", () => {
+  const saved = { addressLine1: "123 Main St", addressLine2: null, city: "Portland", region: "OR", postalCode: "97201", country: null }
+
+  it("detects an edit to any address field", () => {
+    expect(addressChanged(saved, { ...saved, addressLine1: "9 Oak Ave" })).toBe(true)
+    expect(addressChanged(saved, { ...saved, addressLine2: "Apt 4" })).toBe(true)
+    expect(addressChanged(saved, { ...saved, postalCode: "97202" })).toBe(true)
+  })
+
+  it("counts removing the address", () => {
+    expect(addressChanged(saved, {
+      addressLine1: null, addressLine2: null, city: null, region: null, postalCode: null, country: null,
+    })).toBe(true)
+  })
+
+  it("ignores case, spacing, and blank-vs-null differences", () => {
+    expect(addressChanged(saved, { ...saved, addressLine1: " 123  MAIN st ", addressLine2: "" })).toBe(false)
+  })
+
+  it("ignores fields the save didn't send", () => {
+    expect(addressChanged(saved, {})).toBe(false)
+    expect(addressChanged(saved, { city: "Portland" })).toBe(false)
+  })
+
+  it("doesn't count a first address", () => {
+    expect(addressChanged({ addressLine1: null, city: null }, saved)).toBe(false)
+  })
+})
+
+describe("isRosterReviewDue", () => {
+  const now = new Date("2026-11-01T12:00:00Z")
+
+  it("is due when the person has never reviewed", () => {
+    expect(isRosterReviewDue(null, now)).toBe(true)
+  })
+
+  it("is due from six months after the last review", () => {
+    expect(isRosterReviewDue(new Date("2026-05-02T12:00:00Z"), now)).toBe(false)
+    expect(isRosterReviewDue(new Date("2026-04-30T12:00:00Z"), now)).toBe(true)
+    expect(isRosterReviewDue(new Date("2025-11-01T12:00:00Z"), now)).toBe(true)
+  })
+})
 
 describe("normalizeHandle", () => {
   it("treats blank input as a cleared field", () => {

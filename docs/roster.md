@@ -37,11 +37,21 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 |---|---|---|
 | `GET /api/roster` | session | Active people, public fields plus work email and phone (`ROSTER_LIST_SELECT`), never `PersonPrivate`. No query filters; `RosterView` filters client-side. |
 | `GET /api/roster/[id]` | session | `ROSTER_PROFILE_SELECT`: public fields, work email and phone, `isActive`, and `private`. `Cache-Control: no-store`. |
-| `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` nulls the contact fields (`personPrivateSchema`'s keys) on an existing row and never creates one. Never touches coordinates. An empty `PersonPrivate` row reads the same as no row everywhere, so rows aren't deleted for being empty. |
-| `PUT /api/roster/[id]/location` | `canEditRosterProfile` | Body `{ latitude, longitude }` (`rosterLocationSchema`). Upserts the pin, rounded to 5 decimals, and sets `locationUpdatedAt`. 400 for an inactive person. Returns `ROSTER_PROFILE_SELECT`. |
-| `DELETE /api/roster/[id]/location` | `canEditRosterProfile` | Nulls the pin (the row stays). Returns `ROSTER_PROFILE_SELECT`. |
+| `PATCH /api/roster/[id]` | `canEditRosterProfile` | Updates the public fields; a `private` object upserts `PersonPrivate` in the same transaction. An all-blank `private` nulls the contact fields (`personPrivateSchema`'s keys) on an existing row and never creates one. Never sets coordinates, but clears them when the address changes (see the map section). Sets `rosterReviewedAt` when you save your own profile. An empty `PersonPrivate` row reads the same as no row everywhere, so rows aren't deleted for being empty. |
+| `GET /api/roster/me/status` | session | `{ reviewDue, mapResetPending }` for your own Person, both false if you have no linked or active Person. `no-store`. |
+| `POST /api/roster/me/reviewed` | session | Sets your own `rosterReviewedAt` ("Still accurate"). 404 if you have no linked or active Person. |
+| `PUT /api/roster/[id]/location` | `canEditRosterProfile` | Body `{ latitude, longitude }` (`rosterLocationSchema`). Upserts the pin, rounded to 5 decimals, sets `locationUpdatedAt`, and clears `mapResetAt`. 400 for an inactive person. Returns `ROSTER_PROFILE_SELECT`. |
+| `DELETE /api/roster/[id]/location` | `canEditRosterProfile` | Nulls the pin and `mapResetAt` (the row stays). Returns `ROSTER_PROFILE_SELECT`. |
 | `GET /api/roster/map` | session | Active people with a pin: the `ROSTER_LIST_SELECT` fields plus `latitude`, `longitude` (`ROSTER_MAP_SELECT`, flattened), never other `PersonPrivate` fields. `no-store`. |
 | `GET /api/roster/export` | session | Active staff only (`ROSTER_WHERE`: `isStaff` and `isActive`, so freelancers are excluded), personal contact details included, as `newsroom-roster-YYYY-MM-DD.csv` (UTF-8 with BOM for Excel, CRLF rows, `no-store`). |
+
+## Nudges (`RosterNudges`)
+
+A banner under the nav on every page, rendered from the root layout. It reads only `GET /api/roster/me/status`, so it never loads anyone's contact details, and it's hidden and makes no request until `ROSTER_ENABLED` is on. There is no email or cron job behind it: someone who doesn't sign in isn't nudged.
+
+- **Six-month review.** Due when `Person.rosterReviewedAt` is null or at least `ROSTER_REVIEW_MONTHS` old (`isRosterReviewDue()`). Null counts as due, so everyone who hasn't saved their own profile is nudged when the flag flips, and new staff are nudged right away. Saving your own profile or clicking "Still accurate" restarts the clock. An admin's edit doesn't, since it says nothing about whether the person has looked. Only people with a linked `User` and an active `Person` are nudged. The column is on `Person`, not `PersonPrivate`, because the row may not exist and the timestamp isn't personal.
+- **Re-add your pin.** Shown when `PersonPrivate.mapResetAt` is set (see "When the address changes"). "Add me back" goes to the map, "Stay off the map" calls `DELETE /location`, which clears the flag.
+- **"Not now"** hides that nudge for 7 days in that browser's `localStorage`. It's a convenience and changes nothing on the server.
 
 ## Offline backup (CSV export)
 
@@ -55,10 +65,14 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 A map of where people live, placed by hand. There is **no address geocoding**: a pin is dropped and moved by a person, never derived from the home address. That removes the need for a geocode proxy and sidesteps geocoding providers' terms on storing results.
 
 ### Data
-- `latitude`, `longitude` (nullable `Float`), and `locationUpdatedAt` on `PersonPrivate`. Nobody has a location by default; a Person is on the map only once someone places them. `locationUpdatedAt` is set on every save, for the planned nudges below.
+- `latitude`, `longitude` (nullable `Float`), and `locationUpdatedAt` on `PersonPrivate`. Nobody has a location by default; a Person is on the map only once someone places them. `locationUpdatedAt` is set on every save.
 - The pin is a `PersonPrivate` field because it is effectively a home address. **Do not put coordinates on `Person`**, for the same payload reason as the address.
-- **Coordinates are written only by `/api/roster/[id]/location`, never by the profile form.** The form always sends a full `private` object, so if coordinates were part of it, saving a profile with no contact details would have deleted the pin. Instead, an all-blank `private` in `PATCH /api/roster/[id]` nulls only the contact fields, leaving the pin. Removing a pin nulls the coordinates and leaves the row.
-- The pin and the home address are independent and can disagree after a move. Planned nudges, to update a pin and to refresh the profile periodically, will cover this. No consistency check runs between the two.
+- **Coordinates are placed only by `/api/roster/[id]/location`, never by the profile form.** The form always sends a full `private` object, so if coordinates were part of it, saving a profile with no contact details would have deleted the pin. Instead, an all-blank `private` in `PATCH /api/roster/[id]` nulls only the contact fields, and leaves the pin unless that removes an address. Removing a pin nulls the coordinates and leaves the row.
+
+### When the address changes
+Changing or removing a saved home address takes the person off the map, because the pin was placed for the old one. `PATCH /api/roster/[id]` nulls the coordinates and sets `mapResetAt` in the same transaction, whether the person or an admin made the edit. The flag is what tells a cleared pin apart from someone who never joined the map, so only people who had a pin are prompted (see [Nudges](#nudges-rosternudges)). The form warns before saving, and the save toast confirms it.
+
+`addressChanged()` decides what counts. Case and spacing edits don't, so tidying "main st" keeps the pin, but a spelling fix does. Adding a first address doesn't either, since a pin placed before any address was saved isn't evidence of a move. Contributors have no login, so nobody gets the prompt for them; the admin who edited sees the toast and can re-place the pin.
 
 ### Who can place a pin
 - Same as other profile edits: the person themself or an admin (`canEditRosterProfile()`), through `PUT`/`DELETE /api/roster/[id]/location`. `rosterLocationSchema` requires both coordinates, latitude in [-90, 90] and longitude in [-180, 180].

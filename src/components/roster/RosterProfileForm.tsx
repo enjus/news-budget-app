@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { useForm, Controller } from "react-hook-form"
+import { useForm, useWatch, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
+import { mutate as mutateGlobal } from "swr"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -17,10 +18,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateRosterProfileSchema, type UpdateRosterProfileInput } from "@/lib/validations"
-import { formatPhone } from "@/lib/roster"
+import { addressChanged, formatPhone, type AddressParts } from "@/lib/roster"
 import { ROSTER_LANGUAGE_CODES, type RosterLanguageCode } from "@/lib/languages"
 import { displayName } from "@/lib/utils"
 import { apiPath } from "@/lib/api-path"
+import { ROSTER_STATUS_KEY } from "@/lib/hooks/useRoster"
 import type { RosterProfile } from "@/types/index"
 import { LanguagePicker } from "./LanguagePicker"
 
@@ -74,6 +76,12 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
     defaultValues: toFormValues(profile),
   })
 
+  const hasPin = profile.private?.latitude != null
+  const privateValues = useWatch({ control, name: "private" })
+  const willClearPin =
+    hasPin && !!profile.private && !!privateValues &&
+    addressChanged(profile.private, privateValues as AddressParts)
+
   function handleOpenChange(val: boolean) {
     setOpen(val)
     if (val) reset(toFormValues(profile))
@@ -89,8 +97,15 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error ?? `Request failed (${res.status})`)
-      toast.success("Roster profile saved")
-      onSaved(json as RosterProfile)
+      const updated = json as RosterProfile
+      toast.success(
+        hasPin && updated.private?.latitude == null
+          ? "Roster profile saved. The address changed, so the map pin was removed."
+          : "Roster profile saved"
+      )
+      onSaved(updated)
+      mutateGlobal(ROSTER_STATUS_KEY)
+      mutateGlobal("/api/roster/map")
       setOpen(false)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
@@ -265,6 +280,12 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
               aria-label="Country"
               autoComplete="country-name"
             />
+            {willClearPin && (
+              <p className="text-xs text-muted-foreground">
+                Saving a new address removes {isSelf ? "your" : "their"} pin from the roster map.
+                It can be added back from the map.
+              </p>
+            )}
           </fieldset>
 
           <DialogFooter>

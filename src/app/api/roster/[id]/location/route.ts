@@ -84,6 +84,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       latitude: roundCoord(result.data.latitude),
       longitude: roundCoord(result.data.longitude),
       locationUpdatedAt: new Date(),
+      mapResetAt: null,
     };
 
     const person = await prisma.$transaction(async (tx) => {
@@ -103,7 +104,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// Removes the pin. The row stays even if nothing else is in it — an empty
+// Removes the pin, and doubles as opting out of the re-add prompt after an
+// address change. The row stays even if nothing else is in it — an empty
 // PersonPrivate row reads the same as no row everywhere.
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
@@ -114,7 +116,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     const person = await prisma.$transaction(async (tx) => {
       await tx.personPrivate.updateMany({
         where: { personId: id },
-        data: { latitude: null, longitude: null, locationUpdatedAt: null },
+        data: { latitude: null, longitude: null, locationUpdatedAt: null, mapResetAt: null },
       });
       return tx.person.findUniqueOrThrow({ where: { id }, select: ROSTER_PROFILE_SELECT });
     });
