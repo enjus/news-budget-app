@@ -92,14 +92,7 @@ export function PersonForm({ person, onSuccess, trigger, basicOnly = false }: Pe
 
   async function onSubmit(data: FormValues) {
     try {
-      // Only staff have a work email. A contributor's is left out of the
-      // body entirely, so a stale Person.email (preview/seed data) can't
-      // trip the server's "non-staff can't have an email" check.
-      const body = {
-        name: data.name,
-        defaultRole: data.defaultRole,
-        ...(person.isStaff ? { email: data.email } : {}),
-      }
+      const body = { name: data.name, email: data.email, defaultRole: data.defaultRole }
       const res = await fetch(apiPath(`/api/people/${person.id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -190,25 +183,31 @@ export function PersonForm({ person, onSuccess, trigger, basicOnly = false }: Pe
             </p>
           </div>
 
-          {/* Work email — staff only; it's the notification address. */}
-          {person.isStaff && (
-            <div className="space-y-1.5">
-              <Label htmlFor="pf-email">Work email</Label>
-              <Input
-                id="pf-email"
-                type="email"
-                {...register("email")}
-                placeholder="name@oregonian.com"
-                aria-invalid={!!errors.email}
-              />
-              <p className="text-xs text-muted-foreground">
-                Where @-mentions and notification emails go.
-              </p>
-              {errors.email && (
-                <p className="text-xs text-destructive">{errors.email.message}</p>
+          {/* Work email — shown on the roster beside the work phone. Only a
+              staffer's (company) address is notified; see notifiableEmail(). */}
+          <div className="space-y-1.5">
+            <Label htmlFor="pf-email">
+              Work email
+              {!person.isStaff && (
+                <span className="font-normal text-muted-foreground"> (optional)</span>
               )}
-            </div>
-          )}
+            </Label>
+            <Input
+              id="pf-email"
+              type="email"
+              {...register("email")}
+              placeholder={person.isStaff ? "name@oregonian.com" : "name@example.com"}
+              aria-invalid={!!errors.email}
+            />
+            <p className="text-xs text-muted-foreground">
+              {person.isStaff
+                ? "Their company address. @-mentions and notification emails go here."
+                : "Their own professional address, shown on the roster. Contributors never receive notification emails."}
+            </p>
+            {errors.email && (
+              <p className="text-xs text-destructive">{errors.email.message}</p>
+            )}
+          </div>
 
           {/* Default Role */}
           <div className="space-y-1.5">
@@ -295,7 +294,7 @@ export function PersonForm({ person, onSuccess, trigger, basicOnly = false }: Pe
                     autoFocus
                   />
                   <p className="text-xs text-muted-foreground">
-                    Staff receive @-mentions and notification emails here.
+                    Their company address. Staff receive @-mentions and notification emails here.
                   </p>
                   <div className="flex gap-2 pt-1">
                     <Button

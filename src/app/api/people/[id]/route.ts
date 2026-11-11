@@ -66,26 +66,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
-    // Only staff have a work email (the notification address). Removing
-    // someone from staff clears it; otherwise the stored row decides whether
-    // an email may be set. Checked against the stored row before the write.
+    // A staffer's work email is their company address, which a contributor
+    // never has. So removing someone from staff clears it unless the same
+    // request supplies a replacement (their own professional address).
     const data = { ...result.data };
-    if (data.isStaff === false) {
+    if (data.isStaff === false && data.email === undefined) {
       data.email = null;
-    } else if (data.email && data.isStaff !== true) {
-      const current = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
-      if (!current) {
-        return NextResponse.json({ error: "Person not found" }, { status: 404 });
-      }
-      if (!current.isStaff) {
-        return NextResponse.json(
-          {
-            error: "Validation failed",
-            fieldErrors: { email: ["Only staff have a work email — add contact details on their roster profile"] },
-          },
-          { status: 400 }
-        );
-      }
     }
 
     // Marking a staffer inactive (typically: they've left) deletes their

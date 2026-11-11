@@ -48,9 +48,22 @@ describe("createPersonSchema", () => {
     })
   })
 
-  it("rejects an email on a contributor", () => {
+  it("allows an optional work email on a contributor", () => {
     expect(
-      createPersonSchema.safeParse({ kind: "contributor", name: "C", email: "c@x.com" }).success
+      createPersonSchema.parse({ kind: "contributor", name: "C", email: "c@freelance.example" })
+    ).toMatchObject({ email: "c@freelance.example" })
+    expect(createPersonSchema.parse({ kind: "contributor", name: "C", email: "" })).toMatchObject({
+      email: null,
+    })
+    expect(createPersonSchema.parse({ kind: "contributor", name: "C" }).email).toBeUndefined()
+    expect(
+      createPersonSchema.safeParse({ kind: "contributor", name: "C", email: "not-an-email" }).success
+    ).toBe(false)
+  })
+
+  it("rejects unknown fields on a contributor", () => {
+    expect(
+      createPersonSchema.safeParse({ kind: "contributor", name: "C", isStaff: true }).success
     ).toBe(false)
   })
 

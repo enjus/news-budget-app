@@ -64,15 +64,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Staff are admin-only (canManageRoster also gates isStaff on PATCH);
-    // contributors can be added by anyone who can create content, and never
-    // get a Person.email — only staff are notified (notifiableEmail()).
+    // contributors can be added by anyone who can create content. Either
+    // may have a work email; only staff are notified (notifiableEmail()).
     const { kind, ...fields } = result.data;
     if (kind === "staff" && !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Only admins can add staff" }, { status: 403 });
     }
 
     const person = await prisma.person.create({
-      data: kind === "staff" ? { ...fields, isStaff: true } : { ...fields, isStaff: false, email: null },
+      data: { ...fields, isStaff: kind === "staff" },
       include: {
         _count: {
           select: {

@@ -52,7 +52,7 @@ export function usePersonRosterActions(personId: string, onChanged: () => void) 
   async function removeFromStaff(): Promise<boolean> {
     if (
       !confirm(
-        "Remove from staff? This clears their work email and regular work week, and they'll stop receiving notification emails.\n\n" +
+        "Remove from staff? This clears their company work email and regular work week, and they'll stop receiving notification emails. You can add their own work email afterward.\n\n" +
           "Their personal contact info stays on the roster, editors can now edit it, and it's kept if they're later marked inactive. " +
           "If they've left the newsroom, mark them inactive first instead."
       )

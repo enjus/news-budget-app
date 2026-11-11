@@ -49,7 +49,7 @@ const COPY: Record<Kind, { title: string; description: string; submit: string }>
   contributor: {
     title: "Add contributor",
     description:
-      "A freelancer or other non-staff contributor. Contributors never receive notification emails. Add their phone, email, address and map pin on their roster profile next.",
+      "A freelancer or other non-staff contributor. Contributors never receive notification emails. Add personal contact details and a map pin on their roster profile next.",
     submit: "Add contributor",
   },
 }
@@ -58,11 +58,7 @@ export function AddPersonDialog({ kind, trigger, onCreated }: AddPersonDialogPro
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const copy = COPY[kind]
-  // No email key at all for a contributor: its schema is .strict().
-  const empty: FormValues =
-    kind === "staff"
-      ? { name: "", email: "", defaultRole: "OTHER" }
-      : { name: "", defaultRole: "OTHER" }
+  const empty: FormValues = { name: "", email: "", defaultRole: "OTHER" }
 
   const {
     register,
@@ -83,10 +79,7 @@ export function AddPersonDialog({ kind, trigger, onCreated }: AddPersonDialogPro
 
   async function onSubmit(data: FormValues) {
     try {
-      const body =
-        kind === "staff"
-          ? { kind, name: data.name, email: data.email, defaultRole: data.defaultRole }
-          : { kind, name: data.name, defaultRole: data.defaultRole }
+      const body = { kind, name: data.name, email: data.email, defaultRole: data.defaultRole }
       const res = await fetch(apiPath("/api/people"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -135,19 +128,27 @@ export function AddPersonDialog({ kind, trigger, onCreated }: AddPersonDialogPro
             </p>
           </div>
 
-          {kind === "staff" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ap-email">Work email</Label>
-              <Input
-                id="ap-email"
-                type="email"
-                {...register("email")}
-                placeholder="name@oregonian.com"
-                aria-invalid={!!errors.email}
-              />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="ap-email">
+              Work email
+              {kind === "contributor" && (
+                <span className="font-normal text-muted-foreground"> (optional)</span>
+              )}
+            </Label>
+            <Input
+              id="ap-email"
+              type="email"
+              {...register("email")}
+              placeholder={kind === "staff" ? "name@oregonian.com" : "name@example.com"}
+              aria-invalid={!!errors.email}
+            />
+            {kind === "contributor" && (
+              <p className="text-xs text-muted-foreground">
+                Their own professional address, shown on the roster.
+              </p>
+            )}
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="ap-role">Default Role</Label>

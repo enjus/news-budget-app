@@ -63,12 +63,15 @@ const personEmail = z.preprocess(
 
 const personName = z.string().min(1, "Name is required").max(100);
 
-// Two kinds of Person, created by different people (see POST /api/people):
-//  - staff: admin-only; the work email is the notification address.
-//  - contributor: any content creator; never has a Person.email, since only
-//    staff receive notifications (notifiableEmail()). Their contact details
-//    go on the roster profile (PersonPrivate) instead. .strict() rejects a
-//    stray email rather than silently dropping it.
+// Two kinds of Person, created by different people (see POST /api/people).
+// Both can have a work email (Person.email), shown on the roster beside the
+// work phone:
+//  - staff: admin-only; the work email is required — it's their company
+//    address and where notifications go.
+//  - contributor: any content creator; the work email is optional and is
+//    their own professional address, never a company one. It is never
+//    notified: notifiableEmail() requires isStaff, server-side.
+// .strict() rejects unknown fields rather than silently dropping them.
 export const createStaffSchema = z.object({
   kind: z.literal("staff"),
   name: personName,
@@ -80,6 +83,7 @@ export const createContributorSchema = z
   .object({
     kind: z.literal("contributor"),
     name: personName,
+    email: personEmail,
     defaultRole: PersonRoleEnum.default("OTHER"),
   })
   .strict();
@@ -92,8 +96,7 @@ export const createPersonSchema = z.discriminatedUnion("kind", [
 // Its own object, not createPersonSchema.partial(): Zod v4's .partial() keeps
 // defaults, so a status-only PATCH ({ isActive: false }) used to parse to
 // { defaultRole: "OTHER", ... } and silently reset the person's role. Absent
-// must mean "unchanged". The staff/email invariant (a non-staff Person never
-// has an email) is checked by PATCH /api/people/[id] against the stored row.
+// must mean "unchanged".
 export const updatePersonSchema = z.object({
   name: personName.optional(),
   email: personEmail,
