@@ -76,6 +76,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { onlinePubDate, printPubDate, version: clientVersion, ...rest } = result.data;
 
+    // Email the team only when *this* request asked to ("Save & notify").
+    // The stored notifyTeam column stays true after a notify-save, so keying
+    // off it would re-email on every later PATCH — drag reorders, auto-saved
+    // status toggles, etc.
+    const notifyRequested = rest.notifyTeam === true;
+
     // A pitch (pitchedAt set) has no real slug/budgetLine yet — only
     // send-to-budget rewrites those and clears pitchedAt/expiresAt. Letting a
     // plain PATCH flip onBudget:true here would publish it straight to the
@@ -140,7 +146,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         include: storyInclude,
       });
 
-      if (story?.notifyTeam) {
+      if (story && notifyRequested) {
         notifyStoryTeam(story).catch((error) =>
           console.error("Story notification failed:", error)
         );
@@ -156,7 +162,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       include: storyInclude,
     });
 
-    if (story?.notifyTeam) {
+    if (notifyRequested) {
       notifyStoryTeam(story).catch((error) =>
         console.error("Story notification failed:", error)
       );
