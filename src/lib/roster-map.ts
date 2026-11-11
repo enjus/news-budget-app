@@ -11,6 +11,16 @@ export interface LatLng {
  *  until it has been moved off it. */
 export const OFFICE_LOCATION: LatLng = { latitude: 45.5137, longitude: -122.6774 }
 
+/** The roster map's starting view: the Portland metro, from Felida, WA, in the
+ *  north to Estacada in the south, Hillsboro to Gresham west to east. A fixed
+ *  area rather than a fit to every pin, so one far-flung staffer (Austin, say)
+ *  doesn't zoom the whole map out; "Zoom to everyone" still reaches them.
+ *  [[west, south], [east, north]] as MapLibre expects. */
+export const METRO_BOUNDS: [[number, number], [number, number]] = [
+  [-123.0, 45.21],
+  [-122.3, 45.72],
+]
+
 /** OpenFreeMap vector styles: free, no API key, no limits on storing our own
  *  coordinates. Attribution is required and MapLibre shows it by default. */
 export const MAP_STYLE_LIGHT = "https://tiles.openfreemap.org/styles/positron"
