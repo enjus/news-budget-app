@@ -31,7 +31,6 @@ import {
   classifyContentItems,
 } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
-import { ROSTER_ENABLED } from "@/lib/features"
 
 const PAST_INITIAL_COUNT = 10
 
@@ -184,14 +183,10 @@ export function PersonView({ id }: PersonViewProps) {
               </>
             )}
             <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
-            {ROSTER_ENABLED && (
-              <>
-                <span>·</span>
-                <Link href={`/roster/${person.id}`} className="hover:text-foreground hover:underline">
-                  Roster profile →
-                </Link>
-              </>
-            )}
+            <span>·</span>
+            <Link href={`/roster/${person.id}`} className="hover:text-foreground hover:underline">
+              Roster profile →
+            </Link>
           </div>
         </div>
 

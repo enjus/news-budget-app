@@ -11,7 +11,6 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 
 - **The model trusts users.** Personal contact details sit behind a "Confidential — not for public distribution" reminder (`PrivateReminderDialog`). It is shown the first time a viewer clicks "Show contact details" in a browser session and remembered in `sessionStorage`. It is a client-side courtesy, not an access gate: `GET /api/roster/[id]` returns the details to any session, and acknowledgements are not recorded. You never see the reminder for your own profile.
 - **Entry point.** "Roster" in the account menu (`AccountLinks` in `TopNav.tsx`, shared by the desktop popover and the mobile menu). It is not a section in `src/lib/nav.ts`, the same treatment `/settings` gets. Your own profile is always at `/roster/me` (rendered in place, like `/me` and `/schedule/me`); `/me` and the roster's "My profile" button link there, and `/people/[id]` links across to the matching roster profile.
-- **Dark launch.** All three entry points are hidden until `NEXT_PUBLIC_ROSTER_ENABLED=true` (`ROSTER_ENABLED` in `src/lib/features.ts`). `/roster` and its API work by direct URL regardless, so profiles can be filled in before launch. Flipping the flag is the launch.
 - **Unlinked people.** A Person with no linked User (freelancers, staff whose account isn't linked yet) can only be edited by an admin.
 - **Teams.** The profile lists the person's teams (`TeamMember`), marking team editors. Teams are admin-managed in `/admin/teams`, not part of the editable profile, and the section is omitted when someone is on no team.
 - **Deactivation deletes personal details.** Marking a Person inactive (`PATCH /api/people/[id]` with `isActive: false`) deletes their `PersonPrivate` row in the same transaction, so a former employee's home address and personal phone don't linger. The "Mark inactive" buttons (`usePersonRosterActions`) ask for confirmation first. Reactivating doesn't restore anything; the details have to be re-entered. Public fields (title, pronouns, languages, socials) are kept.
@@ -47,7 +46,7 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 
 ## Nudges (`RosterNudges`)
 
-A banner under the nav on every page, rendered from the root layout. It reads only `GET /api/roster/me/status`, so it never loads anyone's contact details, and it's hidden and makes no request until `ROSTER_ENABLED` is on. There is no email or cron job behind it: someone who doesn't sign in isn't nudged.
+A banner under the nav on every page, rendered from the root layout. It reads only `GET /api/roster/me/status`, so it never loads anyone's contact details. It makes no request for a signed-out visitor. There is no email or cron job behind it: someone who doesn't sign in isn't nudged.
 
 - **Six-month review.** Due when `Person.rosterReviewedAt` is null or at least `ROSTER_REVIEW_MONTHS` old (`isRosterReviewDue()`). Null counts as due, so everyone who hasn't saved their own profile is nudged when the flag flips, and new staff are nudged right away. Saving your own profile or clicking "Still accurate" restarts the clock. An admin's edit doesn't, since it says nothing about whether the person has looked. Only people with a linked `User` and an active `Person` are nudged. The column is on `Person`, not `PersonPrivate`, because the row may not exist and the timestamp isn't personal.
 - **Re-add your pin.** Shown when `PersonPrivate.mapResetAt` is set (see "When the address changes"). "Add me back" goes to the map, "Stay off the map" calls `DELETE /location`, which clears the flag.
@@ -93,7 +92,7 @@ Changing or removing a saved home address takes the person off the map, because 
 - The "Confidential — not for public distribution" reminder (`PrivateReminderDialog`, with an extra line about the map) shows before any pins are fetched. It shares the once-per-browser-session acknowledgement with the profile reminder; Cancel goes back to `/roster`.
 - A filter switches between Staff (default), Contributors, and Everyone (`isStaff`). Staff and contributors are told apart by color **and** fill: filled dots for staff, hollow (outlined) dots for contributors (`STAFF_COLOR`/`CONTRIBUTOR_COLOR`), so the distinction doesn't rely on color alone. They're one GeoJSON `circle` layer, not image markers. Exact-coordinate overlaps are unlikely when pins are approximate, so there is no clustering.
 - Clicking a dot lists who's there in a React-rendered card linking to their profile, not a MapLibre HTML popup, so user-entered names and titles never become HTML.
-- Lives under the `ROSTER_ENABLED` dark launch, linked by a "Map" button on `/roster`. `/roster` belongs to no nav section, so no nav layout is needed.
+- Linked by a "Map" button on `/roster`. `/roster` belongs to no nav section, so no nav layout is needed.
 - Optional later: a "who lives closest" tool working from pin coordinates.
 
 ### Platform

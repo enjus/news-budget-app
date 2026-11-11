@@ -8,7 +8,6 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useRosterStatus } from "@/lib/hooks/useRoster"
 import { apiPath } from "@/lib/api-path"
-import { ROSTER_ENABLED } from "@/lib/features"
 
 type NudgeKind = "review" | "map"
 
@@ -34,15 +33,15 @@ function saveSnooze(kind: NudgeKind) {
 
 /** Sitewide prompts for the signed-in user: review your roster profile every
  *  six months, and re-add yourself to the map after an address change cleared
- *  your pin. Hidden entirely until the roster launches. */
+ *  your pin. */
 export function RosterNudges() {
   const { data: session } = useSession()
   const pathname = usePathname()
-  const { status, mutate } = useRosterStatus(ROSTER_ENABLED && !!session?.user)
+  const { status, mutate } = useRosterStatus(!!session?.user)
   const [hidden, setHidden] = useState<NudgeKind[]>([])
   const [busy, setBusy] = useState(false)
 
-  if (!ROSTER_ENABLED || !status) return null
+  if (!status) return null
 
   const showing = (kind: NudgeKind) => !hidden.includes(kind) && !isSnoozed(kind)
 
