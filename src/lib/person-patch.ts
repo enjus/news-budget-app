@@ -1,9 +1,10 @@
 import type { UpdatePersonInput } from "@/lib/validations"
 
-// The staff/contributor rules for PATCH /api/people/[id], as a pure function
-// so they can be unit-tested (person-patch.test.ts). The route reads the
-// person's state *before* the write (inside its transaction, row locked),
-// calls planPersonPatch(), and then applies the plan.
+// The staff/contributor rules for PATCH /api/people/[id] (admin-only — see
+// the route), as a pure function so they can be unit-tested
+// (person-patch.test.ts). The route reads the person's state *before* the
+// write (inside its transaction, row locked), calls planPersonPatch(), and
+// then applies the plan.
 //
 // Every decision uses the pre-write state: reading it back after the update
 // would let a combined { isStaff: false, isActive: false } skip the
@@ -28,39 +29,15 @@ export type PersonPatchPlan =
     }
   | {
       ok: false
-      status: 400 | 403
+      status: 400
       error: string
       fieldErrors?: Record<string, string[]>
     }
 
 export function planPersonPatch(
   current: PersonBeforePatch,
-  input: UpdatePersonInput,
-  isAdmin: boolean
+  input: UpdatePersonInput
 ): PersonPatchPlan {
-  // Staff/active status are admin-only.
-  if (input.isActive !== undefined && !isAdmin) {
-    return { ok: false, status: 403, error: "Only admins can change active status" }
-  }
-  if (input.isStaff !== undefined && !isAdmin) {
-    return { ok: false, status: 403, error: "Only admins can change staff status" }
-  }
-
-  // A staffer's name, work email (the notification address) and default role
-  // are admin-managed (/admin/people), matching PATCH /api/roster/[id].
-  // Contributors' stay editable by any content creator.
-  if (
-    current.isStaff &&
-    !isAdmin &&
-    (input.name !== undefined || input.email !== undefined || input.defaultRole !== undefined)
-  ) {
-    return {
-      ok: false,
-      status: 403,
-      error: "A staff member's name, work email and default role are managed by admins",
-    }
-  }
-
   // A staffer's work email is their company address, which a contributor
   // never has. So leaving staff clears it unless the same request supplies a
   // replacement (their own professional address). Only on an actual

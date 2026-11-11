@@ -4,8 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
 import type { Prisma } from "@prisma/client";
-import { canCreateContent, canManageRoster, dateOnly, todayString } from "@/lib/utils";
-import { isPlainWorkingSet } from "@/lib/schedule";
+import { canManageRoster, dateOnly, todayString } from "@/lib/utils";
+import { revertShiftWorkingRow } from "@/lib/schedule-queries";
 import { planPersonPatch } from "@/lib/person-patch";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -15,11 +15,10 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * Deletes a person's shifts from tomorrow on — today's and earlier stay as
- * the record of who covered them. Mirrors DELETE /api/schedule/shifts/[id]:
- * when a shift was assigned with writeWorkingRow, a plain "Working"
- * Availability row was written for that date, so it's removed too (only when
- * the day's rows are exactly that plain working set, never a real override).
- * Every upcoming shift of theirs goes, so no other same-day shift remains.
+ * the record of who covered them — and reverts each one's auto-written
+ * "Working" row (revertShiftWorkingRow, shared with DELETE
+ * /api/schedule/shifts/[id]). Every upcoming shift of theirs goes, so no
+ * other same-day shift remains.
  */
 async function removeUpcomingShifts(tx: Prisma.TransactionClient, personId: string) {
   const tomorrow = dateOnly(todayString());
@@ -32,13 +31,7 @@ async function removeUpcomingShifts(tx: Prisma.TransactionClient, personId: stri
   await tx.shiftAssignment.deleteMany({ where: { personId, date: { gte: tomorrow } } });
 
   const dates = [...new Map(shifts.map((s) => [s.date.getTime(), s.date])).values()];
-  const segments = { in: ["FULL_DAY", "MORNING", "AFTERNOON"] };
-  for (const date of dates) {
-    const rows = await tx.availability.findMany({ where: { personId, date, segment: segments } });
-    if (rows.length > 0 && isPlainWorkingSet(rows)) {
-      await tx.availability.deleteMany({ where: { personId, date, segment: segments } });
-    }
-  }
+  for (const date of dates) await revertShiftWorkingRow(tx, personId, date);
 }
 
 /** A rule check that failed inside PATCH's transaction — rolls it back and
@@ -82,8 +75,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    // Person records are admin work (/admin/people): name, work email,
+    // default role, staff/active status. Editors change a contributor's name,
+    // work email and role through their roster profile (PATCH
+    // /api/roster/[id]) instead, so this route has one permission level.
     const session = await getServerSession(authOptions);
-    if (!session?.user || !canCreateContent(session.user.appRole)) {
+    if (!session?.user || !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -107,7 +104,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // row lock (a no-op updateMany on updatedAt), so a concurrent PATCH — or a
     // concurrent PUT /api/roster/[id]/location, which re-checks isActive
     // under the same lock — can't change it between the check and the write.
-    const isAdmin = canManageRoster(session.user.appRole);
     const person = await prisma.$transaction(async (tx) => {
       const { count } = await tx.person.updateMany({ where: { id }, data: { updatedAt: new Date() } });
       if (count === 0) throw new PatchRejected(404, "Person not found");
@@ -116,7 +112,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         select: { isStaff: true, email: true },
       });
 
-      const plan = planPersonPatch(current, result.data, isAdmin);
+      const plan = planPersonPatch(current, result.data);
       if (!plan.ok) throw new PatchRejected(plan.status, plan.error, plan.fieldErrors);
 
       const updated = await tx.person.update({

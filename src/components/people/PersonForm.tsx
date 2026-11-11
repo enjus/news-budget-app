@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useSession } from "next-auth/react"
@@ -80,6 +81,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
 
   async function onSubmit(data: FormValues) {
     try {
+      // Only staff reach this submit; a contributor's fields are edited on the roster.
       const body = { name: data.name, email: data.email, defaultRole: data.defaultRole }
       const res = await fetch(apiPath(`/api/people/${person.id}`), {
         method: "PATCH",
@@ -151,76 +153,82 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="pf-name">Name</Label>
-            <Input
-              id="pf-name"
-              {...register("name")}
-              placeholder="Full name"
-              aria-invalid={!!errors.name}
-            />
-            {errors.name && (
-              <p className="text-xs text-destructive">{errors.name.message}</p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              For a multipart surname (e.g. &ldquo;Van Der Berg&rdquo;), join it
-              with underscores &mdash; &ldquo;Alex Van_Der_Berg&rdquo; &mdash; so it
-              stays together on budget cards. It still displays with spaces
-              everywhere.
-            </p>
-          </div>
-
-          {/* Work email — shown on the roster beside the work phone. Only a
-              staffer's (company) address is notified; see notifiableEmail(). */}
-          <div className="space-y-1.5">
-            <Label htmlFor="pf-email">
-              Work email
-              {!person.isStaff && (
-                <span className="font-normal text-muted-foreground"> (optional)</span>
+          {/* A staffer's name, work email and role are edited here. A
+              contributor's are edited on their roster profile (the one form
+              editors also use), so this dialog only has their status. */}
+          {person.isStaff ? (
+            <>
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pf-name">Name</Label>
+              <Input
+                id="pf-name"
+                {...register("name")}
+                placeholder="Full name"
+                aria-invalid={!!errors.name}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name.message}</p>
               )}
-            </Label>
-            <Input
-              id="pf-email"
-              type="email"
-              {...register("email")}
-              placeholder={person.isStaff ? "name@oregonian.com" : "name@example.com"}
-              aria-invalid={!!errors.email}
-            />
-            <p className="text-xs text-muted-foreground">
-              {person.isStaff
-                ? "Their company address. @-mentions and notification emails go here."
-                : "Their own professional address, shown on the roster. Contributors never receive notification emails."}
-            </p>
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email.message}</p>
-            )}
-          </div>
+              <p className="text-xs text-muted-foreground">
+                For a multipart surname (e.g. &ldquo;Van Der Berg&rdquo;), join it
+                with underscores &mdash; &ldquo;Alex Van_Der_Berg&rdquo; &mdash; so it
+                stays together on budget cards. It still displays with spaces
+                everywhere.
+              </p>
+            </div>
 
-          {/* Default Role */}
-          <div className="space-y-1.5">
-            <Label htmlFor="pf-role">Default Role</Label>
-            <Controller
-              name="defaultRole"
-              control={control}
-              render={({ field }) => (
-                <PersonRoleSelect
-                  id="pf-role"
-                  value={field.value}
-                  onChange={field.onChange}
-                  invalid={!!errors.defaultRole}
-                />
+            {/* Work email — their company address, where notifications go. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pf-email">Work email</Label>
+              <Input
+                id="pf-email"
+                type="email"
+                {...register("email")}
+                placeholder="name@oregonian.com"
+                aria-invalid={!!errors.email}
+              />
+              <p className="text-xs text-muted-foreground">
+                Their company address. @-mentions and notification emails go here.
+              </p>
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
               )}
-            />
-            {errors.defaultRole && (
-              <p className="text-xs text-destructive">{errors.defaultRole.message}</p>
-            )}
-          </div>
+            </div>
+
+            {/* Default Role */}
+            <div className="space-y-1.5">
+              <Label htmlFor="pf-role">Default Role</Label>
+              <Controller
+                name="defaultRole"
+                control={control}
+                render={({ field }) => (
+                  <PersonRoleSelect
+                    id="pf-role"
+                    value={field.value}
+                    onChange={field.onChange}
+                    invalid={!!errors.defaultRole}
+                  />
+                )}
+              />
+              {errors.defaultRole && (
+                <p className="text-xs text-destructive">{errors.defaultRole.message}</p>
+              )}
+            </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Name, work email and default role are edited on their{" "}
+              <Link href={`/roster/${person.id}`} className="underline hover:text-foreground">
+                roster profile
+              </Link>
+              .
+            </p>
+          )}
 
           {/* Staff/active status — each fires its own PATCH immediately (like
               WorkScheduleEditor below) instead of folding into this form's
-              submit, since they're gated by canManageRoster/hasAdminAccess
-              rather than the content-creator floor of the fields above. */}
+              submit, so a status change never saves half-edited fields. */}
           {(canManage || isAdmin) && (
             <div className="space-y-3 border-t pt-4">
               <div className="flex flex-wrap gap-2">
@@ -361,11 +369,13 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
               >
-                Cancel
+                {person.isStaff ? "Cancel" : "Close"}
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
-              </Button>
+              {person.isStaff && (
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </Button>
+              )}
             </div>
           </DialogFooter>
         </form>
