@@ -1,13 +1,13 @@
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useMyTeams } from "@/lib/hooks/useTeams"
+import { useMyTeamsSummary } from "@/lib/hooks/useTeams"
 import { navSections, sectionForPath } from "@/lib/nav"
 
 /** Nav sections for the current viewer, plus which one owns the current path. */
 export function useNav() {
   const pathname = usePathname()
   const { data: session } = useSession()
-  const { teams } = useMyTeams()
+  const { teams } = useMyTeamsSummary()
 
   const sections = navSections({
     appRole: session?.user?.appRole ?? "",

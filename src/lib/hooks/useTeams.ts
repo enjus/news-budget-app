@@ -16,6 +16,21 @@ export function useMyTeams() {
   }
 }
 
+/** The viewer's teams as `{ id, name }` only (GET /api/teams/my/summary) —
+ *  same scoping as useMyTeams(), without members. For the nav, which runs on
+ *  every page. */
+export function useMyTeamsSummary() {
+  const { data, isLoading, error } = useSWR<{ teams: { id: string; name: string }[] }>(
+    "/api/teams/my/summary"
+  )
+
+  return {
+    teams: data?.teams ?? [],
+    isLoading,
+    error,
+  }
+}
+
 /** Lean team shape returned by /api/teams — just enough for the reporter-team filter. */
 export interface TeamFilterOption {
   id: string
