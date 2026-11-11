@@ -79,6 +79,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const result = updateRosterProfileSchema.safeParse(await request.json());
     if (!result.success) return validationErrorResponse(result.error);
 
+    // Name, work email and default role are editable here for contributors
+    // only. A staffer's are admin-managed (/admin/people): the email is their
+    // company address and notifications go there.
+    const { name, email, defaultRole } = result.data;
+    if (target.isStaff && (name !== undefined || email !== undefined || defaultRole !== undefined)) {
+      return NextResponse.json(
+        { error: "A staff member's name, work email and default role are managed by admins" },
+        { status: 403 }
+      );
+    }
+
     const { private: privateData, ...publicData } = result.data;
 
     // The form always sends `private`. All-blank means "no contact details":
@@ -125,6 +136,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    if (prismaErrorCode(error) === "P2002") {
+      return NextResponse.json({ error: "A person with that work email already exists" }, { status: 409 });
     }
     console.error("PATCH /api/roster/[id] error:", error);
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });

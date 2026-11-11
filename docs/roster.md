@@ -7,7 +7,7 @@ An internal staff directory: job title, work phone, pronouns, languages spoken, 
 | Who | Can view | Can edit |
 |---|---|---|
 | Any signed-in user | Every active person's roster profile, **including** personal contact details | Their own profile, if their `User` is linked to a `Person` (`User.personId`) |
-| Content creators (`canCreateContent`) | Same | Also any **contributor's** (`isStaff: false`) profile and map pin, plus their name and default role (`PersonForm basicOnly`, via `PATCH /api/people/[id]`) |
+| Content creators (`canCreateContent`) | Same | Also any **contributor's** (`isStaff: false`) profile and map pin, including their name, work email and default role, which the profile form shows only for contributors (`PATCH /api/roster/[id]` refuses those three fields for staff) |
 | ADMIN / LEADERSHIP (`hasAdminAccess`) | Same | Anyone's profile |
 
 - **The model trusts users.** Personal contact details sit behind a "Confidential — not for public distribution" reminder (`PrivateReminderDialog`). It is shown the first time a viewer clicks "Show contact details" in a browser session and remembered in `sessionStorage`. It is a client-side courtesy, not an access gate: `GET /api/roster/[id]` returns the details to any session, and acknowledgements are not recorded. You never see the reminder for your own profile.

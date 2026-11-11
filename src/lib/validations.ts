@@ -161,6 +161,13 @@ export const personPrivateSchema = z.object({
 });
 
 export const updateRosterProfileSchema = z.object({
+  // Contributors only: their record fields, edited in the same form since
+  // most contributors have no login and no admin page is involved. PATCH
+  // /api/roster/[id] rejects these for staff, whose name, company email and
+  // role are admin-managed in /admin/people.
+  name: personName.optional(),
+  email: personEmail,
+  defaultRole: PersonRoleEnum.optional(),
   title: optionalText(100),
   workPhone: phoneField(),
   pronouns: optionalText(40),

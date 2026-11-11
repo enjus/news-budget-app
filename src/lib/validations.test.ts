@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest"
-import { createPersonSchema, rosterLocationSchema, updatePersonSchema } from "@/lib/validations"
+import {
+  createPersonSchema,
+  rosterLocationSchema,
+  updatePersonSchema,
+  updateRosterProfileSchema,
+} from "@/lib/validations"
 
 describe("rosterLocationSchema", () => {
   it("accepts a valid pin", () => {
@@ -69,5 +74,25 @@ describe("createPersonSchema", () => {
 
   it("requires a kind", () => {
     expect(createPersonSchema.safeParse({ name: "No kind" }).success).toBe(false)
+  })
+})
+
+describe("updateRosterProfileSchema contributor record fields", () => {
+  it("leaves name, email and role out when absent (a staffer's form)", () => {
+    const parsed = updateRosterProfileSchema.parse({ title: "Reporter" })
+    expect(parsed.name).toBeUndefined()
+    expect(parsed.email).toBeUndefined()
+    expect(parsed.defaultRole).toBeUndefined()
+  })
+
+  it("accepts them and turns a blank email into null", () => {
+    expect(
+      updateRosterProfileSchema.parse({ name: "Riley Park", email: "", defaultRole: "REPORTER" })
+    ).toMatchObject({ name: "Riley Park", email: null, defaultRole: "REPORTER" })
+  })
+
+  it("rejects a blank name or a bad email", () => {
+    expect(updateRosterProfileSchema.safeParse({ name: "" }).success).toBe(false)
+    expect(updateRosterProfileSchema.safeParse({ email: "nope" }).success).toBe(false)
   })
 })

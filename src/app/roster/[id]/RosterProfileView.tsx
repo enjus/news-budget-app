@@ -18,12 +18,10 @@ import { formatAddressLines, formatPhone } from "@/lib/roster"
 import type { RosterProfile } from "@/types/index"
 import {
   TEAM_MEMBER_ROLE_LABELS,
-  canCreateContent,
   canEditRosterProfile,
   canViewPeople,
   displayName,
 } from "@/lib/utils"
-import { PersonForm } from "@/components/people/PersonForm"
 
 export function RosterProfileView({ id }: { id: string }) {
   const { data: session } = useSession()
@@ -54,10 +52,9 @@ export function RosterProfileView({ id }: { id: string }) {
     )
   }
 
+  // For a contributor this also covers name, work email and default role
+  // (RosterProfileForm); a staffer's are admin-managed in /admin/people.
   const canEdit = canEditRosterProfile(appRole, viewerPersonId, id, profile.isStaff)
-  // Name and default role aren't roster fields; an editor fixes them for a
-  // contributor through PATCH /api/people/[id] (staff: admins, in /admin).
-  const canEditRecord = !profile.isStaff && canCreateContent(appRole)
   const priv = profile.private
   const addressLines = priv ? formatAddressLines(priv) : []
   const hasContact = !!(priv?.personalPhone || priv?.personalEmail || addressLines.length)
@@ -141,37 +138,18 @@ export function RosterProfileView({ id }: { id: string }) {
           )}
         </div>
 
-        {(canEdit || canEditRecord) && (
-          <div className="flex flex-wrap justify-end gap-2">
-            {canEditRecord && (
-              <PersonForm
-                person={profile}
-                basicOnly
-                onSuccess={() => {
-                  mutate()
-                  mutateGlobal("/api/roster")
-                }}
-                trigger={
-                  <Button size="sm" variant="outline">
-                    Edit name &amp; role
-                  </Button>
-                }
-              />
-            )}
-            {canEdit && (
-              <RosterProfileForm
-                profile={profile}
-                isSelf={isSelf}
-                onSaved={onSaved}
-                trigger={
-                  <Button size="sm" variant="outline">
-                    <Pencil className="size-4" />
-                    Edit
-                  </Button>
-                }
-              />
-            )}
-          </div>
+        {canEdit && (
+          <RosterProfileForm
+            profile={profile}
+            isSelf={isSelf}
+            onSaved={onSaved}
+            trigger={
+              <Button size="sm" variant="outline">
+                <Pencil className="size-4" />
+                Edit
+              </Button>
+            }
+          />
         )}
       </div>
 

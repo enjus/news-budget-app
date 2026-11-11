@@ -48,9 +48,6 @@ interface PersonFormProps {
   person: EditablePerson
   onSuccess: () => void
   trigger: React.ReactNode
-  /** Name and default role only — no staff/active toggles, work week, or
-   *  delete. Used outside /admin (an editor fixing a contributor's record). */
-  basicOnly?: boolean
 }
 
 type FormValues = Pick<UpdatePersonInput, "name" | "email" | "defaultRole">
@@ -64,11 +61,11 @@ function defaults(person: EditablePerson): FormValues {
 }
 
 /** Edit an existing Person. New people are created with AddPersonDialog. */
-export function PersonForm({ person, onSuccess, trigger, basicOnly = false }: PersonFormProps) {
+export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
   const { data: session } = useSession()
   const appRole = session?.user?.appRole ?? ""
-  const isAdmin = hasAdminAccess(appRole) && !basicOnly
-  const canManage = canManageRoster(appRole) && !basicOnly
+  const isAdmin = hasAdminAccess(appRole)
+  const canManage = canManageRoster(appRole)
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   // "Add to staff" asks for the work email inline before it saves.
