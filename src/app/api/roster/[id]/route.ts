@@ -58,6 +58,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // Per-user limit before any DB work, so a throttled caller costs nothing.
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
+
     const { id } = await params;
     const target = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
     // A missing person is judged as staff (the strictest case), so a caller
@@ -71,9 +75,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (!target) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
-
-    const limited = checkWriteLimit(session.user.id);
-    if (limited) return limited;
 
     const badType = requireJSON(request);
     if (badType) return badType;

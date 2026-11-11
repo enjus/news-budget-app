@@ -75,7 +75,7 @@ const personName = z.string().min(1, "Name is required").max(100);
 export const createStaffSchema = z.object({
   kind: z.literal("staff"),
   name: personName,
-  email: z.string().trim().email("A work email is required"),
+  email: z.string().trim().min(1, "A work email is required").email("Invalid email address"),
   defaultRole: PersonRoleEnum.default("OTHER"),
 });
 

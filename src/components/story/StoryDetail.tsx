@@ -27,7 +27,7 @@ import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
-import { STORY_STATUS_LABELS, formatPubDate, hasNotifiableTeam } from "@/lib/utils"
+import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -227,7 +227,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           storyId={story.id}
           comments={story.comments}
           onUpdate={onUpdate}
-          hasAssignments={hasNotifiableTeam(story.assignments, story.visuals)}
+          team={story}
           readOnly
         />
 
@@ -365,7 +365,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
-        hasAssignments={hasNotifiableTeam(story.assignments, story.visuals)}
+        team={story}
       />
 
       <Separator />

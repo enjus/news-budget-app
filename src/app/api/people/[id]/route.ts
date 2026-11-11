@@ -3,12 +3,24 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
-import { canCreateContent, canManageRoster } from "@/lib/utils";
+import { canCreateContent, canManageRoster, dateOnly, todayString } from "@/lib/utils";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/** A rule check that failed inside PATCH's transaction — rolls it back and
+ *  becomes this status/message instead of a 500. */
+class PatchRejected extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly fieldErrors?: Record<string, string[]>
+  ) {
+    super(message);
+  }
+}
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
@@ -66,71 +78,64 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
-    // Decisions below depend on whether the person is staff *before* this
-    // write — reading it back after the update would let a combined
+    // Every staff/contributor decision below depends on the person's state
+    // *before* this write, so it's read inside the transaction with the row
+    // locked (SELECT … FOR UPDATE): a concurrent PATCH, or a concurrent PUT
+    // /api/roster/[id]/location (which re-checks isActive under the same
+    // lock), can't change it between the check and the write. Reading it
+    // back after the update instead would let a combined
     // { isStaff: false, isActive: false } skip the staff-only cleanup.
-    const current = await prisma.person.findUnique({
-      where: { id },
-      select: { isStaff: true, email: true },
-    });
-    if (!current) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
-    }
-
-    // A staffer's name, work email (the notification address) and default
-    // role are admin-managed (/admin/people), matching PATCH /api/roster/[id].
-    // Contributors' stay editable by any content creator.
-    const { name, email, defaultRole } = result.data;
-    if (
-      current.isStaff &&
-      !canManageRoster(session.user.appRole) &&
-      (name !== undefined || email !== undefined || defaultRole !== undefined)
-    ) {
-      return NextResponse.json(
-        { error: "A staff member's name, work email and default role are managed by admins" },
-        { status: 403 }
-      );
-    }
-
-    // A staffer's work email is their company address, which a contributor
-    // never has. So leaving staff clears it unless the same request supplies
-    // a replacement (their own professional address). Only on an actual
-    // staff → contributor change: repeating isStaff: false must not wipe a
-    // contributor's own work email.
-    const data = { ...result.data };
-    const leavingStaff = current.isStaff && data.isStaff === false;
-    if (leavingStaff && data.email === undefined) {
-      data.email = null;
-    }
-
-    // Staff must keep a work email — it's where their notifications go.
-    // Checked only when this request sets the email or adds to staff, so an
-    // older staff record with no email can still be deactivated or renamed.
-    const staffAfter = data.isStaff ?? current.isStaff;
-    const emailAfter = data.email !== undefined ? data.email : current.email;
-    const touchesStaffEmail = data.email !== undefined || data.isStaff === true;
-    if (touchesStaffEmail && staffAfter && !emailAfter) {
-      return NextResponse.json(
-        {
-          error: "Staff need a work email",
-          fieldErrors: { email: ["Staff need a work email"] },
-        },
-        { status: 400 }
-      );
-    }
-
-    // Marking a staffer inactive (typically: they've left) deletes their
-    // roster personal contact details (PersonPrivate) in the same transaction
-    // — a former employee's home address and personal phone shouldn't linger.
-    // A contributor's PersonPrivate is kept: it's all the contact info the
-    // newsroom has for them, and freelancers come and go. Not restored on
-    // reactivation; they re-enter it. See docs/roster.md.
-    // Removing someone from staff also deletes their regular work week —
-    // only staff have one (WorkScheduleEditor, the work-schedule API).
-    // Person is updated first so its row lock orders this against a
-    // concurrent PUT /api/roster/[id]/location, which re-checks isActive under
-    // the same lock — the pin can't be re-created after the delete.
+    const isAdmin = canManageRoster(session.user.appRole);
     const person = await prisma.$transaction(async (tx) => {
+      const [current] = await tx.$queryRaw<{ isStaff: boolean; email: string | null }[]>`
+        SELECT "isStaff", "email" FROM "Person" WHERE "id" = ${id} FOR UPDATE`;
+      if (!current) throw new PatchRejected(404, "Person not found");
+
+      // A staffer's name, work email (the notification address) and default
+      // role are admin-managed (/admin/people), matching PATCH
+      // /api/roster/[id]. Contributors' stay editable by any content creator.
+      const { name, email, defaultRole } = result.data;
+      if (
+        current.isStaff &&
+        !isAdmin &&
+        (name !== undefined || email !== undefined || defaultRole !== undefined)
+      ) {
+        throw new PatchRejected(403, "A staff member's name, work email and default role are managed by admins");
+      }
+
+      // A staffer's work email is their company address, which a contributor
+      // never has. So leaving staff clears it unless the same request
+      // supplies a replacement (their own professional address). Only on an
+      // actual staff → contributor change: repeating isStaff: false must not
+      // wipe a contributor's own work email.
+      const data = { ...result.data };
+      const leavingStaff = current.isStaff && data.isStaff === false;
+      const joiningStaff = !current.isStaff && data.isStaff === true;
+      if (leavingStaff && data.email === undefined) {
+        data.email = null;
+      }
+
+      // Staff must keep a work email — it's where their notifications go.
+      // Checked only when this request changes the email or adds to staff,
+      // so an older staff record with no email can still be deactivated or
+      // renamed (PersonForm re-sends the unchanged blank email on save).
+      const emailChanged = data.email !== undefined && data.email !== current.email;
+      const staffAfter = data.isStaff ?? current.isStaff;
+      const emailAfter = data.email !== undefined ? data.email : current.email;
+      if ((emailChanged || joiningStaff) && staffAfter && !emailAfter) {
+        throw new PatchRejected(400, "Staff need a work email", { email: ["Staff need a work email"] });
+      }
+
+      // Marking a staffer inactive (typically: they've left) deletes their
+      // roster personal contact details (PersonPrivate) — a former
+      // employee's home address and personal phone shouldn't linger. A
+      // contributor's PersonPrivate is kept: it's all the contact info the
+      // newsroom has for them, and freelancers come and go. Not restored on
+      // reactivation; they re-enter it. See docs/roster.md.
+      // Leaving staff also deletes their regular work week and their
+      // upcoming shift assignments — only staff have either (the
+      // work-schedule and shifts APIs refuse contributors). Past shifts are
+      // kept as history.
       const updated = await tx.person.update({
         where: { id },
         data,
@@ -150,12 +155,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
       if (leavingStaff) {
         await tx.workSchedule.deleteMany({ where: { personId: id } });
+        await tx.shiftAssignment.deleteMany({
+          where: { personId: id, date: { gte: dateOnly(todayString()) } },
+        });
       }
       return updated;
     });
 
     return NextResponse.json(person);
   } catch (error: unknown) {
+    if (error instanceof PatchRejected) {
+      return NextResponse.json(
+        { error: error.message, ...(error.fieldErrors ? { fieldErrors: error.fieldErrors } : {}) },
+        { status: error.status }
+      );
+    }
     if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }

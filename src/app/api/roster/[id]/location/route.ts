@@ -31,13 +31,16 @@ async function gate(id: string): Promise<Gate> {
   if (!session?.user) {
     return { error: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
   }
+  // Per-user limit before any DB work, so a throttled caller costs nothing.
+  const limited = checkWriteLimit(session.user.id);
+  if (limited) return { error: limited };
+
   const person = await prisma.person.findUnique({
     where: { id },
     select: { isActive: true, isStaff: true },
   });
   // A missing person is judged as staff (the strictest case), so a caller
-  // without permission gets the same 403 for real and made-up ids, and
-  // forbidden attempts don't spend the write budget.
+  // without permission gets the same 403 for real and made-up ids.
   if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, person?.isStaff ?? true)) {
     return {
       error: NextResponse.json(
@@ -49,8 +52,6 @@ async function gate(id: string): Promise<Gate> {
   if (!person) {
     return { error: NextResponse.json({ error: "Person not found" }, { status: 404 }) };
   }
-  const limited = checkWriteLimit(session.user.id);
-  if (limited) return { error: limited };
   if (!person.isActive) return { error: inactiveResponse() };
   return { error: null };
 }

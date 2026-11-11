@@ -72,6 +72,13 @@ describe("createPersonSchema", () => {
     ).toBe(false)
   })
 
+  it("tells a missing staff email apart from a malformed one", () => {
+    const missing = createPersonSchema.safeParse({ kind: "staff", name: "A", email: "" })
+    const malformed = createPersonSchema.safeParse({ kind: "staff", name: "A", email: "jane@" })
+    expect(missing.success || missing.error.issues[0].message).toBe("A work email is required")
+    expect(malformed.success || malformed.error.issues[0].message).toBe("Invalid email address")
+  })
+
   it("requires a kind", () => {
     expect(createPersonSchema.safeParse({ name: "No kind" }).success).toBe(false)
   })

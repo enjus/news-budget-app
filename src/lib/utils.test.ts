@@ -147,4 +147,9 @@ describe("isNotifiablePerson / hasNotifiableTeam", () => {
   it("counts a notifiable visual credit with no assignees", () => {
     expect(hasNotifiableTeam([{ person: contributor }], [{ person: staff }])).toBe(true)
   })
+
+  it("leaves out the poster, case-insensitively, like the server", () => {
+    expect(hasNotifiableTeam([{ person: staff }], [], "A@X.com")).toBe(false)
+    expect(hasNotifiableTeam([{ person: staff }], [], "someone@else.com")).toBe(true)
+  })
 })

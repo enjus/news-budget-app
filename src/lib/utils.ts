@@ -542,13 +542,21 @@ export function isNotifiablePerson(
   return !!person?.email && person.isActive && person.isStaff
 }
 
+export type TeamMember = { person: Parameters<typeof isNotifiablePerson>[0] }
+
 /** Whether "Post and Notify All" would email anyone: an assignee or (on
- *  stories) a visual credit who passes isNotifiablePerson(). */
+ *  stories) a visual credit who passes isNotifiablePerson(), other than the
+ *  poster — createComment() drops the author's own email (compared
+ *  case-insensitively), so pass the viewer's email as `excludeEmail`. */
 export function hasNotifiableTeam(
-  assignments: { person: Parameters<typeof isNotifiablePerson>[0] }[],
-  visuals: { person: Parameters<typeof isNotifiablePerson>[0] }[] = []
+  assignments: TeamMember[],
+  visuals: TeamMember[] = [],
+  excludeEmail?: string | null
 ): boolean {
-  return [...assignments, ...visuals].some((x) => isNotifiablePerson(x.person))
+  const exclude = excludeEmail?.toLowerCase()
+  return [...assignments, ...visuals].some(
+    (x) => isNotifiablePerson(x.person) && x.person!.email!.toLowerCase() !== exclude
+  )
 }
 
 /** Whether the viewer can edit a roster profile (/roster) and map pin: their

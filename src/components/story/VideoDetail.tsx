@@ -24,7 +24,7 @@ import { AssignmentSection } from "./AssignmentSection"
 import { CommentSection } from "./CommentSection"
 import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { differenceInDays } from "date-fns"
-import { STORY_STATUS_LABELS, formatPubDate, hasNotifiableTeam } from "@/lib/utils"
+import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
 import type { VideoWithComments } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -187,7 +187,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           videoId={video.id}
           comments={video.comments}
           onUpdate={onUpdate}
-          hasAssignments={hasNotifiableTeam(video.assignments)}
+          team={video}
           readOnly
         />
       </div>
@@ -321,7 +321,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         videoId={video.id}
         comments={video.comments}
         onUpdate={onUpdate}
-        hasAssignments={hasNotifiableTeam(video.assignments)}
+        team={video}
       />
 
       <Separator />

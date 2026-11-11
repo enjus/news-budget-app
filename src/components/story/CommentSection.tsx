@@ -12,6 +12,8 @@ import {
   formatTimestampPacific,
   formatTimestampPacificLong,
   hasAdminAccess,
+  hasNotifiableTeam,
+  type TeamMember,
 } from "@/lib/utils"
 import { tokenizeCommentBody } from "@/lib/comment-text"
 import type { CommentWithAuthor } from "@/types/index"
@@ -23,12 +25,12 @@ interface CommentSectionProps {
   comments: CommentWithAuthor[]
   onUpdate: () => void
   readOnly?: boolean
-  /** Whether "Post and Notify All" would email anyone — pass
-   *  `hasNotifiableTeam(assignments, visuals)`, the same rule
-   *  `collectEmails()` applies server-side (active staff only). Without a
-   *  notifiable person the button would post and silently notify nobody, so
-   *  it's hidden rather than disabled when false. Defaults true. */
-  hasAssignments?: boolean
+  /** The item's team, for deciding whether "Post and Notify All" would email
+   *  anyone: `hasNotifiableTeam()` applies the server's rule (active staff
+   *  only, minus the poster). Without a notifiable person the button would
+   *  post and silently notify nobody, so it's hidden rather than disabled.
+   *  Videos have no visuals. */
+  team: { assignments: TeamMember[]; visuals?: TeamMember[] }
 }
 
 export function CommentSection({
@@ -37,9 +39,10 @@ export function CommentSection({
   comments,
   onUpdate,
   readOnly,
-  hasAssignments = true,
+  team,
 }: CommentSectionProps) {
   const { data: session } = useSession()
+  const hasAssignments = hasNotifiableTeam(team.assignments, team.visuals, session?.user?.email)
 
   const [body, setBody] = useState("")
   const [mentionIds, setMentionIds] = useState<string[]>([])

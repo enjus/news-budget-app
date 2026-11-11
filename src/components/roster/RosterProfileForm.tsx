@@ -119,9 +119,12 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
       mutateGlobal(ROSTER_STATUS_KEY)
       mutateGlobal("/api/roster/map")
       // A contributor's name, work email or role may have changed: refresh
-      // every usePeople() list (pickers, mentions, /admin/people) too.
+      // the usePeople() lists (pickers, mentions, /admin/people) — exactly
+      // their keys, not every /api/people/[id]/… cache.
       if (!profile.isStaff) {
-        mutateGlobal((key) => typeof key === "string" && key.startsWith("/api/people"))
+        mutateGlobal(
+          (key) => key === "/api/people" || (typeof key === "string" && key.startsWith("/api/people?"))
+        )
       }
       setOpen(false)
     } catch (err: unknown) {
