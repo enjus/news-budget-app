@@ -136,7 +136,7 @@ export function RosterProfileView({ id }: { id: string }) {
           )}
           {canViewPeople(appRole) && (
             <Link href={`/people/${profile.id}`} className="text-xs text-muted-foreground hover:underline">
-              View assignments →
+              Work →
             </Link>
           )}
         </div>

@@ -139,18 +139,18 @@ export function PersonView({ id }: PersonViewProps) {
     <div className="space-y-6">
       {/* Back */}
       <Link
-        href="/people"
+        href={`/roster/${id}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
-        People
+        Roster profile
       </Link>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{displayName(person.name)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{displayName(person.name)}&rsquo;s work</h1>
             {!person.isActive && (
               <Badge variant="outline" className="text-muted-foreground">
                 Inactive
@@ -175,10 +175,6 @@ export function PersonView({ id }: PersonViewProps) {
               </>
             )}
             <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
-            <span>·</span>
-            <Link href={`/roster/${person.id}`} className="hover:text-foreground hover:underline">
-              Roster profile →
-            </Link>
           </div>
         </div>
       </div>
