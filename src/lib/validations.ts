@@ -56,8 +56,10 @@ const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
 // Blank string (from a form) becomes null, not undefined, so clearing an
 // existing email on PATCH actually clears it instead of being dropped as
 // "field not present" by JSON.stringify.
+// Trimmed first, so a pasted address with stray spaces validates the same on
+// edit as on create (createStaffSchema trims too).
 const personEmail = z.preprocess(
-  (val) => (typeof val === "string" && val.trim() === "" ? null : val),
+  (val) => (typeof val === "string" ? (val.trim() === "" ? null : val.trim()) : val),
   z.string().email("Invalid email address").nullable().optional()
 );
 

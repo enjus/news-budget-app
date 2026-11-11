@@ -84,6 +84,13 @@ describe("createPersonSchema", () => {
   })
 })
 
+describe("work email trimming", () => {
+  it("trims a pasted email on edit, like on create", () => {
+    expect(updatePersonSchema.parse({ email: "  jane@oregonian.com " })).toEqual({ email: "jane@oregonian.com" })
+    expect(updatePersonSchema.parse({ email: "   " })).toEqual({ email: null })
+  })
+})
+
 describe("updateRosterProfileSchema contributor record fields", () => {
   it("leaves name, email and role out when absent (a staffer's form)", () => {
     const parsed = updateRosterProfileSchema.parse({ title: "Reporter" })

@@ -3,12 +3,43 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
+import type { Prisma } from "@prisma/client";
 import { canCreateContent, canManageRoster, dateOnly, todayString } from "@/lib/utils";
+import { isPlainWorkingSet } from "@/lib/schedule";
+import { planPersonPatch } from "@/lib/person-patch";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/**
+ * Deletes a person's shifts from tomorrow on — today's and earlier stay as
+ * the record of who covered them. Mirrors DELETE /api/schedule/shifts/[id]:
+ * when a shift was assigned with writeWorkingRow, a plain "Working"
+ * Availability row was written for that date, so it's removed too (only when
+ * the day's rows are exactly that plain working set, never a real override).
+ * Every upcoming shift of theirs goes, so no other same-day shift remains.
+ */
+async function removeUpcomingShifts(tx: Prisma.TransactionClient, personId: string) {
+  const tomorrow = dateOnly(todayString());
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const shifts = await tx.shiftAssignment.findMany({
+    where: { personId, date: { gte: tomorrow } },
+    select: { date: true },
+  });
+  if (shifts.length === 0) return;
+  await tx.shiftAssignment.deleteMany({ where: { personId, date: { gte: tomorrow } } });
+
+  const dates = [...new Map(shifts.map((s) => [s.date.getTime(), s.date])).values()];
+  const segments = { in: ["FULL_DAY", "MORNING", "AFTERNOON"] };
+  for (const date of dates) {
+    const rows = await tx.availability.findMany({ where: { personId, date, segment: segments } });
+    if (rows.length > 0 && isPlainWorkingSet(rows)) {
+      await tx.availability.deleteMany({ where: { personId, date, segment: segments } });
+    }
+  }
+}
 
 /** A rule check that failed inside PATCH's transaction — rolls it back and
  *  becomes this status/message instead of a 500. */
@@ -70,75 +101,27 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    if (result.data.isActive !== undefined && !canManageRoster(session.user.appRole)) {
-      return NextResponse.json({ error: "Only admins can change active status" }, { status: 403 });
-    }
-
-    if (result.data.isStaff !== undefined && !canManageRoster(session.user.appRole)) {
-      return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
-    }
-
-    // Every staff/contributor decision below depends on the person's state
-    // *before* this write, so it's read inside the transaction with the row
-    // locked (SELECT … FOR UPDATE): a concurrent PATCH, or a concurrent PUT
-    // /api/roster/[id]/location (which re-checks isActive under the same
-    // lock), can't change it between the check and the write. Reading it
-    // back after the update instead would let a combined
-    // { isStaff: false, isActive: false } skip the staff-only cleanup.
+    // The staff/contributor rules live in planPersonPatch() (unit-tested in
+    // person-patch.test.ts); they're applied to the person's state *before*
+    // this write. That state is read inside the transaction after taking the
+    // row lock (a no-op updateMany on updatedAt), so a concurrent PATCH — or a
+    // concurrent PUT /api/roster/[id]/location, which re-checks isActive
+    // under the same lock — can't change it between the check and the write.
     const isAdmin = canManageRoster(session.user.appRole);
     const person = await prisma.$transaction(async (tx) => {
-      const [current] = await tx.$queryRaw<{ isStaff: boolean; email: string | null }[]>`
-        SELECT "isStaff", "email" FROM "Person" WHERE "id" = ${id} FOR UPDATE`;
-      if (!current) throw new PatchRejected(404, "Person not found");
+      const { count } = await tx.person.updateMany({ where: { id }, data: { updatedAt: new Date() } });
+      if (count === 0) throw new PatchRejected(404, "Person not found");
+      const current = await tx.person.findUniqueOrThrow({
+        where: { id },
+        select: { isStaff: true, email: true },
+      });
 
-      // A staffer's name, work email (the notification address) and default
-      // role are admin-managed (/admin/people), matching PATCH
-      // /api/roster/[id]. Contributors' stay editable by any content creator.
-      const { name, email, defaultRole } = result.data;
-      if (
-        current.isStaff &&
-        !isAdmin &&
-        (name !== undefined || email !== undefined || defaultRole !== undefined)
-      ) {
-        throw new PatchRejected(403, "A staff member's name, work email and default role are managed by admins");
-      }
+      const plan = planPersonPatch(current, result.data, isAdmin);
+      if (!plan.ok) throw new PatchRejected(plan.status, plan.error, plan.fieldErrors);
 
-      // A staffer's work email is their company address, which a contributor
-      // never has. So leaving staff clears it unless the same request
-      // supplies a replacement (their own professional address). Only on an
-      // actual staff → contributor change: repeating isStaff: false must not
-      // wipe a contributor's own work email.
-      const data = { ...result.data };
-      const leavingStaff = current.isStaff && data.isStaff === false;
-      const joiningStaff = !current.isStaff && data.isStaff === true;
-      if (leavingStaff && data.email === undefined) {
-        data.email = null;
-      }
-
-      // Staff must keep a work email — it's where their notifications go.
-      // Checked only when this request changes the email or adds to staff,
-      // so an older staff record with no email can still be deactivated or
-      // renamed (PersonForm re-sends the unchanged blank email on save).
-      const emailChanged = data.email !== undefined && data.email !== current.email;
-      const staffAfter = data.isStaff ?? current.isStaff;
-      const emailAfter = data.email !== undefined ? data.email : current.email;
-      if ((emailChanged || joiningStaff) && staffAfter && !emailAfter) {
-        throw new PatchRejected(400, "Staff need a work email", { email: ["Staff need a work email"] });
-      }
-
-      // Marking a staffer inactive (typically: they've left) deletes their
-      // roster personal contact details (PersonPrivate) — a former
-      // employee's home address and personal phone shouldn't linger. A
-      // contributor's PersonPrivate is kept: it's all the contact info the
-      // newsroom has for them, and freelancers come and go. Not restored on
-      // reactivation; they re-enter it. See docs/roster.md.
-      // Leaving staff also deletes their regular work week and their
-      // upcoming shift assignments — only staff have either (the
-      // work-schedule and shifts APIs refuse contributors). Past shifts are
-      // kept as history.
       const updated = await tx.person.update({
         where: { id },
-        data,
+        data: plan.data,
         include: {
           _count: {
             select: {
@@ -148,16 +131,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           },
         },
       });
-      // Was staff before this write, or still is: a staffer leaving and being
-      // deactivated in one request still loses their personal details.
-      if (data.isActive === false && (current.isStaff || updated.isStaff)) {
+      // A deactivated staffer's personal contact details are deleted; a
+      // contributor's are kept (it's all the contact info the newsroom has
+      // for them). Not restored on reactivation. See docs/roster.md.
+      if (plan.deletePrivate) {
         await tx.personPrivate.deleteMany({ where: { personId: id } });
       }
-      if (leavingStaff) {
+      // Only staff have a regular work week or shifts (the work-schedule and
+      // shifts APIs refuse contributors), so leaving staff removes both.
+      if (plan.leavingStaff) {
         await tx.workSchedule.deleteMany({ where: { personId: id } });
-        await tx.shiftAssignment.deleteMany({
-          where: { personId: id, date: { gte: dateOnly(todayString()) } },
-        });
+        await removeUpcomingShifts(tx, id);
       }
       return updated;
     });
