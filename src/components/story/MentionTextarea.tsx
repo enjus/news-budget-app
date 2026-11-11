@@ -71,8 +71,13 @@ export function MentionTextarea({
     textareaRef.current?.setSelectionRange(caret, caret)
   }, [value])
 
+  // Only staff are offered: contributors never receive mention emails (see
+  // notifiableEmail()). Existing mentions are still checked against the full
+  // list in pruneMentions(), so editing an old comment that tags a
+  // contributor doesn't silently drop the tag.
   const suggestions: Person[] = query
     ? people
+        .filter((p) => p.isStaff)
         .filter((p) => displayName(p.name).toLowerCase().includes(query.text.toLowerCase()))
         .slice(0, MAX_SUGGESTIONS)
     : []

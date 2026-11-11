@@ -200,8 +200,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
               aria-invalid={!!errors.email}
             />
             <p className="text-xs text-muted-foreground">
-              Leave blank for freelancers or others without an account — they won&apos;t receive
-              @-mentions or notification emails.
+              Only staff receive @-mention and notification emails, whatever is entered here.
             </p>
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
