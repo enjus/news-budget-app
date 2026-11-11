@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createPersonSchema } from "@/lib/validations";
-import { canCreateContent } from "@/lib/utils";
+import { canCreateContent, canManageRoster } from "@/lib/utils";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -63,8 +63,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Staff are admin-only (canManageRoster also gates isStaff on PATCH);
+    // contributors can be added by anyone who can create content, and never
+    // get a Person.email — only staff are notified (notifiableEmail()).
+    const { kind, ...fields } = result.data;
+    if (kind === "staff" && !canManageRoster(session.user.appRole)) {
+      return NextResponse.json({ error: "Only admins can add staff" }, { status: 403 });
+    }
+
     const person = await prisma.person.create({
-      data: result.data,
+      data: kind === "staff" ? { ...fields, isStaff: true } : { ...fields, isStaff: false, email: null },
       include: {
         _count: {
           select: {

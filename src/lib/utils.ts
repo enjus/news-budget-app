@@ -533,15 +533,22 @@ export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
 
-/** Whether the viewer can edit a roster profile (/roster): their own linked
- *  Person, or anyone's for admins. Viewing the roster needs only a session.
- *  A Person with no linked User can therefore only be edited by an admin. */
+/** Whether the viewer can edit a roster profile (/roster) and map pin: their
+ *  own linked Person, anyone's for admins, and a contributor's (non-staff)
+ *  for anyone who can create content — contributors mostly have no login,
+ *  so editors keep their contact details. A staffer's profile stays
+ *  self-or-admin. Viewing the roster needs only a session. */
 export function canEditRosterProfile(
   role: string,
   viewerPersonId: string | null | undefined,
-  personId: string
+  personId: string,
+  targetIsStaff: boolean
 ): boolean {
-  return (!!viewerPersonId && viewerPersonId === personId) || hasAdminAccess(role)
+  return (
+    (!!viewerPersonId && viewerPersonId === personId) ||
+    hasAdminAccess(role) ||
+    (!targetIsStaff && canCreateContent(role))
+  )
 }
 
 // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────

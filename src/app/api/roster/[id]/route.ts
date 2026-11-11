@@ -48,7 +48,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// Self-or-admin edit of the roster fields. Public fields update Person;
+// Edit of the roster fields — self, admin, or (for a contributor) any
+// content creator; see canEditRosterProfile(). Public fields update Person;
 // `private`, when present, upserts the PersonPrivate row in the same write.
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
@@ -58,7 +59,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
 
     const { id } = await params;
-    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id)) {
+    const target = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
+    if (!target) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, target.isStaff)) {
       return NextResponse.json(
         { error: "You can only edit your own roster profile" },
         { status: 403 }

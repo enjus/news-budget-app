@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
+import { canEditRosterProfile, classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
 
 function item(overrides: Partial<DatedContentItem> & { slug: string }): DatedContentItem {
   return {
@@ -88,5 +88,35 @@ describe("classifyContentItems", () => {
       TODAY
     )
     expect(tbd.map((i) => i.slug)).toEqual(["APPLE", "ZEBRA"])
+  })
+})
+
+// Roster profile + map pin edit rights: self, admins, and — for contributors
+// only — anyone who can create content.
+describe("canEditRosterProfile", () => {
+  it("lets anyone edit their own profile, staff or not", () => {
+    expect(canEditRosterProfile("VIEWER", "p1", "p1", true)).toBe(true)
+    expect(canEditRosterProfile("PRODUCER", "p1", "p1", false)).toBe(true)
+  })
+
+  it("lets admins edit anyone", () => {
+    expect(canEditRosterProfile("ADMIN", null, "p2", true)).toBe(true)
+    expect(canEditRosterProfile("LEADERSHIP", "p1", "p2", false)).toBe(true)
+  })
+
+  it("lets content creators edit a contributor", () => {
+    expect(canEditRosterProfile("MANAGING_PRODUCER", "p1", "p2", false)).toBe(true)
+    expect(canEditRosterProfile("PRODUCER", null, "p2", false)).toBe(true)
+  })
+
+  it("keeps a staffer's profile self-or-admin", () => {
+    expect(canEditRosterProfile("MANAGING_PRODUCER", "p1", "p2", true)).toBe(false)
+    expect(canEditRosterProfile("PRODUCER", null, "p2", true)).toBe(false)
+  })
+
+  it("never lets a viewer edit someone else", () => {
+    expect(canEditRosterProfile("VIEWER", "p1", "p2", false)).toBe(false)
+    expect(canEditRosterProfile("VIEWER", null, "p2", false)).toBe(false)
+    expect(canEditRosterProfile("VIEWER", undefined, "p2", true)).toBe(false)
   })
 })

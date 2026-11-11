@@ -135,9 +135,13 @@ export async function POST(request: NextRequest) {
 
     const { date, shiftRole, personId, note, writeWorkingRow } = result.data;
 
-    const person = await prisma.person.findUnique({ where: { id: personId }, select: { id: true } });
+    const person = await prisma.person.findUnique({ where: { id: personId }, select: { id: true, isStaff: true } });
     if (!person) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    // The shift picker lists the staff roster only (ROSTER_WHERE); enforce it.
+    if (!person.isStaff) {
+      return NextResponse.json({ error: "Only staff can be assigned a shift" }, { status: 400 });
     }
 
     const dateObj = dateOnly(date);

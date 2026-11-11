@@ -53,28 +53,54 @@ const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
 
 // ─── Person ───────────────────────────────────────────────────────────────────
 
-export const createPersonSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  // Optional — freelancers and other no-login contributors may not have one.
-  // Blank string (from the form) becomes null, not undefined, so clearing an
-  // existing email on PATCH actually clears it instead of being dropped as
-  // "field not present" by JSON.stringify.
-  email: z.preprocess(
-    (val) => (typeof val === "string" && val.trim() === "" ? null : val),
-    z.string().email("Invalid email address").nullable().optional()
-  ),
+// Blank string (from a form) becomes null, not undefined, so clearing an
+// existing email on PATCH actually clears it instead of being dropped as
+// "field not present" by JSON.stringify.
+const personEmail = z.preprocess(
+  (val) => (typeof val === "string" && val.trim() === "" ? null : val),
+  z.string().email("Invalid email address").nullable().optional()
+);
+
+const personName = z.string().min(1, "Name is required").max(100);
+
+// Two kinds of Person, created by different people (see POST /api/people):
+//  - staff: admin-only; the work email is the notification address.
+//  - contributor: any content creator; never has a Person.email, since only
+//    staff receive notifications (notifiableEmail()). Their contact details
+//    go on the roster profile (PersonPrivate) instead. .strict() rejects a
+//    stray email rather than silently dropping it.
+export const createStaffSchema = z.object({
+  kind: z.literal("staff"),
+  name: personName,
+  email: z.string().trim().email("A work email is required"),
   defaultRole: PersonRoleEnum.default("OTHER"),
 });
 
-export const updatePersonSchema = createPersonSchema.partial().extend({
-  // Re-declared without the create schema's .default("OTHER"): Zod v4's
-  // .partial() keeps defaults, so a status-only PATCH ({ isActive: false })
-  // used to parse to { defaultRole: "OTHER", ... } and silently reset the
-  // person's role. Absent must mean "unchanged".
+export const createContributorSchema = z
+  .object({
+    kind: z.literal("contributor"),
+    name: personName,
+    defaultRole: PersonRoleEnum.default("OTHER"),
+  })
+  .strict();
+
+export const createPersonSchema = z.discriminatedUnion("kind", [
+  createStaffSchema,
+  createContributorSchema,
+]);
+
+// Its own object, not createPersonSchema.partial(): Zod v4's .partial() keeps
+// defaults, so a status-only PATCH ({ isActive: false }) used to parse to
+// { defaultRole: "OTHER", ... } and silently reset the person's role. Absent
+// must mean "unchanged". The staff/email invariant (a non-staff Person never
+// has an email) is checked by PATCH /api/people/[id] against the stored row.
+export const updatePersonSchema = z.object({
+  name: personName.optional(),
+  email: personEmail,
   defaultRole: PersonRoleEnum.optional(),
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
-  // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
+  // Set by the kind at creation. Gated to canManageRoster at the API layer.
   isStaff: z.boolean().optional(),
 });
 

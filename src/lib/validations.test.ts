@@ -32,6 +32,29 @@ describe("updatePersonSchema", () => {
   })
 
   it("keeps the OTHER default when creating", () => {
-    expect(createPersonSchema.parse({ name: "New Person" }).defaultRole).toBe("OTHER")
+    expect(createPersonSchema.parse({ kind: "contributor", name: "New Person" }).defaultRole).toBe("OTHER")
+  })
+})
+
+describe("createPersonSchema", () => {
+  it("requires a work email for staff", () => {
+    expect(createPersonSchema.safeParse({ kind: "staff", name: "A" }).success).toBe(false)
+    expect(createPersonSchema.safeParse({ kind: "staff", name: "A", email: "" }).success).toBe(false)
+    expect(createPersonSchema.parse({ kind: "staff", name: "A", email: "a@x.com" })).toEqual({
+      kind: "staff",
+      name: "A",
+      email: "a@x.com",
+      defaultRole: "OTHER",
+    })
+  })
+
+  it("rejects an email on a contributor", () => {
+    expect(
+      createPersonSchema.safeParse({ kind: "contributor", name: "C", email: "c@x.com" }).success
+    ).toBe(false)
+  })
+
+  it("requires a kind", () => {
+    expect(createPersonSchema.safeParse({ name: "No kind" }).success).toBe(false)
   })
 })

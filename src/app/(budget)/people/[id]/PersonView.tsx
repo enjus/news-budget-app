@@ -2,11 +2,9 @@
 
 import { useState } from "react"
 import { apiPath } from "@/lib/api-path"
-import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import Link from "next/link"
 import useSWR from "swr"
-import { useSession } from "next-auth/react"
-import { ArrowLeft, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
+import { ArrowLeft, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,8 +21,6 @@ import { ContentRow } from "@/components/budget/ContentItemRow"
 import {
   PERSON_ROLE_LABELS,
   STORY_STATUS_LABELS,
-  hasAdminAccess,
-  canManageRoster,
   displayName,
   todayString,
   itemDateStr,
@@ -63,9 +59,6 @@ interface PersonData {
 const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 export function PersonView({ id }: PersonViewProps) {
-  const { data: session } = useSession()
-  const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
-  const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
@@ -76,11 +69,10 @@ export function PersonView({ id }: PersonViewProps) {
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
 
-  const { data, isLoading, error, mutate } = useSWR<PersonData>(
+  const { data, isLoading, error } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
-  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(id, mutate)
 
   if (error || (data && !data.items)) {
     return (
@@ -188,41 +180,6 @@ export function PersonView({ id }: PersonViewProps) {
               Roster profile →
             </Link>
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={togglingStaff}
-              onClick={() => toggleStaff(person.isStaff)}
-            >
-              <Briefcase className="size-4" />
-              {person.isStaff ? "Remove from staff" : "Add to staff"}
-            </Button>
-          )}
-
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={togglingActive}
-              onClick={() => toggleActive(person.isActive)}
-            >
-              {person.isActive ? (
-                <>
-                  <UserX className="size-4" />
-                  Mark inactive
-                </>
-              ) : (
-                <>
-                  <UserCheck className="size-4" />
-                  Mark active
-                </>
-              )}
-            </Button>
-          )}
         </div>
       </div>
 

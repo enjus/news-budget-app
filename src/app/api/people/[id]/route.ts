@@ -66,17 +66,43 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
-    // Marking someone inactive (typically: they've left) deletes their roster
-    // personal contact details (PersonPrivate) in the same transaction — a
-    // former employee's home address and personal phone shouldn't linger.
-    // Not restored on reactivation; they re-enter it. See docs/roster.md.
+    // Only staff have a work email (the notification address). Removing
+    // someone from staff clears it; otherwise the stored row decides whether
+    // an email may be set. Checked against the stored row before the write.
+    const data = { ...result.data };
+    if (data.isStaff === false) {
+      data.email = null;
+    } else if (data.email && data.isStaff !== true) {
+      const current = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
+      if (!current) {
+        return NextResponse.json({ error: "Person not found" }, { status: 404 });
+      }
+      if (!current.isStaff) {
+        return NextResponse.json(
+          {
+            error: "Validation failed",
+            fieldErrors: { email: ["Only staff have a work email — add contact details on their roster profile"] },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Marking a staffer inactive (typically: they've left) deletes their
+    // roster personal contact details (PersonPrivate) in the same transaction
+    // — a former employee's home address and personal phone shouldn't linger.
+    // A contributor's PersonPrivate is kept: it's all the contact info the
+    // newsroom has for them, and freelancers come and go. Not restored on
+    // reactivation; they re-enter it. See docs/roster.md.
+    // Removing someone from staff also deletes their regular work week —
+    // only staff have one (WorkScheduleEditor, the work-schedule API).
     // Person is updated first so its row lock orders this against a
     // concurrent PUT /api/roster/[id]/location, which re-checks isActive under
     // the same lock — the pin can't be re-created after the delete.
     const person = await prisma.$transaction(async (tx) => {
       const updated = await tx.person.update({
         where: { id },
-        data: result.data,
+        data,
         include: {
           _count: {
             select: {
@@ -86,8 +112,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           },
         },
       });
-      if (result.data.isActive === false) {
+      if (data.isActive === false && updated.isStaff) {
         await tx.personPrivate.deleteMany({ where: { personId: id } });
+      }
+      if (data.isStaff === false) {
+        await tx.workSchedule.deleteMany({ where: { personId: id } });
       }
       return updated;
     });

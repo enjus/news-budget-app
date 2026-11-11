@@ -28,53 +28,55 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  createPersonSchema,
-  type CreatePersonInput,
-} from "@/lib/validations"
-import { PERSON_ROLE_LABELS, hasAdminAccess, canManageRoster, displayName } from "@/lib/utils"
-import type { PersonWithCounts } from "@/types/index"
+import { updatePersonSchema, type UpdatePersonInput } from "@/lib/validations"
+import { hasAdminAccess, canManageRoster, displayName } from "@/lib/utils"
+import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
+import { PersonRoleSelect } from "./PersonRoleSelect"
 import { WorkScheduleEditor } from "./WorkScheduleEditor"
 
-const ROLE_OPTIONS = [
-  "REPORTER",
-  "EDITOR",
-  "PHOTOGRAPHER",
-  "VIDEOGRAPHER",
-  "GRAPHIC_DESIGNER",
-  "PUBLICATION_DESIGNER",
-  "OTHER",
-] as const
-
-interface PersonFormProps {
-  person?: PersonWithCounts
-  onSuccess: () => void
-  trigger: React.ReactNode
+/** The fields PersonForm edits or reads. */
+export type EditablePerson = Pick<
+  Person,
+  "id" | "name" | "email" | "defaultRole" | "isStaff" | "isActive"
+> & {
+  _count?: { assignments: number; videoAssignments: number }
 }
 
-export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
+interface PersonFormProps {
+  person: EditablePerson
+  onSuccess: () => void
+  trigger: React.ReactNode
+  /** Name and default role only — no staff/active toggles, work week, or
+   *  delete. Used outside /admin (an editor fixing a contributor's record). */
+  basicOnly?: boolean
+}
+
+type FormValues = Pick<UpdatePersonInput, "name" | "email" | "defaultRole">
+
+function defaults(person: EditablePerson): FormValues {
+  return {
+    name: person.name,
+    email: person.email ?? "",
+    defaultRole: person.defaultRole as FormValues["defaultRole"],
+  }
+}
+
+/** Edit an existing Person. New people are created with AddPersonDialog. */
+export function PersonForm({ person, onSuccess, trigger, basicOnly = false }: PersonFormProps) {
   const { data: session } = useSession()
-  const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
-  const canManage = canManageRoster(session?.user?.appRole ?? "")
+  const appRole = session?.user?.appRole ?? ""
+  const isAdmin = hasAdminAccess(appRole) && !basicOnly
+  const canManage = canManageRoster(appRole) && !basicOnly
   const [open, setOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const isEdit = !!person
-  const assignmentCount = person
-    ? (person._count?.assignments ?? 0) + (person._count?.videoAssignments ?? 0)
-    : 0
-  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(
-    person?.id ?? "",
-    onSuccess
-  )
+  // "Add to staff" asks for the work email inline before it saves.
+  const [staffEmail, setStaffEmail] = useState<string | null>(null)
+  const assignmentCount =
+    (person._count?.assignments ?? 0) + (person._count?.videoAssignments ?? 0)
+  const { togglingActive, togglingStaff, toggleActive, removeFromStaff, addToStaff } =
+    usePersonRosterActions(person.id, onSuccess)
 
   const {
     register,
@@ -82,32 +84,26 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
     control,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreatePersonInput>({
+  } = useForm<FormValues>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(createPersonSchema) as any,
-    defaultValues: person
-      ? {
-          name: person.name,
-          email: person.email ?? "",
-          defaultRole: person.defaultRole as CreatePersonInput["defaultRole"],
-        }
-      : {
-          name: "",
-          email: "",
-          defaultRole: "OTHER",
-        },
+    resolver: zodResolver(updatePersonSchema) as any,
+    defaultValues: defaults(person),
   })
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function onSubmit(data: any) {
+  async function onSubmit(data: FormValues) {
     try {
-      const url = apiPath(isEdit ? `/api/people/${person!.id}` : "/api/people")
-      const method = isEdit ? "PATCH" : "POST"
-
-      const res = await fetch(url, {
-        method,
+      // Only staff have a work email. A contributor's is left out of the
+      // body entirely, so a stale Person.email (preview/seed data) can't
+      // trip the server's "non-staff can't have an email" check.
+      const body = {
+        name: data.name,
+        defaultRole: data.defaultRole,
+        ...(person.isStaff ? { email: data.email } : {}),
+      }
+      const res = await fetch(apiPath(`/api/people/${person.id}`), {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
@@ -115,9 +111,8 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
         throw new Error(json?.error ?? `Request failed (${res.status})`)
       }
 
-      toast.success(isEdit ? "Person updated" : "Person created")
+      toast.success("Person updated")
       setOpen(false)
-      reset()
       onSuccess()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
@@ -125,7 +120,6 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
   }
 
   async function handleDelete() {
-    if (!person) return
     setDeleting(true)
     try {
       const res = await fetch(apiPath(`/api/people/${person.id}`), { method: "DELETE" })
@@ -143,18 +137,27 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
     }
   }
 
+  async function handleRemoveFromStaff() {
+    if (await removeFromStaff()) setOpen(false)
+  }
+
+  async function handleAddToStaff() {
+    const email = staffEmail?.trim() ?? ""
+    if (!email) {
+      toast.error("Enter their work email")
+      return
+    }
+    if (await addToStaff(email)) {
+      setStaffEmail(null)
+      setOpen(false)
+    }
+  }
+
   function handleOpenChange(val: boolean) {
     setOpen(val)
     if (!val) {
-      reset(
-        person
-          ? {
-              name: person.name,
-              email: person.email ?? "",
-              defaultRole: person.defaultRole as CreatePersonInput["defaultRole"],
-            }
-          : { name: "", email: "", defaultRole: "OTHER" }
-      )
+      reset(defaults(person))
+      setStaffEmail(null)
     }
   }
 
@@ -163,7 +166,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Person" : "New Person"}</DialogTitle>
+          <DialogTitle>{person.isStaff ? "Edit staff member" : "Edit contributor"}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -187,25 +190,25 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
             </p>
           </div>
 
-          {/* Email */}
-          <div className="space-y-1.5">
-            <Label htmlFor="pf-email">
-              Email <span className="text-muted-foreground font-normal">(optional)</span>
-            </Label>
-            <Input
-              id="pf-email"
-              type="email"
-              {...register("email")}
-              placeholder="email@example.com"
-              aria-invalid={!!errors.email}
-            />
-            <p className="text-xs text-muted-foreground">
-              Only staff receive @-mention and notification emails, whatever is entered here.
-            </p>
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email.message}</p>
-            )}
-          </div>
+          {/* Work email — staff only; it's the notification address. */}
+          {person.isStaff && (
+            <div className="space-y-1.5">
+              <Label htmlFor="pf-email">Work email</Label>
+              <Input
+                id="pf-email"
+                type="email"
+                {...register("email")}
+                placeholder="name@oregonian.com"
+                aria-invalid={!!errors.email}
+              />
+              <p className="text-xs text-muted-foreground">
+                Where @-mentions and notification emails go.
+              </p>
+              {errors.email && (
+                <p className="text-xs text-destructive">{errors.email.message}</p>
+              )}
+            </div>
+          )}
 
           {/* Default Role */}
           <div className="space-y-1.5">
@@ -214,21 +217,12 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
               name="defaultRole"
               control={control}
               render={({ field }) => (
-                <Select
+                <PersonRoleSelect
+                  id="pf-role"
                   value={field.value}
-                  onValueChange={field.onChange}
-                >
-                  <SelectTrigger id="pf-role" aria-invalid={!!errors.defaultRole}>
-                    <SelectValue placeholder="Select a role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLE_OPTIONS.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {PERSON_ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={field.onChange}
+                  invalid={!!errors.defaultRole}
+                />
               )}
             />
             {errors.defaultRole && (
@@ -236,60 +230,103 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
             )}
           </div>
 
-          {/* Roster status — rarely-touched toggles, so they live here
-              rather than as always-visible row icons. Each fires its own
-              PATCH immediately (like WorkScheduleEditor below) instead of
-              folding into this form's submit, since they're gated by a
-              different permission (canManageRoster/hasAdminAccess) than the
-              name/email/role fields anyone with write access can edit. */}
-          {isEdit && (canManage || isAdmin) && (
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              {canManage && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={togglingStaff}
-                  onClick={() => toggleStaff(person!.isStaff)}
-                >
-                  <Briefcase className="size-4" />
-                  {person!.isStaff ? "Remove from staff" : "Add to staff"}
-                </Button>
-              )}
-              {isAdmin && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={togglingActive}
-                  onClick={() => toggleActive(person!.isActive)}
-                >
-                  {person!.isActive ? (
-                    <>
-                      <UserX className="size-4" />
-                      Mark inactive
-                    </>
-                  ) : (
-                    <>
-                      <UserCheck className="size-4" />
-                      Mark active
-                    </>
-                  )}
-                </Button>
+          {/* Staff/active status — each fires its own PATCH immediately (like
+              WorkScheduleEditor below) instead of folding into this form's
+              submit, since they're gated by canManageRoster/hasAdminAccess
+              rather than the content-creator floor of the fields above. */}
+          {(canManage || isAdmin) && (
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex flex-wrap gap-2">
+                {canManage && person.isStaff && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={togglingStaff}
+                    onClick={handleRemoveFromStaff}
+                  >
+                    <Briefcase className="size-4" />
+                    Remove from staff
+                  </Button>
+                )}
+                {canManage && !person.isStaff && staffEmail === null && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setStaffEmail("")}
+                  >
+                    <Briefcase className="size-4" />
+                    Add to staff
+                  </Button>
+                )}
+                {isAdmin && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={togglingActive}
+                    onClick={() => toggleActive(person.isActive, person.isStaff)}
+                  >
+                    {person.isActive ? (
+                      <>
+                        <UserX className="size-4" />
+                        Mark inactive
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="size-4" />
+                        Mark active
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {staffEmail !== null && (
+                <div className="space-y-1.5 rounded-md border p-3">
+                  <Label htmlFor="pf-staff-email">Work email</Label>
+                  <Input
+                    id="pf-staff-email"
+                    type="email"
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    placeholder="name@oregonian.com"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Staff receive @-mentions and notification emails here.
+                  </p>
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={togglingStaff}
+                      onClick={handleAddToStaff}
+                    >
+                      Add to staff
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setStaffEmail(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
           )}
 
-          {/* Regular work week — only for an existing staff member, and only
-              a roster manager can set it (canManageRoster gates the write at
-              the API layer too). Saves independently via its own button;
-              unrelated to this form's own submit. */}
-          {isEdit && person!.isStaff && canManage && (
-            <WorkScheduleEditor personId={person!.id} />
-          )}
+          {/* Regular work week — staff only, set by a roster manager
+              (canManageRoster gates the write at the API layer too). Saves
+              independently via its own button. */}
+          {person.isStaff && canManage && <WorkScheduleEditor personId={person.id} />}
 
           <DialogFooter className="sm:justify-between">
-            {isEdit &&
+            {canManage &&
               (assignmentCount > 0 ? (
                 <Button
                   type="button"
@@ -316,7 +353,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
                   </AlertDialogTrigger>
                   <AlertDialogContent size="sm">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete {displayName(person!.name)}?</AlertDialogTitle>
+                      <AlertDialogTitle>Delete {displayName(person.name)}?</AlertDialogTitle>
                       <AlertDialogDescription>
                         This action cannot be undone. This will permanently delete this person.
                       </AlertDialogDescription>
@@ -340,7 +377,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : isEdit ? "Save Changes" : "Create Person"}
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </DialogFooter>
