@@ -18,10 +18,11 @@ export function useMyTeams() {
 
 /** The viewer's teams as `{ id, name }` only (GET /api/teams/my/summary) —
  *  same scoping as useMyTeams(), without members. For the nav, which runs on
- *  every page. */
-export function useMyTeamsSummary() {
+ *  every page. Pass `false` to skip the fetch (signed out, or a role that
+ *  doesn't see the Team tab). */
+export function useMyTeamsSummary(enabled = true) {
   const { data, isLoading, error } = useSWR<{ teams: { id: string; name: string }[] }>(
-    "/api/teams/my/summary"
+    enabled ? "/api/teams/my/summary" : null
   )
 
   return {
