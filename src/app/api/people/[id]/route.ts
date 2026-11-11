@@ -136,8 +136,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
+    // Record deletion is admin work (/admin/people), like the staff/active toggles.
     const session = await getServerSession(authOptions);
-    if (!session?.user || !canCreateContent(session.user.appRole)) {
+    if (!session?.user || !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 

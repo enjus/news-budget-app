@@ -70,6 +70,7 @@ describe("navSections", () => {
     expect(forRole("PRODUCER").enabled).toBe(false)
     expect(forRole("ADMIN").enabled).toBe(true)
     expect(forRole("ADMIN").inTopBar).toBe(false)
+    expect(forRole("ADMIN").tabs.map((t) => t.label)).toContain("People")
   })
 
   it("shows Me for a viewer with a linked person even without create rights", () => {

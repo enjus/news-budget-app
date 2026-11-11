@@ -107,6 +107,7 @@ const SECTIONS: SectionDef[] = [
     inTopBar: false,
     tabs: () => [
       { label: "Users", href: "/admin/users", match: ["/admin/users"] },
+      { label: "People", href: "/admin/people", match: ["/admin/people"] },
       { label: "Teams", href: "/admin/teams", match: ["/admin/teams"] },
       { label: "Tags", href: "/admin/tags", match: ["/admin/tags"] },
       { label: "Calendar", href: "/admin/calendar", match: ["/admin/calendar"] },
