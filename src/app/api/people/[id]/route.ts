@@ -3,12 +3,48 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
-import { canCreateContent, canManageRoster } from "@/lib/utils";
+import type { Prisma } from "@prisma/client";
+import { canManageRoster, dateOnly, todayString } from "@/lib/utils";
+import { revertShiftWorkingRow } from "@/lib/schedule-queries";
+import { planPersonPatch } from "@/lib/person-patch";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/**
+ * Deletes a person's shifts from tomorrow on — today's and earlier stay as
+ * the record of who covered them — and reverts each one's auto-written
+ * "Working" row (revertShiftWorkingRow, shared with DELETE
+ * /api/schedule/shifts/[id]). Every upcoming shift of theirs goes, so no
+ * other same-day shift remains.
+ */
+async function removeUpcomingShifts(tx: Prisma.TransactionClient, personId: string) {
+  const tomorrow = dateOnly(todayString());
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const shifts = await tx.shiftAssignment.findMany({
+    where: { personId, date: { gte: tomorrow } },
+    select: { date: true },
+  });
+  if (shifts.length === 0) return;
+  await tx.shiftAssignment.deleteMany({ where: { personId, date: { gte: tomorrow } } });
+
+  const dates = [...new Map(shifts.map((s) => [s.date.getTime(), s.date])).values()];
+  for (const date of dates) await revertShiftWorkingRow(tx, personId, date);
+}
+
+/** A rule check that failed inside PATCH's transaction — rolls it back and
+ *  becomes this status/message instead of a 500. */
+class PatchRejected extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly fieldErrors?: Record<string, string[]>
+  ) {
+    super(message);
+  }
+}
 
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
@@ -39,8 +75,12 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    // Person records are admin work (/admin/people): name, work email,
+    // default role, staff/active status. Editors change a contributor's name,
+    // work email and role through their roster profile (PATCH
+    // /api/roster/[id]) instead, so this route has one permission level.
     const session = await getServerSession(authOptions);
-    if (!session?.user || !canCreateContent(session.user.appRole)) {
+    if (!session?.user || !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
@@ -58,25 +98,26 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    if (result.data.isActive !== undefined && !canManageRoster(session.user.appRole)) {
-      return NextResponse.json({ error: "Only admins can change active status" }, { status: 403 });
-    }
-
-    if (result.data.isStaff !== undefined && !canManageRoster(session.user.appRole)) {
-      return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
-    }
-
-    // Marking someone inactive (typically: they've left) deletes their roster
-    // personal contact details (PersonPrivate) in the same transaction — a
-    // former employee's home address and personal phone shouldn't linger.
-    // Not restored on reactivation; they re-enter it. See docs/roster.md.
-    // Person is updated first so its row lock orders this against a
-    // concurrent PUT /api/roster/[id]/location, which re-checks isActive under
-    // the same lock — the pin can't be re-created after the delete.
+    // The staff/contributor rules live in planPersonPatch() (unit-tested in
+    // person-patch.test.ts); they're applied to the person's state *before*
+    // this write. That state is read inside the transaction after taking the
+    // row lock (a no-op updateMany on updatedAt), so a concurrent PATCH — or a
+    // concurrent PUT /api/roster/[id]/location, which re-checks isActive
+    // under the same lock — can't change it between the check and the write.
     const person = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.person.updateMany({ where: { id }, data: { updatedAt: new Date() } });
+      if (count === 0) throw new PatchRejected(404, "Person not found");
+      const current = await tx.person.findUniqueOrThrow({
+        where: { id },
+        select: { isStaff: true, email: true },
+      });
+
+      const plan = planPersonPatch(current, result.data);
+      if (!plan.ok) throw new PatchRejected(plan.status, plan.error, plan.fieldErrors);
+
       const updated = await tx.person.update({
         where: { id },
-        data: result.data,
+        data: plan.data,
         include: {
           _count: {
             select: {
@@ -86,14 +127,29 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           },
         },
       });
-      if (result.data.isActive === false) {
+      // A deactivated staffer's personal contact details are deleted; a
+      // contributor's are kept (it's all the contact info the newsroom has
+      // for them). Not restored on reactivation. See docs/roster.md.
+      if (plan.deletePrivate) {
         await tx.personPrivate.deleteMany({ where: { personId: id } });
+      }
+      // Only staff have a regular work week or shifts (the work-schedule and
+      // shifts APIs refuse contributors), so leaving staff removes both.
+      if (plan.leavingStaff) {
+        await tx.workSchedule.deleteMany({ where: { personId: id } });
+        await removeUpcomingShifts(tx, id);
       }
       return updated;
     });
 
     return NextResponse.json(person);
   } catch (error: unknown) {
+    if (error instanceof PatchRejected) {
+      return NextResponse.json(
+        { error: error.message, ...(error.fieldErrors ? { fieldErrors: error.fieldErrors } : {}) },
+        { status: error.status }
+      );
+    }
     if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
@@ -107,8 +163,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
+    // Record deletion is admin work (/admin/people), like the staff/active toggles.
     const session = await getServerSession(authOptions);
-    if (!session?.user || !canCreateContent(session.user.appRole)) {
+    if (!session?.user || !canManageRoster(session.user.appRole)) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 

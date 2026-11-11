@@ -22,6 +22,9 @@ export const ROSTER_LIST_SELECT = {
 export const ROSTER_PROFILE_SELECT = {
   ...ROSTER_LIST_SELECT,
   isActive: true,
+  // Not displayed (the roster never shows roles); it seeds the "Edit name &
+  // role" form an editor uses on a contributor's profile.
+  defaultRole: true,
   user: { select: { id: true } },
   teamMemberships: {
     select: { role: true, team: { select: { id: true, name: true } } },

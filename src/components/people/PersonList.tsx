@@ -29,7 +29,7 @@ export function PersonList() {
   if (people.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-12 text-center">
-        <p className="text-sm text-muted-foreground">No people yet. Add your first team member.</p>
+        <p className="text-sm text-muted-foreground">No people yet.</p>
       </div>
     )
   }
@@ -67,15 +67,16 @@ export function PersonList() {
             )}
             {person.isStaff && <Badge variant="outline">Staff</Badge>}
             {person.isStaff && person.isActive && !person.user && (
-              <TriangleAlert className="size-3.5 text-muted-foreground" aria-label="No linked account" />
+              <Link href="/admin/users" title="No linked account — link one in Users">
+                <TriangleAlert className="size-3.5 text-muted-foreground" aria-label="No linked account" />
+              </Link>
             )}
           </div>
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center justify-end gap-2">
-            {/* Edit — staff/active toggles and delete live inside the modal now;
-                they're rarely-used actions and don't need to be always-visible
-                row icons. */}
+            {/* Edit — staff/active toggles, work week and delete live inside
+                the modal; they're rarely-used actions. */}
             <PersonForm
               person={person}
               onSuccess={() => mutate()}
@@ -137,7 +138,7 @@ export function PersonList() {
       ) : (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {staffOnly ? "No staff people match." : "No active people. Add your first team member."}
+            {staffOnly ? "No active staff." : "No active people."}
           </p>
         </div>
       )}

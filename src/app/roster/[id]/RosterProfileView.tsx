@@ -16,14 +16,18 @@ import { useRosterProfile } from "@/lib/hooks/useRoster"
 import { LanguageChip } from "@/components/roster/LanguageChip"
 import { formatAddressLines, formatPhone } from "@/lib/roster"
 import type { RosterProfile } from "@/types/index"
-import { TEAM_MEMBER_ROLE_LABELS, canEditRosterProfile, canViewPeople, displayName } from "@/lib/utils"
+import {
+  TEAM_MEMBER_ROLE_LABELS,
+  canEditRosterProfile,
+  canViewPeople,
+  displayName,
+} from "@/lib/utils"
 
 export function RosterProfileView({ id }: { id: string }) {
   const { data: session } = useSession()
   const appRole = session?.user?.appRole ?? ""
   const viewerPersonId = session?.user?.personId
   const isSelf = viewerPersonId === id
-  const canEdit = canEditRosterProfile(appRole, viewerPersonId, id)
 
   const { profile, isLoading, error, mutate } = useRosterProfile(id)
   const [revealed, setRevealed] = useState(false)
@@ -48,6 +52,9 @@ export function RosterProfileView({ id }: { id: string }) {
     )
   }
 
+  // For a contributor this also covers name, work email and default role
+  // (RosterProfileForm); a staffer's are admin-managed in /admin/people.
+  const canEdit = canEditRosterProfile(appRole, viewerPersonId, id, profile.isStaff)
   const priv = profile.private
   const addressLines = priv ? formatAddressLines(priv) : []
   const hasContact = !!(priv?.personalPhone || priv?.personalEmail || addressLines.length)
@@ -126,7 +133,7 @@ export function RosterProfileView({ id }: { id: string }) {
           )}
           {canViewPeople(appRole) && (
             <Link href={`/people/${profile.id}`} className="text-xs text-muted-foreground hover:underline">
-              View assignments →
+              Work →
             </Link>
           )}
         </div>

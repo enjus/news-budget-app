@@ -20,7 +20,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // A person's hand-placed roster map pin (PersonPrivate.latitude/longitude).
 // Its own route rather than part of PATCH /api/roster/[id] so the profile
 // form, which always sends a full `private` object, can never clear it.
-// Same self-or-admin gate as the profile. Inactive people are never mapped.
+// Same gate as the profile (canEditRosterProfile). Inactive people are never mapped.
 
 type Gate =
   | { error: NextResponse }
@@ -31,7 +31,17 @@ async function gate(id: string): Promise<Gate> {
   if (!session?.user) {
     return { error: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
   }
-  if (!canEditRosterProfile(session.user.appRole, session.user.personId, id)) {
+  // Per-user limit before any DB work, so a throttled caller costs nothing.
+  const limited = checkWriteLimit(session.user.id);
+  if (limited) return { error: limited };
+
+  const person = await prisma.person.findUnique({
+    where: { id },
+    select: { isActive: true, isStaff: true },
+  });
+  // A missing person is judged as staff (the strictest case), so a caller
+  // without permission gets the same 403 for real and made-up ids.
+  if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, person?.isStaff ?? true)) {
     return {
       error: NextResponse.json(
         { error: "You can only edit your own map location" },
@@ -39,10 +49,6 @@ async function gate(id: string): Promise<Gate> {
       ),
     };
   }
-  const limited = checkWriteLimit(session.user.id);
-  if (limited) return { error: limited };
-
-  const person = await prisma.person.findUnique({ where: { id }, select: { isActive: true } });
   if (!person) {
     return { error: NextResponse.json({ error: "Person not found" }, { status: 404 }) };
   }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { hasAdminAccess, canViewMyTeams, canCreateContent, canViewPeople } from "@/lib/utils"
+import { hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
 
 // Single source of truth for the two-level nav: TopNav renders the sections,
 // SectionTabNav renders the active section's tabs, and the mobile menu
@@ -64,9 +64,6 @@ const SECTIONS: SectionDef[] = [
       ...(canViewMyTeams(ctx.appRole)
         ? [{ label: ctx.teamsLabel, href: "/teams", match: ["/teams"] }]
         : []),
-      ...(canViewPeople(ctx.appRole)
-        ? [{ label: "People", href: "/people", match: ["/people"] }]
-        : []),
       ...(canCreateContent(ctx.appRole) || ctx.personId
         ? [{ label: "Me", href: "/me", match: ["/me"] }]
         : []),
@@ -107,6 +104,7 @@ const SECTIONS: SectionDef[] = [
     inTopBar: false,
     tabs: () => [
       { label: "Users", href: "/admin/users", match: ["/admin/users"] },
+      { label: "People", href: "/admin/people", match: ["/admin/people"] },
       { label: "Teams", href: "/admin/teams", match: ["/admin/teams"] },
       { label: "Tags", href: "/admin/tags", match: ["/admin/tags"] },
       { label: "Calendar", href: "/admin/calendar", match: ["/admin/calendar"] },

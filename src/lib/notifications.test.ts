@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { truncateAtWord, pitchStatusLine } from "@/lib/notifications"
+import { truncateAtWord, pitchStatusLine, notifiableEmail, collectEmails } from "@/lib/notifications"
 
 const TIP =
   "Tipster says Multnomah County's new shelter on SE 82nd won't open until spring — contractor walked off the job"
@@ -79,5 +79,41 @@ describe("pitchStatusLine", () => {
     expect(
       pitchStatusLine({ ...base, shelved: true, expiresAt: new Date("2026-10-14T19:00:00Z") }, today)
     ).toBe("Shelved · Unclaimed · Expired Wed, Oct 14")
+  })
+})
+
+const staff = (name: string, email: string | null, isActive = true) => ({ name, email, isActive, isStaff: true })
+const contributor = (name: string, email: string | null) => ({ name, email, isActive: true, isStaff: false })
+
+describe("notifiableEmail", () => {
+  it("returns the email of an active staffer", () => {
+    expect(notifiableEmail(staff("A", "a@x.com"))).toBe("a@x.com")
+  })
+
+  it("never emails a contributor, even with an email on file", () => {
+    expect(notifiableEmail(contributor("C", "c@x.com"))).toBeNull()
+  })
+
+  it("never emails an inactive staffer", () => {
+    expect(notifiableEmail(staff("I", "i@x.com", false))).toBeNull()
+  })
+
+  it("returns null with no email or no person", () => {
+    expect(notifiableEmail(staff("N", null))).toBeNull()
+    expect(notifiableEmail(null)).toBeNull()
+  })
+})
+
+describe("collectEmails", () => {
+  it("includes only active staff across assignments and visuals, deduped", () => {
+    const emails = collectEmails(
+      [
+        { person: staff("A", "a@x.com"), role: "REPORTER" },
+        { person: contributor("C", "c@x.com"), role: "PHOTOGRAPHER" },
+        { person: staff("I", "i@x.com", false), role: "EDITOR" },
+      ],
+      [{ person: staff("A", "a@x.com") }, { person: staff("B", "b@x.com") }, { person: null }]
+    )
+    expect(emails).toEqual(["a@x.com", "b@x.com"])
   })
 })

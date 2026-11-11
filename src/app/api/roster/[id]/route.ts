@@ -48,7 +48,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// Self-or-admin edit of the roster fields. Public fields update Person;
+// Edit of the roster fields — self, admin, or (for a contributor) any
+// content creator; see canEditRosterProfile(). Public fields update Person;
 // `private`, when present, upserts the PersonPrivate row in the same write.
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
@@ -57,22 +58,40 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // Per-user limit before any DB work, so a throttled caller costs nothing.
+    const limited = checkWriteLimit(session.user.id);
+    if (limited) return limited;
+
     const { id } = await params;
-    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id)) {
+    const target = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
+    // A missing person is judged as staff (the strictest case), so a caller
+    // without permission gets the same 403 for real and made-up ids.
+    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, target?.isStaff ?? true)) {
       return NextResponse.json(
         { error: "You can only edit your own roster profile" },
         { status: 403 }
       );
     }
-
-    const limited = checkWriteLimit(session.user.id);
-    if (limited) return limited;
+    if (!target) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
 
     const badType = requireJSON(request);
     if (badType) return badType;
 
     const result = updateRosterProfileSchema.safeParse(await request.json());
     if (!result.success) return validationErrorResponse(result.error);
+
+    // Name, work email and default role are editable here for contributors
+    // only. A staffer's are admin-managed (/admin/people): the email is their
+    // company address and notifications go there.
+    const { name, email, defaultRole } = result.data;
+    if (target.isStaff && (name !== undefined || email !== undefined || defaultRole !== undefined)) {
+      return NextResponse.json(
+        { error: "A staff member's name, work email and default role are managed by admins" },
+        { status: 403 }
+      );
+    }
 
     const { private: privateData, ...publicData } = result.data;
 
@@ -120,6 +139,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    if (prismaErrorCode(error) === "P2002") {
+      return NextResponse.json({ error: "A person with that work email already exists" }, { status: 409 });
     }
     console.error("PATCH /api/roster/[id] error:", error);
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });

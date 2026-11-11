@@ -25,7 +25,7 @@ import {
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
-import { ROSTER_ENABLED, VIDEOS_ENABLED } from "@/lib/features"
+import { VIDEOS_ENABLED } from "@/lib/features"
 import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 export function MeView() {
@@ -39,7 +39,7 @@ export function MeView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">Me</h1>
         <div className="flex flex-wrap items-center gap-3">
-          {!ROSTER_ENABLED ? null : myPersonId ? (
+          {myPersonId ? (
             <Link
               href="/roster/me"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

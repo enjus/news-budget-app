@@ -227,7 +227,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           storyId={story.id}
           comments={story.comments}
           onUpdate={onUpdate}
-          hasAssignments={story.assignments.length > 0 || story.visuals.length > 0}
+          team={story}
           readOnly
         />
 
@@ -365,7 +365,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
-        hasAssignments={story.assignments.length > 0}
+        team={story}
       />
 
       <Separator />

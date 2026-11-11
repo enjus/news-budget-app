@@ -21,6 +21,7 @@ import { updateRosterProfileSchema, type UpdateRosterProfileInput } from "@/lib/
 import { addressChanged, formatPhone, type AddressParts } from "@/lib/roster"
 import { ROSTER_LANGUAGE_CODES, type RosterLanguageCode } from "@/lib/languages"
 import { displayName } from "@/lib/utils"
+import { PersonRoleSelect } from "@/components/people/PersonRoleSelect"
 import { apiPath } from "@/lib/api-path"
 import { ROSTER_STATUS_KEY } from "@/lib/hooks/useRoster"
 import type { RosterProfile } from "@/types/index"
@@ -28,8 +29,18 @@ import { LanguagePicker } from "./LanguagePicker"
 
 // Form values are the raw inputs (strings); the schema's transforms normalize
 // handles/phone on submit, and the API re-validates with the same schema.
+// Name, work email and default role are included only for a contributor —
+// for staff the keys are left out entirely, so they're never sent (the API
+// rejects them for staff).
 function toFormValues(p: RosterProfile): UpdateRosterProfileInput {
   return {
+    ...(p.isStaff
+      ? { name: undefined, email: undefined, defaultRole: undefined }
+      : {
+          name: p.name,
+          email: p.email ?? "",
+          defaultRole: p.defaultRole as UpdateRosterProfileInput["defaultRole"],
+        }),
     title: p.title ?? "",
     workPhone: p.workPhone ? formatPhone(p.workPhone) : "",
     pronouns: p.pronouns ?? "",
@@ -63,6 +74,7 @@ interface RosterProfileFormProps {
 
 export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterProfileFormProps) {
   const [open, setOpen] = useState(false)
+  const isContributor = !profile.isStaff
 
   const {
     register,
@@ -106,6 +118,14 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
       onSaved(updated)
       mutateGlobal(ROSTER_STATUS_KEY)
       mutateGlobal("/api/roster/map")
+      // A contributor's name, work email or role may have changed: refresh
+      // the usePeople() lists (pickers, mentions, /admin/people) — exactly
+      // their keys, not every /api/people/[id]/… cache.
+      if (!profile.isStaff) {
+        mutateGlobal(
+          (key) => key === "/api/people" || (typeof key === "string" && key.startsWith("/api/people?"))
+        )
+      }
       setOpen(false)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
@@ -132,6 +152,17 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
           {/* About */}
           <fieldset className="space-y-4">
             <legend className="mb-2 text-sm font-semibold">About</legend>
+            {isContributor && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rp-name">Name</Label>
+                <Input id="rp-name" {...register("name")} aria-invalid={!!errors.name} />
+                {fieldError(errors.name?.message)}
+                <p className="text-xs text-muted-foreground">
+                  Join a multipart surname with underscores (&ldquo;Alex Van_Der_Berg&rdquo;) so it
+                  stays together on budget cards.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="rp-title">Title</Label>
               <Input
@@ -153,6 +184,22 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
               />
               {fieldError(errors.workPhone?.message)}
             </div>
+            {isContributor && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rp-work-email">Work email</Label>
+                <Input
+                  id="rp-work-email"
+                  type="email"
+                  {...register("email")}
+                  placeholder="name@example.com"
+                  aria-invalid={!!errors.email}
+                />
+                {fieldError(errors.email?.message)}
+                <p className="text-xs text-muted-foreground">
+                  Their own professional address. Contributors never receive notification emails.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="rp-pronouns">Pronouns</Label>
               <Input
@@ -178,6 +225,26 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
               />
               {fieldError(errors.languages?.message)}
             </div>
+            {isContributor && (
+              <div className="space-y-1.5">
+                <Label htmlFor="rp-role">Default role</Label>
+                <Controller
+                  name="defaultRole"
+                  control={control}
+                  render={({ field }) => (
+                    <PersonRoleSelect
+                      id="rp-role"
+                      value={field.value}
+                      onChange={field.onChange}
+                      invalid={!!errors.defaultRole}
+                    />
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Pre-selected when they&apos;re assigned to a story. Not shown on the roster.
+                </p>
+              </div>
+            )}
           </fieldset>
 
           {/* Social */}

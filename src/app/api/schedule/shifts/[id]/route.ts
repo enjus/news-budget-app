@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateShiftAssignmentSchema } from "@/lib/validations";
 import { canEditSchedule } from "@/lib/utils";
-import { isPlainWorkingSet } from "@/lib/schedule";
+import { revertShiftWorkingRow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -85,29 +85,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const availabilityReverted = await prisma.$transaction(async (tx) => {
       const deleted = await tx.shiftAssignment.delete({ where: { id } });
-
-      const otherSameDayCount = await tx.shiftAssignment.count({
-        where: { personId: deleted.personId, date: deleted.date, id: { not: id } },
-      });
-      if (otherSameDayCount > 0) return false;
-
-      const existing = await tx.availability.findMany({
-        where: {
-          personId: deleted.personId,
-          date: deleted.date,
-          segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] },
-        },
-      });
-      if (existing.length === 0 || !isPlainWorkingSet(existing)) return false;
-
-      await tx.availability.deleteMany({
-        where: {
-          personId: deleted.personId,
-          date: deleted.date,
-          segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] },
-        },
-      });
-      return true;
+      // The deleted row is gone within this transaction, so the helper's
+      // "other shift that day" count only sees the person's other shifts.
+      return revertShiftWorkingRow(tx, deleted.personId, deleted.date);
     });
 
     return NextResponse.json({ success: true, availabilityReverted });

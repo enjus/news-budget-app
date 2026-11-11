@@ -187,7 +187,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
           videoId={video.id}
           comments={video.comments}
           onUpdate={onUpdate}
-          hasAssignments={video.assignments.length > 0}
+          team={video}
           readOnly
         />
       </div>
@@ -321,7 +321,7 @@ export function VideoDetail({ video, onUpdate, readOnly }: VideoDetailProps) {
         videoId={video.id}
         comments={video.comments}
         onUpdate={onUpdate}
-        hasAssignments={video.assignments.length > 0}
+        team={video}
       />
 
       <Separator />

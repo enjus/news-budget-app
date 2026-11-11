@@ -1,6 +1,6 @@
 import { sendEmail } from "@/lib/email";
 import { linkifyToHtml } from "@/lib/comment-text";
-import { formatDatePacific, pacificDateString, todayString } from "@/lib/utils";
+import { formatDatePacific, isNotifiablePerson, pacificDateString, todayString } from "@/lib/utils";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -10,15 +10,32 @@ const APP_URL =
   process.env.APP_PUBLIC_URL ||
   "https://ornews-advancelocal.msappproxy.net/news-budget";
 
-/** Minimal shape of an assigned person we need for notifications. */
+/** The fields that decide whether a Person can be emailed. */
+export interface NotifiablePerson {
+  email: string | null;
+  isActive: boolean;
+  isStaff: boolean;
+}
 
+/** Minimal shape of an assigned person we need for notifications. */
 export interface AssignedPerson {
-  person: { name: string; email: string | null; isActive: boolean };
+  person: NotifiablePerson & { name: string };
   role: string;
 }
 /** Minimal shape of a visual element's credited person. */
 interface CreditedVisual {
-  person: { name: string; email: string | null; isActive: boolean } | null;
+  person: (NotifiablePerson & { name: string }) | null;
+}
+
+/**
+ * The address to email this person at, or null if they get no email.
+ * Only active staff are notified: a contributor (isStaff: false) never
+ * receives mention, "Notify All", or assignment emails about internal
+ * newsroom discussion, even if a Person.email was saved for them. Every
+ * notification recipient set goes through this one check.
+ */
+export function notifiableEmail(person: NotifiablePerson | null | undefined): string | null {
+  return isNotifiablePerson(person) ? person!.email : null;
 }
 
 interface NotifiableStory {
@@ -270,14 +287,12 @@ export async function notifyCommentTeam(
   });
 }
 
-/** Dedupe + extract valid emails from assignments and (for stories) credited visuals. */
+/** Dedupe + extract notifiable emails (see notifiableEmail) from assignments and (for stories) credited visuals. */
 export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
-  for (const a of assignments) {
-    if (a.person?.email && a.person.isActive) emails.add(a.person.email);
-  }
-  for (const v of visuals) {
-    if (v.person?.email && v.person.isActive) emails.add(v.person.email);
+  for (const p of [...assignments.map((a) => a.person), ...visuals.map((v) => v.person)]) {
+    const email = notifiableEmail(p);
+    if (email) emails.add(email);
   }
   return Array.from(emails);
 }

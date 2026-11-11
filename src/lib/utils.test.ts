@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
+import {
+  canEditRosterProfile,
+  hasNotifiableTeam,
+  isNotifiablePerson,
+  classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
 
 function item(overrides: Partial<DatedContentItem> & { slug: string }): DatedContentItem {
   return {
@@ -88,5 +92,64 @@ describe("classifyContentItems", () => {
       TODAY
     )
     expect(tbd.map((i) => i.slug)).toEqual(["APPLE", "ZEBRA"])
+  })
+})
+
+// Roster profile + map pin edit rights: self, admins, and — for contributors
+// only — anyone who can create content.
+describe("canEditRosterProfile", () => {
+  it("lets anyone edit their own profile, staff or not", () => {
+    expect(canEditRosterProfile("VIEWER", "p1", "p1", true)).toBe(true)
+    expect(canEditRosterProfile("PRODUCER", "p1", "p1", false)).toBe(true)
+  })
+
+  it("lets admins edit anyone", () => {
+    expect(canEditRosterProfile("ADMIN", null, "p2", true)).toBe(true)
+    expect(canEditRosterProfile("LEADERSHIP", "p1", "p2", false)).toBe(true)
+  })
+
+  it("lets content creators edit a contributor", () => {
+    expect(canEditRosterProfile("MANAGING_PRODUCER", "p1", "p2", false)).toBe(true)
+    expect(canEditRosterProfile("PRODUCER", null, "p2", false)).toBe(true)
+  })
+
+  it("keeps a staffer's profile self-or-admin", () => {
+    expect(canEditRosterProfile("MANAGING_PRODUCER", "p1", "p2", true)).toBe(false)
+    expect(canEditRosterProfile("PRODUCER", null, "p2", true)).toBe(false)
+  })
+
+  it("never lets a viewer edit someone else", () => {
+    expect(canEditRosterProfile("VIEWER", "p1", "p2", false)).toBe(false)
+    expect(canEditRosterProfile("VIEWER", null, "p2", false)).toBe(false)
+    expect(canEditRosterProfile("VIEWER", undefined, "p2", true)).toBe(false)
+  })
+})
+
+describe("isNotifiablePerson / hasNotifiableTeam", () => {
+  const staff = { email: "a@x.com", isActive: true, isStaff: true }
+  const contributor = { email: "c@x.com", isActive: true, isStaff: false }
+  const inactive = { email: "i@x.com", isActive: false, isStaff: true }
+  const noEmail = { email: null, isActive: true, isStaff: true }
+
+  it("only active staff with an email are notifiable", () => {
+    expect(isNotifiablePerson(staff)).toBe(true)
+    expect(isNotifiablePerson(contributor)).toBe(false)
+    expect(isNotifiablePerson(inactive)).toBe(false)
+    expect(isNotifiablePerson(noEmail)).toBe(false)
+    expect(isNotifiablePerson(null)).toBe(false)
+  })
+
+  it("hides Notify All for a contributor-only team", () => {
+    expect(hasNotifiableTeam([{ person: contributor }], [{ person: null }])).toBe(false)
+    expect(hasNotifiableTeam([], [])).toBe(false)
+  })
+
+  it("counts a notifiable visual credit with no assignees", () => {
+    expect(hasNotifiableTeam([{ person: contributor }], [{ person: staff }])).toBe(true)
+  })
+
+  it("leaves out the poster, case-insensitively, like the server", () => {
+    expect(hasNotifiableTeam([{ person: staff }], [], "A@X.com")).toBe(false)
+    expect(hasNotifiableTeam([{ person: staff }], [], "someone@else.com")).toBe(true)
   })
 })

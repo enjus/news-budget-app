@@ -7,6 +7,7 @@ import { canCreateContent, displayName } from "@/lib/utils";
 import { checkWriteLimit } from "@/lib/api-helpers";
 import {
   collectEmails,
+  notifiableEmail,
   notifyCommentMention,
   notifyCommentTeam,
   type CommentedItem,
@@ -91,7 +92,7 @@ export async function createComment(
     id: true,
     slug: true,
     budgetLine: true,
-    assignments: { select: { personId: true, role: true, person: { select: { name: true, email: true, isActive: true } } } },
+    assignments: { select: { personId: true, role: true, person: { select: { name: true, email: true, isActive: true, isStaff: true } } } },
   } as const;
 
   // Fetched into separate consts rather than one union-typed `parent` so the
@@ -102,7 +103,7 @@ export async function createComment(
           where: { id: parentId },
           select: {
             ...parentSelect,
-            visuals: { select: { person: { select: { name: true, email: true, isActive: true } } } },
+            visuals: { select: { person: { select: { name: true, email: true, isActive: true, isStaff: true } } } },
             onBudget: true,
             status: true,
             pitchedAt: true,
@@ -127,7 +128,7 @@ export async function createComment(
   const mentioned = mentionIds.length
     ? await prisma.person.findMany({
         where: { id: { in: mentionIds } },
-        select: { id: true, name: true, email: true, isActive: true },
+        select: { id: true, name: true, email: true, isActive: true, isStaff: true },
       })
     : [];
 
@@ -173,16 +174,15 @@ export async function createComment(
   };
   const notification = { item, kind, authorName, body };
 
-  // @-mentioning someone still works and is recorded (CommentMention below)
-  // even if they've since been deactivated — isActive only gates the email,
-  // matching collectEmails()'s team-notify path below so the two recipient
-  // sets stay consistent (see CLAUDE.md's "Inactive people" design decision).
+  // @-mentioning someone is always recorded (CommentMention above), but only
+  // active staff are emailed — notifiableEmail() is the same check
+  // collectEmails() applies to the team-notify path below, so the two
+  // recipient sets stay consistent. A mention of a contributor or an inactive
+  // person is kept rather than rejected: editing an old comment re-sends its
+  // mentionIds, and rejecting them would make that comment uneditable.
   const mentionRecipients = [
     ...new Set(
-      mentioned
-        .filter((p) => p.isActive)
-        .map((p) => p.email)
-        .filter((e): e is string => Boolean(e))
+      mentioned.map(notifiableEmail).filter((e): e is string => Boolean(e))
     ),
   ];
 

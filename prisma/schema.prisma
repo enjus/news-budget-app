@@ -38,23 +38,25 @@ model User {
 model Person {
   id          String   @id @default(cuid())
   name        String
-  // Optional — freelancers and other no-login contributors may not have one.
-  // A missing email just means the person is skipped for @-mentions and
-  // notification recipients (see collectEmails() in notifications.ts).
+  // Work email. Required for staff (their company address, where
+  // notifications go); optional for contributors (their own professional
+  // address, never notified — notifiableEmail() requires isStaff).
   email       String?  @unique
   // PersonRole: REPORTER | EDITOR | PHOTOGRAPHER | GRAPHIC_DESIGNER | PUBLICATION_DESIGNER | OTHER
   defaultRole String   @default("OTHER")
   // Inactive people are hidden from pickers for new assignments/stories but keep
   // their historical assignments, visuals, and comment mentions intact.
   isActive    Boolean  @default(true)
-  // On the newsroom staffing roster — set by hand per person by an admin, no
-  // backfill. Combined with isActive via ROSTER_WHERE (src/lib/utils.ts) for
-  // roster membership. Freelancers stay isActive:true, isStaff:false — still
-  // assignable via PersonPicker/PersonSelect (those filter on isActive only).
+  // Staff vs. contributor, chosen at creation (POST /api/people `kind`) and
+  // changed only by admins. Combined with isActive via ROSTER_WHERE
+  // (src/lib/utils.ts) for schedule/export membership. Contributors stay
+  // isActive:true, isStaff:false — still assignable via PersonPicker/
+  // PersonSelect (those filter on isActive only), never notified.
   isStaff     Boolean  @default(false)
-  // Roster profile (/roster) — visible to every signed-in user. Editable only
-  // by the person themself or an admin, via PATCH /api/roster/[id]; never
-  // through createPersonSchema/updatePersonSchema. See docs/roster.md.
+  // Roster profile (/roster) — visible to every signed-in user. Edited via
+  // PATCH /api/roster/[id] (canEditRosterProfile: self, admin, or any content
+  // creator for a contributor); never through updatePersonSchema. See
+  // docs/roster.md.
   // Free-text job title ("Business Editor", "Oregon Ducks Beat Reporter") —
   // the newsroom-facing job name, which neither appRole nor defaultRole captures.
   title           String?

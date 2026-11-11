@@ -44,9 +44,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    const person = await prisma.person.findUnique({ where: { id }, select: { id: true } });
+    const person = await prisma.person.findUnique({ where: { id }, select: { id: true, isStaff: true } });
     if (!person) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+    // Only staff have a regular work week; contributors aren't on Schedule.
+    if (!person.isStaff) {
+      return NextResponse.json({ error: "Only staff have a regular work week" }, { status: 400 });
     }
 
     const body = await request.json();

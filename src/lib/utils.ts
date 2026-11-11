@@ -528,20 +528,53 @@ export function canCreateContent(role: string): boolean {
   return (CONTENT_CREATOR_ROLES as readonly string[]).includes(role)
 }
 
-/** Whether the People directory (nav item + page) is visible for this role. Hidden from VIEWER and PRODUCER. */
+/** Whether a person's workload page (/people/[id]) and the links to it are shown for this role. Hidden from VIEWER and PRODUCER. */
 export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
 
-/** Whether the viewer can edit a roster profile (/roster): their own linked
- *  Person, or anyone's for admins. Viewing the roster needs only a session.
- *  A Person with no linked User can therefore only be edited by an admin. */
+/** The one notification rule: only active staff with an email are emailed.
+ *  notifiableEmail() (server, src/lib/notifications.ts) and the "Notify All"
+ *  button's visibility both use it, so they can't disagree. */
+export function isNotifiablePerson(
+  person: { email: string | null; isActive: boolean; isStaff: boolean } | null | undefined
+): boolean {
+  return !!person?.email && person.isActive && person.isStaff
+}
+
+export type TeamMember = { person: Parameters<typeof isNotifiablePerson>[0] }
+
+/** Whether "Post and Notify All" would email anyone: an assignee or (on
+ *  stories) a visual credit who passes isNotifiablePerson(), other than the
+ *  poster — createComment() drops the author's own email (compared
+ *  case-insensitively), so pass the viewer's email as `excludeEmail`. */
+export function hasNotifiableTeam(
+  assignments: TeamMember[],
+  visuals: TeamMember[] = [],
+  excludeEmail?: string | null
+): boolean {
+  const exclude = excludeEmail?.toLowerCase()
+  return [...assignments, ...visuals].some(
+    (x) => isNotifiablePerson(x.person) && x.person!.email!.toLowerCase() !== exclude
+  )
+}
+
+/** Whether the viewer can edit a roster profile (/roster) and map pin: their
+ *  own linked Person, anyone's for admins, and a contributor's (non-staff)
+ *  for anyone who can create content — contributors mostly have no login,
+ *  so editors keep their contact details. A staffer's profile stays
+ *  self-or-admin. Viewing the roster needs only a session. */
 export function canEditRosterProfile(
   role: string,
   viewerPersonId: string | null | undefined,
-  personId: string
+  personId: string,
+  targetIsStaff: boolean
 ): boolean {
-  return (!!viewerPersonId && viewerPersonId === personId) || hasAdminAccess(role)
+  return (
+    (!!viewerPersonId && viewerPersonId === personId) ||
+    hasAdminAccess(role) ||
+    (!targetIsStaff && canCreateContent(role))
+  )
 }
 
 // ─── Staffing schedule (Phase 1) ───────────────────────────────────────────
