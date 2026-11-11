@@ -30,29 +30,21 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updatePersonSchema, type UpdatePersonInput } from "@/lib/validations"
 import { hasAdminAccess, canManageRoster, displayName } from "@/lib/utils"
-import type { Person } from "@/types/index"
+import type { PersonWithCounts } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import { PersonRoleSelect } from "./PersonRoleSelect"
 import { WorkScheduleEditor } from "./WorkScheduleEditor"
 
-/** The fields PersonForm edits or reads. */
-export type EditablePerson = Pick<
-  Person,
-  "id" | "name" | "email" | "defaultRole" | "isStaff" | "isActive"
-> & {
-  _count?: { assignments: number; videoAssignments: number }
-}
-
 interface PersonFormProps {
-  person: EditablePerson
+  person: PersonWithCounts
   onSuccess: () => void
   trigger: React.ReactNode
 }
 
 type FormValues = Pick<UpdatePersonInput, "name" | "email" | "defaultRole">
 
-function defaults(person: EditablePerson): FormValues {
+function defaults(person: PersonWithCounts): FormValues {
   return {
     name: person.name,
     email: person.email ?? "",
@@ -70,8 +62,7 @@ export function PersonForm({ person, onSuccess, trigger }: PersonFormProps) {
   const [deleting, setDeleting] = useState(false)
   // "Add to staff" asks for the work email inline before it saves.
   const [staffEmail, setStaffEmail] = useState<string | null>(null)
-  const assignmentCount =
-    (person._count?.assignments ?? 0) + (person._count?.videoAssignments ?? 0)
+  const assignmentCount = person._count.assignments + person._count.videoAssignments
   const { togglingActive, togglingStaff, toggleActive, removeFromStaff, addToStaff } =
     usePersonRosterActions(person.id, onSuccess)
 

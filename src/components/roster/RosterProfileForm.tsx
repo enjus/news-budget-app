@@ -118,6 +118,11 @@ export function RosterProfileForm({ profile, isSelf, onSaved, trigger }: RosterP
       onSaved(updated)
       mutateGlobal(ROSTER_STATUS_KEY)
       mutateGlobal("/api/roster/map")
+      // A contributor's name, work email or role may have changed: refresh
+      // every usePeople() list (pickers, mentions, /admin/people) too.
+      if (!profile.isStaff) {
+        mutateGlobal((key) => typeof key === "string" && key.startsWith("/api/people"))
+      }
       setOpen(false)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")

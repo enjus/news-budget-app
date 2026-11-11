@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { canEditRosterProfile, classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
+import {
+  canEditRosterProfile,
+  hasNotifiableTeam,
+  isNotifiablePerson,
+  classifyContentItems, itemDateStr, type DatedContentItem } from "./utils"
 
 function item(overrides: Partial<DatedContentItem> & { slug: string }): DatedContentItem {
   return {
@@ -118,5 +122,29 @@ describe("canEditRosterProfile", () => {
     expect(canEditRosterProfile("VIEWER", "p1", "p2", false)).toBe(false)
     expect(canEditRosterProfile("VIEWER", null, "p2", false)).toBe(false)
     expect(canEditRosterProfile("VIEWER", undefined, "p2", true)).toBe(false)
+  })
+})
+
+describe("isNotifiablePerson / hasNotifiableTeam", () => {
+  const staff = { email: "a@x.com", isActive: true, isStaff: true }
+  const contributor = { email: "c@x.com", isActive: true, isStaff: false }
+  const inactive = { email: "i@x.com", isActive: false, isStaff: true }
+  const noEmail = { email: null, isActive: true, isStaff: true }
+
+  it("only active staff with an email are notifiable", () => {
+    expect(isNotifiablePerson(staff)).toBe(true)
+    expect(isNotifiablePerson(contributor)).toBe(false)
+    expect(isNotifiablePerson(inactive)).toBe(false)
+    expect(isNotifiablePerson(noEmail)).toBe(false)
+    expect(isNotifiablePerson(null)).toBe(false)
+  })
+
+  it("hides Notify All for a contributor-only team", () => {
+    expect(hasNotifiableTeam([{ person: contributor }], [{ person: null }])).toBe(false)
+    expect(hasNotifiableTeam([], [])).toBe(false)
+  })
+
+  it("counts a notifiable visual credit with no assignees", () => {
+    expect(hasNotifiableTeam([{ person: contributor }], [{ person: staff }])).toBe(true)
   })
 })

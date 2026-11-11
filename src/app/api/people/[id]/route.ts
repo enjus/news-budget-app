@@ -66,12 +66,57 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Only admins can change staff status" }, { status: 403 });
     }
 
+    // Decisions below depend on whether the person is staff *before* this
+    // write — reading it back after the update would let a combined
+    // { isStaff: false, isActive: false } skip the staff-only cleanup.
+    const current = await prisma.person.findUnique({
+      where: { id },
+      select: { isStaff: true, email: true },
+    });
+    if (!current) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    }
+
+    // A staffer's name, work email (the notification address) and default
+    // role are admin-managed (/admin/people), matching PATCH /api/roster/[id].
+    // Contributors' stay editable by any content creator.
+    const { name, email, defaultRole } = result.data;
+    if (
+      current.isStaff &&
+      !canManageRoster(session.user.appRole) &&
+      (name !== undefined || email !== undefined || defaultRole !== undefined)
+    ) {
+      return NextResponse.json(
+        { error: "A staff member's name, work email and default role are managed by admins" },
+        { status: 403 }
+      );
+    }
+
     // A staffer's work email is their company address, which a contributor
-    // never has. So removing someone from staff clears it unless the same
-    // request supplies a replacement (their own professional address).
+    // never has. So leaving staff clears it unless the same request supplies
+    // a replacement (their own professional address). Only on an actual
+    // staff → contributor change: repeating isStaff: false must not wipe a
+    // contributor's own work email.
     const data = { ...result.data };
-    if (data.isStaff === false && data.email === undefined) {
+    const leavingStaff = current.isStaff && data.isStaff === false;
+    if (leavingStaff && data.email === undefined) {
       data.email = null;
+    }
+
+    // Staff must keep a work email — it's where their notifications go.
+    // Checked only when this request sets the email or adds to staff, so an
+    // older staff record with no email can still be deactivated or renamed.
+    const staffAfter = data.isStaff ?? current.isStaff;
+    const emailAfter = data.email !== undefined ? data.email : current.email;
+    const touchesStaffEmail = data.email !== undefined || data.isStaff === true;
+    if (touchesStaffEmail && staffAfter && !emailAfter) {
+      return NextResponse.json(
+        {
+          error: "Staff need a work email",
+          fieldErrors: { email: ["Staff need a work email"] },
+        },
+        { status: 400 }
+      );
     }
 
     // Marking a staffer inactive (typically: they've left) deletes their
@@ -98,10 +143,12 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
           },
         },
       });
-      if (data.isActive === false && updated.isStaff) {
+      // Was staff before this write, or still is: a staffer leaving and being
+      // deactivated in one request still loses their personal details.
+      if (data.isActive === false && (current.isStaff || updated.isStaff)) {
         await tx.personPrivate.deleteMany({ where: { personId: id } });
       }
-      if (data.isStaff === false) {
+      if (leavingStaff) {
         await tx.workSchedule.deleteMany({ where: { personId: id } });
       }
       return updated;

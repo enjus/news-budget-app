@@ -533,6 +533,24 @@ export function canViewPeople(role: string): boolean {
   return hasElevatedAccess(role)
 }
 
+/** The one notification rule: only active staff with an email are emailed.
+ *  notifiableEmail() (server, src/lib/notifications.ts) and the "Notify All"
+ *  button's visibility both use it, so they can't disagree. */
+export function isNotifiablePerson(
+  person: { email: string | null; isActive: boolean; isStaff: boolean } | null | undefined
+): boolean {
+  return !!person?.email && person.isActive && person.isStaff
+}
+
+/** Whether "Post and Notify All" would email anyone: an assignee or (on
+ *  stories) a visual credit who passes isNotifiablePerson(). */
+export function hasNotifiableTeam(
+  assignments: { person: Parameters<typeof isNotifiablePerson>[0] }[],
+  visuals: { person: Parameters<typeof isNotifiablePerson>[0] }[] = []
+): boolean {
+  return [...assignments, ...visuals].some((x) => isNotifiablePerson(x.person))
+}
+
 /** Whether the viewer can edit a roster profile (/roster) and map pin: their
  *  own linked Person, anyone's for admins, and a contributor's (non-staff)
  *  for anyone who can create content — contributors mostly have no login,

@@ -23,13 +23,11 @@ interface CommentSectionProps {
   comments: CommentWithAuthor[]
   onUpdate: () => void
   readOnly?: boolean
-  /** Whether the item has anyone to notify yet — an assignee or, on stories,
-   *  a visual credit (the same roster `collectEmails()` builds server-side).
-   *  "Post and Notify All" emails that roster — with neither, it's empty, so
-   *  the button would post and silently notify nobody. Hidden rather than
-   *  disabled when false. Defaults true so existing callers that don't pass
-   *  it keep today's behavior. Despite the name, pass true if there's a
-   *  visual credit even with zero assignments. */
+  /** Whether "Post and Notify All" would email anyone — pass
+   *  `hasNotifiableTeam(assignments, visuals)`, the same rule
+   *  `collectEmails()` applies server-side (active staff only). Without a
+   *  notifiable person the button would post and silently notify nobody, so
+   *  it's hidden rather than disabled when false. Defaults true. */
   hasAssignments?: boolean
 }
 

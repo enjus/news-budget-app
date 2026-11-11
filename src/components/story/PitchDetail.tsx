@@ -25,7 +25,7 @@ import { PitchExpiryBadge } from "@/components/budget/PitchExpiryBadge"
 import { CommentSection } from "./CommentSection"
 import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { apiPath } from "@/lib/api-path"
-import { displayName, formatTimestampPacific, hasAdminAccess, hasElevatedAccess } from "@/lib/utils"
+import { displayName, formatTimestampPacific, hasAdminAccess, hasElevatedAccess, hasNotifiableTeam } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
 
 interface PitchDetailProps {
@@ -330,7 +330,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
-        hasAssignments={story.assignments.length > 0}
+        hasAssignments={hasNotifiableTeam(story.assignments, story.visuals)}
         readOnly={readOnly}
       />
     </div>

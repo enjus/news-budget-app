@@ -60,14 +60,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
     const target = await prisma.person.findUnique({ where: { id }, select: { isStaff: true } });
-    if (!target) {
-      return NextResponse.json({ error: "Person not found" }, { status: 404 });
-    }
-    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, target.isStaff)) {
+    // A missing person is judged as staff (the strictest case), so a caller
+    // without permission gets the same 403 for real and made-up ids.
+    if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, target?.isStaff ?? true)) {
       return NextResponse.json(
         { error: "You can only edit your own roster profile" },
         { status: 403 }
       );
+    }
+    if (!target) {
+      return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
     const limited = checkWriteLimit(session.user.id);

@@ -1,6 +1,6 @@
 import { sendEmail } from "@/lib/email";
 import { linkifyToHtml } from "@/lib/comment-text";
-import { formatDatePacific, pacificDateString, todayString } from "@/lib/utils";
+import { formatDatePacific, isNotifiablePerson, pacificDateString, todayString } from "@/lib/utils";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -35,8 +35,7 @@ interface CreditedVisual {
  * notification recipient set goes through this one check.
  */
 export function notifiableEmail(person: NotifiablePerson | null | undefined): string | null {
-  if (!person?.email || !person.isActive || !person.isStaff) return null;
-  return person.email;
+  return isNotifiablePerson(person) ? person!.email : null;
 }
 
 interface NotifiableStory {
