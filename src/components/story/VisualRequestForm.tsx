@@ -21,7 +21,7 @@ const TEXTAREA_CLASS =
 
 interface VisualRequestFormProps {
   storyId: string
-  /** Placeholder for the description. */
+  /** No longer read: the description placeholder is a fixed example. Kept so callers needn't change. */
   budgetLine?: string
   /** Prefills the deadline: the story's online pub date (newsroom-time-as-UTC ISO), when it has one. */
   defaultDeadline?: string | null
@@ -50,7 +50,7 @@ function OptionalDateTime({ value, onChange }: { value: string | null; onChange:
  * already in newsroom-time-as-UTC (the same values StoryForm sends for pub dates)
  * and are passed through untouched.
  */
-export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubmitted, onCancel }: VisualRequestFormProps) {
+export function VisualRequestForm({ storyId, defaultDeadline, onSubmitted, onCancel }: VisualRequestFormProps) {
   const { data: session, status: sessionStatus } = useSession()
   const unlinked = sessionStatus === "authenticated" && !session?.user?.personId
 
@@ -108,7 +108,7 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
         </p>
       )}
 
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-wrap items-start gap-3">
         <div className="space-y-1.5">
           <Label>Type</Label>
           <Select value={type} onValueChange={(v) => setType(v as VisualTypeValue)}>
@@ -140,14 +140,15 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
 
         <div className="min-w-[200px] flex-1 space-y-1.5">
           <Label htmlFor="vr-description">What do you need?</Label>
-          <Input
+          <textarea
             id="vr-description"
-            className="h-8"
+            className={TEXTAREA_CLASS}
+            rows={2}
             maxLength={500}
             autoComplete="off"
             required
             aria-required
-            placeholder={budgetLine ? `e.g. ${budgetLine}` : "Describe what you need"}
+            placeholder="e.g. Portrait of the new superintendent for Sunday's story"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
