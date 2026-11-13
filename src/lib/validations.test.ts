@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   createPersonSchema,
+  createVisualSchema,
   requestVisualSchema,
   rosterLocationSchema,
   updatePersonSchema,
@@ -114,7 +115,23 @@ describe("updateRosterProfileSchema contributor record fields", () => {
 })
 
 describe("requestVisualSchema", () => {
-  const base = { status: "REQUESTED", type: "PHOTO" }
+  const base = { status: "REQUESTED", type: "PHOTO", description: "Council chambers exterior" }
+
+  it("requires a non-blank description, trimmed", () => {
+    for (const description of [undefined, null, "", "   ", "\n\t"]) {
+      const r = requestVisualSchema.safeParse({ ...base, description })
+      expect(r.success, `description ${JSON.stringify(description)}`).toBe(false)
+      if (!r.success) expect(r.error.flatten().fieldErrors.description).toBeTruthy()
+    }
+    expect(requestVisualSchema.parse({ ...base, description: "  Mayor at podium  " }).description).toBe("Mayor at podium")
+    expect(requestVisualSchema.safeParse({ ...base, description: "x".repeat(501) }).success).toBe(false)
+  })
+
+  it("leaves plain Add visuals (createVisualSchema) with an optional description", () => {
+    expect(createVisualSchema.safeParse({ type: "PHOTO" }).success).toBe(true)
+    expect(createVisualSchema.safeParse({ type: "PHOTO", description: null }).success).toBe(true)
+    expect(createVisualSchema.safeParse({ type: "PHOTO", description: "" }).success).toBe(true)
+  })
 
   it("defaults priority to NORMAL and nulls an absent link", () => {
     const parsed = requestVisualSchema.parse(base)

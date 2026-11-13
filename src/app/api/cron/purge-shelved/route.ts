@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { deleteStoriesWithVisuals } from "@/lib/story-delete"
+import { isAuthorizedCronRequest } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -17,8 +18,8 @@ export const dynamic = "force-dynamic"
  *  so a claimed pitch never lingers here past that.
  *  (issue #24 §7) */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get("authorization")
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  // Fails closed when CRON_SECRET is unset/empty (see isAuthorizedCronRequest).
+  if (!isAuthorizedCronRequest(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -37,7 +38,10 @@ export async function GET(request: NextRequest) {
   })
 
   // Stories go through the visual-aware delete (Visual.storyId is SetNull, not cascade),
-  // in small batches so a backlog can't exceed the transaction timeout.
+  // in small batches so a backlog can't exceed the transaction timeout. A batch
+  // that throws ends the run (the rejection propagates here and becomes a 500);
+  // the next scheduled run picks the remaining stories up. It never retries the
+  // same batch in a loop.
   const [stories, videos] = await Promise.all([
     deleteStoriesWithVisuals(prisma, { status: "SHELVED", shelvedAt: { lte: cutoff } }),
     prisma.video.deleteMany({ where: { status: "SHELVED", shelvedAt: { lte: cutoff } } }),

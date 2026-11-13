@@ -596,11 +596,16 @@ const visualRequestDetails = {
   dataUrl: dataUrlField,
 };
 
-/** POST body for filing a request: `status: "REQUESTED"`. No personId — the assignee is chosen later. */
+/**
+ * POST body for filing a request: `status: "REQUESTED"`. No personId — the
+ * assignee is chosen later. Unlike a plain "Add" visual (createVisualSchema),
+ * a request must say what's needed: the description is the one thing the
+ * visuals desk reads before anything else, so it can't be blank.
+ */
 export const requestVisualSchema = z.object({
   status: z.literal("REQUESTED"),
   type: VisualTypeEnum,
-  description: z.string().max(500).nullable().optional(),
+  description: z.string().trim().min(1, "Describe what you need").max(500),
   priority: VisualPriorityEnum.default("NORMAL"),
   ...visualRequestDetails,
 });

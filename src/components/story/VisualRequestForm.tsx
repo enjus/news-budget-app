@@ -64,16 +64,16 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
   const [dataUrl, setDataUrl] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  // Same check the server runs; the inline error just saves a round trip.
+  // Same checks the server runs (requestVisualSchema); the inline errors just save a round trip.
   const link = parseDataUrl(dataUrl)
-  const canSubmit = sessionStatus === "authenticated" && !unlinked && link.ok && !submitting
+  const hasDescription = description.trim() !== ""
+  const canSubmit = sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting
 
   async function handleSubmit() {
     if (!canSubmit || !link.ok) return
     setSubmitting(true)
     try {
-      const body: Record<string, unknown> = { status: "REQUESTED", type, priority }
-      if (description.trim()) body.description = description.trim()
+      const body: Record<string, unknown> = { status: "REQUESTED", type, priority, description: description.trim() }
       if (eventDateTime) body.eventDateTime = eventDateTime
       if (location.trim()) body.location = location.trim()
       if (deadline) body.deadline = deadline
@@ -144,10 +144,16 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
             id="vr-description"
             className="h-8"
             maxLength={500}
-            placeholder={budgetLine ? `e.g. ${budgetLine}` : "Description (optional)"}
+            autoComplete="off"
+            required
+            aria-required
+            placeholder={budgetLine ? `e.g. ${budgetLine}` : "Describe what you need"}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+          {!hasDescription && (
+            <p className="text-xs text-muted-foreground">Required: say what the visuals desk should produce.</p>
+          )}
         </div>
       </div>
 
@@ -162,6 +168,7 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
             id="vr-location"
             className="h-8"
             maxLength={200}
+            autoComplete="off"
             placeholder="Where is it happening?"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
@@ -180,6 +187,7 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
           className={TEXTAREA_CLASS}
           rows={2}
           maxLength={2000}
+          autoComplete="off"
           placeholder="Contact on site, shots you need, anything else the desk should know"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -193,6 +201,7 @@ export function VisualRequestForm({ storyId, budgetLine, defaultDeadline, onSubm
           type="url"
           inputMode="url"
           className="h-8"
+          autoComplete="off"
           placeholder="https://"
           value={dataUrl}
           onChange={(e) => setDataUrl(e.target.value)}
