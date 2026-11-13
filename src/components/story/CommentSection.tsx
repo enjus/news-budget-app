@@ -12,6 +12,9 @@ import {
   formatTimestampPacific,
   formatTimestampPacificLong,
   hasAdminAccess,
+  hasNotifiableTeam,
+  type TeamMember,
+  type TeamVisual,
 } from "@/lib/utils"
 import { tokenizeCommentBody } from "@/lib/comment-text"
 import type { CommentWithAuthor } from "@/types/index"
@@ -23,14 +26,12 @@ interface CommentSectionProps {
   comments: CommentWithAuthor[]
   onUpdate: () => void
   readOnly?: boolean
-  /** Whether the item has anyone to notify yet — an assignee or, on stories,
-   *  a visual credit (the same roster `collectEmails()` builds server-side).
-   *  "Post and Notify All" emails that roster — with neither, it's empty, so
-   *  the button would post and silently notify nobody. Hidden rather than
-   *  disabled when false. Defaults true so existing callers that don't pass
-   *  it keep today's behavior. Despite the name, pass true if there's a
-   *  visual credit even with zero assignments. */
-  hasAssignments?: boolean
+  /** The item's team, for deciding whether "Post and Notify All" would email
+   *  anyone: `hasNotifiableTeam()` applies the server's rule (active staff
+   *  only, visual credits in a notifiable status only, minus the poster).
+   *  Without a notifiable person the button would post and silently notify
+   *  nobody, so it's hidden rather than disabled. Videos have no visuals. */
+  team: { assignments: TeamMember[]; visuals?: TeamVisual[] }
 }
 
 export function CommentSection({
@@ -39,9 +40,10 @@ export function CommentSection({
   comments,
   onUpdate,
   readOnly,
-  hasAssignments = true,
+  team,
 }: CommentSectionProps) {
   const { data: session } = useSession()
+  const hasAssignments = hasNotifiableTeam(team.assignments, team.visuals, session?.user?.email)
 
   const [body, setBody] = useState("")
   const [mentionIds, setMentionIds] = useState<string[]>([])

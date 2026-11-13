@@ -54,28 +54,59 @@ const optionalText = (max: number) => blankToNull(z.string().trim().max(max));
 
 // ─── Person ───────────────────────────────────────────────────────────────────
 
-export const createPersonSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  // Optional — freelancers and other no-login contributors may not have one.
-  // Blank string (from the form) becomes null, not undefined, so clearing an
-  // existing email on PATCH actually clears it instead of being dropped as
-  // "field not present" by JSON.stringify.
-  email: z.preprocess(
-    (val) => (typeof val === "string" && val.trim() === "" ? null : val),
-    z.string().email("Invalid email address").nullable().optional()
-  ),
+// Blank string (from a form) becomes null, not undefined, so clearing an
+// existing email on PATCH actually clears it instead of being dropped as
+// "field not present" by JSON.stringify.
+// Trimmed first, so a pasted address with stray spaces validates the same on
+// edit as on create (createStaffSchema trims too).
+const personEmail = z.preprocess(
+  (val) => (typeof val === "string" ? (val.trim() === "" ? null : val.trim()) : val),
+  z.string().email("Invalid email address").nullable().optional()
+);
+
+const personName = z.string().min(1, "Name is required").max(100);
+
+// Two kinds of Person, created by different people (see POST /api/people).
+// Both can have a work email (Person.email), shown on the roster beside the
+// work phone:
+//  - staff: admin-only; the work email is required — it's their company
+//    address and where notifications go.
+//  - contributor: any content creator; the work email is optional and is
+//    their own professional address, never a company one. It is never
+//    notified: notifiableEmail() requires isStaff, server-side.
+// .strict() rejects unknown fields rather than silently dropping them.
+export const createStaffSchema = z.object({
+  kind: z.literal("staff"),
+  name: personName,
+  email: z.string().trim().min(1, "A work email is required").email("Invalid email address"),
   defaultRole: PersonRoleEnum.default("OTHER"),
 });
 
-export const updatePersonSchema = createPersonSchema.partial().extend({
-  // Re-declared without the create schema's .default("OTHER"): Zod v4's
-  // .partial() keeps defaults, so a status-only PATCH ({ isActive: false })
-  // used to parse to { defaultRole: "OTHER", ... } and silently reset the
-  // person's role. Absent must mean "unchanged".
+export const createContributorSchema = z
+  .object({
+    kind: z.literal("contributor"),
+    name: personName,
+    email: personEmail,
+    defaultRole: PersonRoleEnum.default("OTHER"),
+  })
+  .strict();
+
+export const createPersonSchema = z.discriminatedUnion("kind", [
+  createStaffSchema,
+  createContributorSchema,
+]);
+
+// Its own object, not createPersonSchema.partial(): Zod v4's .partial() keeps
+// defaults, so a status-only PATCH ({ isActive: false }) used to parse to
+// { defaultRole: "OTHER", ... } and silently reset the person's role. Absent
+// must mean "unchanged".
+export const updatePersonSchema = z.object({
+  name: personName.optional(),
+  email: personEmail,
   defaultRole: PersonRoleEnum.optional(),
   // Not settable at creation — people start active. Gated to admins at the API layer.
   isActive: z.boolean().optional(),
-  // Not settable at creation — starts false, no backfill. Gated to canManageRoster at the API layer.
+  // Set by the kind at creation. Gated to canManageRoster at the API layer.
   isStaff: z.boolean().optional(),
 });
 
@@ -133,6 +164,13 @@ export const personPrivateSchema = z.object({
 });
 
 export const updateRosterProfileSchema = z.object({
+  // Contributors only: their record fields, edited in the same form since
+  // most contributors have no login and no admin page is involved. PATCH
+  // /api/roster/[id] rejects these for staff, whose name, company email and
+  // role are admin-managed in /admin/people.
+  name: personName.optional(),
+  email: personEmail,
+  defaultRole: PersonRoleEnum.optional(),
   title: optionalText(100),
   workPhone: phoneField(),
   pronouns: optionalText(40),

@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { apiPath } from "@/lib/api-path"
+import { ROSTER_STATUS_KEY } from "@/lib/hooks/useRoster"
 import { displayName } from "@/lib/utils"
 import { OFFICE_LOCATION, hasMoved, type LatLng } from "@/lib/roster-map"
 import type { RosterProfile } from "@/types/index"
@@ -104,6 +105,7 @@ export function LocationPickerDialog({
       toast.success(method === "PUT" ? "Map location saved" : "Removed from the map")
       onSaved(json as RosterProfile)
       mutateGlobal("/api/roster/map")
+      mutateGlobal(ROSTER_STATUS_KEY)
       handleOpenChange(false)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")

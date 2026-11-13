@@ -7,9 +7,10 @@
 // fetched all marker kinds, week/export filtered) — one place to fix a
 // query or grouping bug instead of three.
 
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { ROSTER_WHERE, dateOnly } from "@/lib/utils"
-import { SCHEDULE_START_DATE } from "@/lib/schedule"
+import { SCHEDULE_START_DATE, isPlainWorkingSet } from "@/lib/schedule"
 
 export interface RosterMember {
   id: string
@@ -125,4 +126,28 @@ export async function loadScheduleWindow(
     workScheduleByPerson: groupByPerson(workSchedule),
     markers,
   }
+}
+
+const DAY_SEGMENTS = { in: ["FULL_DAY", "MORNING", "AFTERNOON"] }
+
+/**
+ * After a shift is removed: if the person has no other shift that day and
+ * their Availability rows for it are exactly the plain "Working" set a shift
+ * assignment writes (writeWorkingRow), delete them, so the day falls back to
+ * their normal pattern. A real override (a note, OUT, a half day) is left
+ * alone. Returns whether rows were removed. Used by DELETE
+ * /api/schedule/shifts/[id] and by PATCH /api/people/[id] when someone
+ * leaves staff.
+ */
+export async function revertShiftWorkingRow(
+  tx: Prisma.TransactionClient,
+  personId: string,
+  date: Date
+): Promise<boolean> {
+  const otherShifts = await tx.shiftAssignment.count({ where: { personId, date } })
+  if (otherShifts > 0) return false
+  const rows = await tx.availability.findMany({ where: { personId, date, segment: DAY_SEGMENTS } })
+  if (rows.length === 0 || !isPlainWorkingSet(rows)) return false
+  await tx.availability.deleteMany({ where: { personId, date, segment: DAY_SEGMENTS } })
+  return true
 }

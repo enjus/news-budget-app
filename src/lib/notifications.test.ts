@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { truncateAtWord, pitchStatusLine, collectEmails } from "@/lib/notifications"
+import { truncateAtWord, pitchStatusLine, notifiableEmail, collectEmails } from "@/lib/notifications"
 
 const TIP =
   "Tipster says Multnomah County's new shelter on SE 82nd won't open until spring — contractor walked off the job"
@@ -82,10 +82,44 @@ describe("pitchStatusLine", () => {
   })
 })
 
-describe("collectEmails visuals", () => {
-  const visual = (status: string, email: string, isActive = true) => ({
-    status,
-    person: { name: email, email, isActive },
+const staff = (name: string, email: string | null, isActive = true) => ({ name, email, isActive, isStaff: true })
+const contributor = (name: string, email: string | null) => ({ name, email, isActive: true, isStaff: false })
+// A visual with an active staffer credited, in the given status.
+const visual = (status: string, email: string, isActive = true) => ({
+  status,
+  person: staff(email, email, isActive),
+})
+
+describe("notifiableEmail", () => {
+  it("returns the email of an active staffer", () => {
+    expect(notifiableEmail(staff("A", "a@x.com"))).toBe("a@x.com")
+  })
+
+  it("never emails a contributor, even with an email on file", () => {
+    expect(notifiableEmail(contributor("C", "c@x.com"))).toBeNull()
+  })
+
+  it("never emails an inactive staffer", () => {
+    expect(notifiableEmail(staff("I", "i@x.com", false))).toBeNull()
+  })
+
+  it("returns null with no email or no person", () => {
+    expect(notifiableEmail(staff("N", null))).toBeNull()
+    expect(notifiableEmail(null)).toBeNull()
+  })
+})
+
+describe("collectEmails", () => {
+  it("includes only active staff across assignments and visuals, deduped", () => {
+    const emails = collectEmails(
+      [
+        { person: staff("A", "a@x.com"), role: "REPORTER" },
+        { person: contributor("C", "c@x.com"), role: "PHOTOGRAPHER" },
+        { person: staff("I", "i@x.com", false), role: "EDITOR" },
+      ],
+      [visual("PLANNED", "a@x.com"), visual("PLANNED", "b@x.com"), { status: "PLANNED", person: null }]
+    )
+    expect(emails).toEqual(["a@x.com", "b@x.com"])
   })
 
   it("emails assignees of planned, assigned, in-progress and delivered visuals", () => {
@@ -105,5 +139,23 @@ describe("collectEmails visuals", () => {
 
   it("still skips inactive people on notifiable visuals", () => {
     expect(collectEmails([], [visual("ASSIGNED", "gone@x.com", false)])).toEqual([])
+  })
+
+  it("still skips contributors on notifiable visuals", () => {
+    expect(collectEmails([], [{ status: "ASSIGNED", person: contributor("C", "c@x.com") }])).toEqual([])
+  })
+
+  it("a notifiable status does not rescue a non-notifiable person, and vice versa", () => {
+    // Status passes, person fails (contributor / inactive); person passes, status fails (REQUESTED).
+    const emails = collectEmails(
+      [{ person: staff("A", "a@x.com"), role: "REPORTER" }],
+      [
+        { status: "IN_PROGRESS", person: contributor("C", "c@x.com") },
+        visual("DELIVERED", "gone@x.com", false),
+        visual("REQUESTED", "req@x.com"),
+        visual("ASSIGNED", "ok@x.com"),
+      ]
+    )
+    expect(emails).toEqual(["a@x.com", "ok@x.com"])
   })
 })

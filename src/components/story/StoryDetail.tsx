@@ -28,7 +28,6 @@ import { StoryVideoSection } from "./StoryVideoSection"
 import { VIDEOS_ENABLED } from "@/lib/features"
 import { differenceInDays } from "date-fns"
 import { STORY_STATUS_LABELS, formatPubDate } from "@/lib/utils"
-import { isNotifiableStatus } from "@/lib/visual-statuses"
 import type { StoryWithRelations } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 
@@ -228,7 +227,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
           storyId={story.id}
           comments={story.comments}
           onUpdate={onUpdate}
-          hasAssignments={story.assignments.length > 0 || story.visuals.some((v) => isNotifiableStatus(v.status))}
+          team={story}
           readOnly
         />
 
@@ -369,7 +368,7 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
-        hasAssignments={story.assignments.length > 0}
+        team={story}
       />
 
       <Separator />

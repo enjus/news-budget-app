@@ -2,11 +2,9 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
 
-// Shared roster-toggle logic for a Person — previously implemented nearly
-// verbatim in both PersonView.tsx and PersonForm.tsx (the same fetch + toast
-// + loading-state shape, copy-pasted). Consolidated here so the two call
-// sites can't drift the way they already had (PersonView's toast copy read
-// "...staff roster" while PersonForm's read "...staff").
+// Shared staff/active toggle logic for a Person (PATCH /api/people/[id]),
+// kept in one hook so the confirm copy and toasts can't drift between call
+// sites the way they once did.
 export function usePersonRosterActions(personId: string, onChanged: () => void) {
   const [togglingActive, setTogglingActive] = useState(false)
   const [togglingStaff, setTogglingStaff] = useState(false)
@@ -19,17 +17,21 @@ export function usePersonRosterActions(personId: string, onChanged: () => void) 
     })
     if (!res.ok) {
       const json = await res.json().catch(() => ({}))
-      throw new Error(json?.error ?? `Request failed (${res.status})`)
+      const fieldError = json?.fieldErrors && Object.values(json.fieldErrors).flat()[0]
+      throw new Error((fieldError as string) ?? json?.error ?? `Request failed (${res.status})`)
     }
   }
 
-  async function toggleActive(currentIsActive: boolean) {
-    // Deactivating also deletes the person's roster contact details
-    // (PATCH /api/people/[id]) — irreversible, so confirm first.
+  async function toggleActive(currentIsActive: boolean, isStaff: boolean) {
+    // Deactivating a staffer also deletes their roster contact details
+    // (PATCH /api/people/[id]) — irreversible, so confirm first. A
+    // contributor's contact details are kept.
     if (
       currentIsActive &&
       !confirm(
-        "Mark this person inactive? Their personal phone, personal email, and home address on the roster will be permanently deleted."
+        isStaff
+          ? "Mark this person inactive? Their personal phone, personal email, and home address on the roster will be permanently deleted."
+          : "Mark this contributor inactive? They'll be hidden from pickers. Their contact info stays on the roster."
       )
     ) {
       return
@@ -46,18 +48,39 @@ export function usePersonRosterActions(personId: string, onChanged: () => void) 
     }
   }
 
-  async function toggleStaff(currentIsStaff: boolean) {
+  /** Remove from staff after a confirm. Clears the work email and work week server-side. */
+  async function removeFromStaff(): Promise<boolean> {
+    if (
+      !confirm(
+        "Remove from staff? This clears their company work email, their regular work week and their upcoming shifts (from tomorrow on; earlier shifts stay as history), and they'll stop receiving notification emails. You can add their own work email afterward.\n\n" +
+          "Their personal contact info stays on the roster, editors can now edit it, and it's kept if they're later marked inactive. " +
+          "If they've left the newsroom, mark them inactive first instead."
+      )
+    ) {
+      return false
+    }
+    return setStaff({ isStaff: false }, "Removed from staff")
+  }
+
+  /** Add to staff with their work email (the notification address). */
+  async function addToStaff(email: string): Promise<boolean> {
+    return setStaff({ isStaff: true, email }, "Added to staff")
+  }
+
+  async function setStaff(body: Record<string, unknown>, success: string): Promise<boolean> {
     setTogglingStaff(true)
     try {
-      await patchPerson({ isStaff: !currentIsStaff })
-      toast.success(currentIsStaff ? "Removed from staff" : "Added to staff")
+      await patchPerson(body)
+      toast.success(success)
       onChanged()
+      return true
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to update status")
+      return false
     } finally {
       setTogglingStaff(false)
     }
   }
 
-  return { togglingActive, togglingStaff, toggleActive, toggleStaff }
+  return { togglingActive, togglingStaff, toggleActive, removeFromStaff, addToStaff }
 }

@@ -20,7 +20,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // A person's hand-placed roster map pin (PersonPrivate.latitude/longitude).
 // Its own route rather than part of PATCH /api/roster/[id] so the profile
 // form, which always sends a full `private` object, can never clear it.
-// Same self-or-admin gate as the profile. Inactive people are never mapped.
+// Same gate as the profile (canEditRosterProfile). Inactive people are never mapped.
 
 type Gate =
   | { error: NextResponse }
@@ -31,7 +31,17 @@ async function gate(id: string): Promise<Gate> {
   if (!session?.user) {
     return { error: NextResponse.json({ error: "Not authenticated" }, { status: 401 }) };
   }
-  if (!canEditRosterProfile(session.user.appRole, session.user.personId, id)) {
+  // Per-user limit before any DB work, so a throttled caller costs nothing.
+  const limited = checkWriteLimit(session.user.id);
+  if (limited) return { error: limited };
+
+  const person = await prisma.person.findUnique({
+    where: { id },
+    select: { isActive: true, isStaff: true },
+  });
+  // A missing person is judged as staff (the strictest case), so a caller
+  // without permission gets the same 403 for real and made-up ids.
+  if (!canEditRosterProfile(session.user.appRole, session.user.personId, id, person?.isStaff ?? true)) {
     return {
       error: NextResponse.json(
         { error: "You can only edit your own map location" },
@@ -39,10 +49,6 @@ async function gate(id: string): Promise<Gate> {
       ),
     };
   }
-  const limited = checkWriteLimit(session.user.id);
-  if (limited) return { error: limited };
-
-  const person = await prisma.person.findUnique({ where: { id }, select: { isActive: true } });
   if (!person) {
     return { error: NextResponse.json({ error: "Person not found" }, { status: 404 }) };
   }
@@ -84,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       latitude: roundCoord(result.data.latitude),
       longitude: roundCoord(result.data.longitude),
       locationUpdatedAt: new Date(),
+      mapResetAt: null,
     };
 
     const person = await prisma.$transaction(async (tx) => {
@@ -103,7 +110,8 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// Removes the pin. The row stays even if nothing else is in it — an empty
+// Removes the pin, and doubles as opting out of the re-add prompt after an
+// address change. The row stays even if nothing else is in it — an empty
 // PersonPrivate row reads the same as no row everywhere.
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
@@ -114,7 +122,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     const person = await prisma.$transaction(async (tx) => {
       await tx.personPrivate.updateMany({
         where: { personId: id },
-        data: { latitude: null, longitude: null, locationUpdatedAt: null },
+        data: { latitude: null, longitude: null, locationUpdatedAt: null, mapResetAt: null },
       });
       return tx.person.findUniqueOrThrow({ where: { id }, select: ROSTER_PROFILE_SELECT });
     });

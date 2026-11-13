@@ -330,7 +330,7 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         storyId={story.id}
         comments={story.comments}
         onUpdate={onUpdate}
-        hasAssignments={story.assignments.length > 0}
+        team={story}
         readOnly={readOnly}
       />
     </div>

@@ -1,5 +1,16 @@
 import useSWR from "swr"
-import type { RosterListItem, RosterMapPin, RosterProfile } from "@/types/index"
+import type { RosterListItem, RosterMapPin, RosterProfile, RosterStatus } from "@/types/index"
+
+export const ROSTER_STATUS_KEY = "/api/roster/me/status"
+
+/** The signed-in user's pending roster nudges. Pass `false` to skip the fetch
+ *  (signed out, or the roster is still dark-launched). */
+export function useRosterStatus(enabled = true) {
+  const { data, mutate } = useSWR<RosterStatus>(enabled ? ROSTER_STATUS_KEY : null, {
+    revalidateOnFocus: false,
+  })
+  return { status: data, mutate }
+}
 
 /** Every active person's public roster fields (GET /api/roster). Filtering is
  *  done client-side in RosterView — the whole newsroom fits in one payload. */

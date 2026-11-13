@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { Download, Map as MapIcon, Search, UserRound } from "lucide-react"
+import { Download, Map as MapIcon, Plus, Search, UserRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -14,13 +14,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { AddPersonDialog } from "@/components/people/AddPersonDialog"
 import { RosterRow } from "@/components/roster/RosterRow"
 import { PrivateReminderDialog } from "@/components/roster/PrivateReminderDialog"
 import { StaffFilter, matchesStaffFilter, type StaffFilterValue } from "@/components/roster/StaffFilter"
 import { apiPath } from "@/lib/api-path"
 import { useRoster } from "@/lib/hooks/useRoster"
 import { languageLabel } from "@/lib/languages"
-import { displayName } from "@/lib/utils"
+import { canCreateContent, displayName } from "@/lib/utils"
 
 export function RosterView() {
   const { data: session } = useSession()
@@ -61,6 +62,18 @@ export function RosterView() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Roster</h1>
         <div className="flex flex-wrap gap-2">
+          {/* Contributors only: adding staff is admin work, in /admin/people. */}
+          {canCreateContent(session?.user?.appRole ?? "") && (
+            <AddPersonDialog
+              kind="contributor"
+              trigger={
+                <Button size="sm" variant="outline">
+                  <Plus className="size-4" />
+                  Add contributor
+                </Button>
+              }
+            />
+          )}
           <Button asChild size="sm" variant="outline">
             <Link href="/roster/map">
               <MapIcon className="size-4" />

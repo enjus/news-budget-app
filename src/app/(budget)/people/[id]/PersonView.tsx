@@ -2,11 +2,9 @@
 
 import { useState } from "react"
 import { apiPath } from "@/lib/api-path"
-import { usePersonRosterActions } from "@/lib/hooks/usePersonRosterActions"
 import Link from "next/link"
 import useSWR from "swr"
-import { useSession } from "next-auth/react"
-import { ArrowLeft, UserCheck, UserX, Briefcase, TriangleAlert } from "lucide-react"
+import { ArrowLeft, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,15 +21,12 @@ import { ContentRow } from "@/components/budget/ContentItemRow"
 import {
   PERSON_ROLE_LABELS,
   STORY_STATUS_LABELS,
-  hasAdminAccess,
-  canManageRoster,
   displayName,
   todayString,
   itemDateStr,
   classifyContentItems,
 } from "@/lib/utils"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
-import { ROSTER_ENABLED } from "@/lib/features"
 
 const PAST_INITIAL_COUNT = 10
 
@@ -64,9 +59,6 @@ interface PersonData {
 const fetcher = (url: string) => fetch(apiPath(url)).then((r) => r.json())
 
 export function PersonView({ id }: PersonViewProps) {
-  const { data: session } = useSession()
-  const isAdmin = hasAdminAccess(session?.user?.appRole ?? "")
-  const canManage = canManageRoster(session?.user?.appRole ?? "")
   const [typeFilter, setTypeFilter] = useState<"all" | "story" | "video">("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFrom, setDateFrom] = useState("")
@@ -77,11 +69,10 @@ export function PersonView({ id }: PersonViewProps) {
   const [openPast, setOpenPast] = useState(true)
   const [showAllPast, setShowAllPast] = useState(false)
 
-  const { data, isLoading, error, mutate } = useSWR<PersonData>(
+  const { data, isLoading, error } = useSWR<PersonData>(
     `/api/people/${id}/content`,
     fetcher
   )
-  const { togglingActive, togglingStaff, toggleActive, toggleStaff } = usePersonRosterActions(id, mutate)
 
   if (error || (data && !data.items)) {
     return (
@@ -148,18 +139,18 @@ export function PersonView({ id }: PersonViewProps) {
     <div className="space-y-6">
       {/* Back */}
       <Link
-        href="/people"
+        href={`/roster/${id}`}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-3.5" />
-        People
+        Roster profile
       </Link>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight">{displayName(person.name)}</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{displayName(person.name)}&rsquo;s work</h1>
             {!person.isActive && (
               <Badge variant="outline" className="text-muted-foreground">
                 Inactive
@@ -184,50 +175,7 @@ export function PersonView({ id }: PersonViewProps) {
               </>
             )}
             <span>{PERSON_ROLE_LABELS[person.defaultRole] ?? person.defaultRole}</span>
-            {ROSTER_ENABLED && (
-              <>
-                <span>·</span>
-                <Link href={`/roster/${person.id}`} className="hover:text-foreground hover:underline">
-                  Roster profile →
-                </Link>
-              </>
-            )}
           </div>
-        </div>
-
-        <div className="flex gap-2">
-          {canManage && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={togglingStaff}
-              onClick={() => toggleStaff(person.isStaff)}
-            >
-              <Briefcase className="size-4" />
-              {person.isStaff ? "Remove from staff" : "Add to staff"}
-            </Button>
-          )}
-
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={togglingActive}
-              onClick={() => toggleActive(person.isActive)}
-            >
-              {person.isActive ? (
-                <>
-                  <UserX className="size-4" />
-                  Mark inactive
-                </>
-              ) : (
-                <>
-                  <UserCheck className="size-4" />
-                  Mark active
-                </>
-              )}
-            </Button>
-          )}
         </div>
       </div>
 

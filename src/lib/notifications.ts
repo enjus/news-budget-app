@@ -1,6 +1,6 @@
 import { sendEmail } from "@/lib/email";
 import { linkifyToHtml } from "@/lib/comment-text";
-import { formatDatePacific, pacificDateString, todayString } from "@/lib/utils";
+import { formatDatePacific, isNotifiablePerson, pacificDateString, todayString } from "@/lib/utils";
 import { isNotifiableStatus } from "@/lib/visual-statuses";
 
 /**
@@ -11,16 +11,33 @@ const APP_URL =
   process.env.APP_PUBLIC_URL ||
   "https://ornews-advancelocal.msappproxy.net/news-budget";
 
-/** Minimal shape of an assigned person we need for notifications. */
+/** The fields that decide whether a Person can be emailed. */
+export interface NotifiablePerson {
+  email: string | null;
+  isActive: boolean;
+  isStaff: boolean;
+}
 
+/** Minimal shape of an assigned person we need for notifications. */
 export interface AssignedPerson {
-  person: { name: string; email: string | null; isActive: boolean };
+  person: NotifiablePerson & { name: string };
   role: string;
 }
 /** Minimal shape of a visual element's credited person. */
 interface CreditedVisual {
   status: string;
-  person: { name: string; email: string | null; isActive: boolean } | null;
+  person: (NotifiablePerson & { name: string }) | null;
+}
+
+/**
+ * The address to email this person at, or null if they get no email.
+ * Only active staff are notified: a contributor (isStaff: false) never
+ * receives mention, "Notify All", or assignment emails about internal
+ * newsroom discussion, even if a Person.email was saved for them. Every
+ * notification recipient set goes through this one check.
+ */
+export function notifiableEmail(person: NotifiablePerson | null | undefined): string | null {
+  return isNotifiablePerson(person) ? person!.email : null;
 }
 
 interface NotifiableStory {
@@ -272,16 +289,22 @@ export async function notifyCommentTeam(
   });
 }
 
-/** Dedupe + extract valid emails from assignments and (for stories) assigned visuals (NOTIFIABLE_STATUSES only). */
+/**
+ * Dedupe + extract notifiable emails (see notifiableEmail) from assignments and
+ * (for stories) credited visuals. A visual counts only in a NOTIFIABLE status:
+ * a merely-requested one has no assignee to tell, and declined/canceled ones
+ * are off the story. Every person, assignee or credit, must still pass
+ * notifiableEmail() (active staff with an email).
+ */
 export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
-  for (const a of assignments) {
-    if (a.person?.email && a.person.isActive) emails.add(a.person.email);
-  }
-  for (const v of visuals) {
-    // A merely-requested visual has no assignee to tell; declined/canceled ones are off the story.
-    if (!isNotifiableStatus(v.status)) continue;
-    if (v.person?.email && v.person.isActive) emails.add(v.person.email);
+  const people = [
+    ...assignments.map((a) => a.person),
+    ...visuals.filter((v) => isNotifiableStatus(v.status)).map((v) => v.person),
+  ];
+  for (const p of people) {
+    const email = notifiableEmail(p);
+    if (email) emails.add(email);
   }
   return Array.from(emails);
 }

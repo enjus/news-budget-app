@@ -214,8 +214,11 @@ async function main() {
   const jamie  = await prisma.person.create({ data: { name: "Jamie Rivera",    email: "director@newsroom.com",   defaultRole: "EDITOR",   isStaff: true } });
   // Linked to demo MP / Producer accounts
   const morgan = await prisma.person.create({ data: { name: "Morgan Lee",      email: "editor@newsroom.com",     defaultRole: "EDITOR",   isStaff: true } });
-  // Freelancer: still assignable (isActive), but off the staffing roster (isStaff: false, the default).
-  const riley  = await prisma.person.create({ data: { name: "Riley Park",      email: "reporter@newsroom.com",   defaultRole: "REPORTER"                } });
+  // Freelancer (contributor): still assignable (isActive), but off the staffing roster (isStaff: false,
+  // the default). Their work email is their own professional address, not a company one, and is never
+  // notified (only staff are). Linked to the reporter@newsroom.com login below, so the demo has a
+  // contributor who can sign in.
+  const riley  = await prisma.person.create({ data: { name: "Riley Park",      email: "riley@rileypark.example", defaultRole: "REPORTER"                } });
 
   const reporters = [alice, carol];
   const editors   = [bob, frank];
@@ -254,6 +257,11 @@ async function main() {
       priv: { personalPhone: "+15035550105", personalEmail: "sam.okafor@example.com" },
     },
     { id: maya.id, profile: { title: "Podcast Producer", pronouns: "she/her", languages: ["en", "hi", "pa"] } },
+    {
+      id: riley.id,
+      profile: { title: "Freelance Reporter", pronouns: "they/them", languages: ["en"] },
+      priv: { personalPhone: "+15035550118", personalEmail: "riley.park@example.com", city: "Salem", region: "OR" },
+    },
   ];
   for (const { id, profile, priv } of rosterProfiles) {
     await prisma.person.update({

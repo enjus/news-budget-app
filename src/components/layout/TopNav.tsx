@@ -12,7 +12,6 @@ import { cn, initials, hasAdminAccess } from "@/lib/utils"
 import { isTabActive, EXTERNAL_NAV_LINKS } from "@/lib/nav"
 import { useNav } from "@/lib/hooks/useNav"
 import { apiPath } from "@/lib/api-path"
-import { ROSTER_ENABLED } from "@/lib/features"
 import masthead from "@/assets/brand/oregonian-masthead.png"
 import mark from "@/assets/brand/oregonian-mark.png"
 
@@ -23,8 +22,9 @@ export function TopNav() {
   const isAdmin = hasAdminAccess(appRole)
   const { pathname, sections, current } = useNav()
   const topSections = sections.filter((s) => s.enabled && s.inTopBar)
-  // The mobile menu stands in for SectionTabNav, so it also includes a
-  // flagged-off section when you're already inside it by direct URL.
+  // The mobile menu stands in for SectionTabNav, so it also includes the
+  // current section when it's disabled (role- or flag-gated) and you're
+  // inside it by direct URL.
   const menuSections = sections.filter((s) => s.enabled || s.id === current?.id)
 
   return (
@@ -230,12 +230,10 @@ function AccountLinks({
           Admin
         </Link>
       )}
-      {ROSTER_ENABLED && (
-        <Link href="/roster" className={row}>
-          <Contact className={icon} />
-          Roster
-        </Link>
-      )}
+      <Link href="/roster" className={row}>
+        <Contact className={icon} />
+        Roster
+      </Link>
       <Link href="/settings" className={row}>
         <Settings className={icon} />
         Settings

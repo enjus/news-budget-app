@@ -51,7 +51,18 @@ describe("navSections", () => {
 
   it("shows Editions and the team label for an admin", () => {
     const budget = navSections({ ...ctx, appRole: "ADMIN", teamsLabel: "Metro" }).find((s) => s.id === "budget")!
-    expect(budget.tabs.map((t) => t.label)).toEqual(["Daily", "Enterprise", "Editions", "Shelved", "Metro", "People", "Me"])
+    expect(budget.tabs.map((t) => t.label)).toEqual(["Daily", "Enterprise", "Editions", "Shelved", "Metro", "Me"])
+  })
+
+  it("always shows Pitches and Schedule in the top bar, for every role", () => {
+    for (const appRole of ["VIEWER", "PRODUCER", "ADMIN"]) {
+      const sections = navSections({ ...ctx, appRole })
+      for (const id of ["pitches", "schedule"]) {
+        const section = sections.find((s) => s.id === id)!
+        expect(section.enabled).toBe(true)
+        expect(section.inTopBar).toBe(true)
+      }
+    }
   })
 
   it("enables Admin only for admins, and never in the top bar", () => {
@@ -59,6 +70,7 @@ describe("navSections", () => {
     expect(forRole("PRODUCER").enabled).toBe(false)
     expect(forRole("ADMIN").enabled).toBe(true)
     expect(forRole("ADMIN").inTopBar).toBe(false)
+    expect(forRole("ADMIN").tabs.map((t) => t.label)).toContain("People")
   })
 
   it("shows Me for a viewer with a linked person even without create rights", () => {
