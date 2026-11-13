@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { hasAdminAccess, todayString, dedupeVisualCredits, sortByTeamRole } from "@/lib/utils"
+import { hasAdminAccess, todayString, dedupeVisualCredits, placedVisuals, sortByTeamRole } from "@/lib/utils"
+import { CREDITED_STATUSES } from "@/lib/visual-statuses"
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 
 export const dynamic = 'force-dynamic'
@@ -150,6 +151,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           prisma.visual.findMany({
             where: {
               personId: member.personId,
+              status: { in: [...CREDITED_STATUSES] },
               story: {
                 status: { not: "SHELVED" },
                 OR: [{ onlinePubDateTBD: true }, { onlinePubDate: { gte: todayStart } }],
@@ -178,6 +180,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           prisma.visual.findMany({
             where: {
               personId: member.personId,
+              status: { in: [...CREDITED_STATUSES] },
               story: {
                 status: { not: "SHELVED" },
                 onlinePubDateTBD: false,
@@ -264,8 +267,8 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
           onBudget: a.story.onBudget,
           role: a.role,
         }))
-        const visualUpcomingItems: PersonContentItem[] = dedupeVisualCredits(visualUpcoming).map(mapVisualToContentItem)
-        const visualPastItems: PersonContentItem[] = dedupeVisualCredits(visualPast).map(mapVisualToContentItem)
+        const visualUpcomingItems: PersonContentItem[] = placedVisuals(dedupeVisualCredits(visualUpcoming)).map(mapVisualToContentItem)
+        const visualPastItems: PersonContentItem[] = placedVisuals(dedupeVisualCredits(visualPast)).map(mapVisualToContentItem)
         const videoUpcomingItems: PersonContentItem[] = videoUpcoming.map((a) => ({
           type: "video" as const,
           id: a.video.id,

@@ -2,6 +2,7 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format } from "date-fns";
 import type { StoryListItem } from "@/types";
+import { isCreditedStatus, isNotifiableStatus } from "./visual-statuses";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -341,6 +342,7 @@ export function surname(name: string): string {
  *  - Reporters listed first, joined by " & "
  *  - Editor surname follows "/" with no extra label
  *  - "Photos by" uses surnames of photographers assigned to PHOTO visuals
+ *    that count as credits (planned or delivered — not merely requested)
  *  - Word count and photo credit omitted when absent */
 export function formatBudgetLineCopy(story: StoryListItem): string {
   const parts: string[] = [];
@@ -362,7 +364,7 @@ export function formatBudgetLineCopy(story: StoryListItem): string {
     const names = [
       ...new Set(
         story.visuals
-          .filter((v) => v.type === type && v.person?.name)
+          .filter((v) => v.type === type && isCreditedStatus(v.status) && v.person?.name)
           .map((v) => surname(v.person!.name).toUpperCase())
       ),
     ];
@@ -453,14 +455,22 @@ export const PERSON_ROLE_LABELS: Record<string, string> = {
   VIDEO: "Video",
 };
 
-/** Collapse duplicate visual credits (same story + visual type) for one person down to one entry each. */
-export function dedupeVisualCredits<T extends { storyId: string; type: string }>(visuals: T[]): T[] {
+/** Collapse duplicate visual credits (same story + visual type) for one person down to one entry each.
+ *  Unplaced visuals (storyId = null) have no story to credit and are dropped — left in, they
+ *  would all collapse into one `null:PHOTO` entry. */
+export function dedupeVisualCredits<T extends { storyId: string | null; type: string }>(visuals: T[]): T[] {
   const seen = new Map<string, T>();
   for (const v of visuals) {
+    if (v.storyId === null) continue;
     const key = `${v.storyId}:${v.type}`;
     if (!seen.has(key)) seen.set(key, v);
   }
   return Array.from(seen.values());
+}
+
+/** Visual credits whose story still exists, with `story` narrowed to non-null. */
+export function placedVisuals<T extends { story: object | null }>(visuals: T[]): (T & { story: NonNullable<T["story"]> })[] {
+  return visuals.filter((v): v is T & { story: NonNullable<T["story"]> } => v.story !== null);
 }
 
 export const TEAM_MEMBER_ROLE_LABELS: Record<string, string> = {
@@ -543,18 +553,25 @@ export function isNotifiablePerson(
 }
 
 export type TeamMember = { person: Parameters<typeof isNotifiablePerson>[0] }
+/** A visual credit: its `status` decides whether the credit is emailed at all
+ *  (see NOTIFIABLE_STATUSES). */
+export type TeamVisual = TeamMember & { status: string }
 
 /** Whether "Post and Notify All" would email anyone: an assignee or (on
  *  stories) a visual credit who passes isNotifiablePerson(), other than the
  *  poster — createComment() drops the author's own email (compared
- *  case-insensitively), so pass the viewer's email as `excludeEmail`. */
+ *  case-insensitively), so pass the viewer's email as `excludeEmail`. A visual
+ *  credit also has to be in a notifiable status, the same filter the server's
+ *  collectEmails() applies: a REQUESTED visual has no assignee to tell, and
+ *  DECLINED/CANCELED ones are off the story. */
 export function hasNotifiableTeam(
   assignments: TeamMember[],
-  visuals: TeamMember[] = [],
+  visuals: TeamVisual[] = [],
   excludeEmail?: string | null
 ): boolean {
   const exclude = excludeEmail?.toLowerCase()
-  return [...assignments, ...visuals].some(
+  const liveVisuals = visuals.filter((v) => isNotifiableStatus(v.status))
+  return [...assignments, ...liveVisuals].some(
     (x) => isNotifiablePerson(x.person) && x.person!.email!.toLowerCase() !== exclude
   )
 }

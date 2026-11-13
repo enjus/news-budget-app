@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
+import { settleVisualsForStoryDelete } from "@/lib/story-delete";
 import { checkWriteLimit, prismaErrorCode, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
@@ -193,7 +194,10 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    await prisma.story.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await settleVisualsForStoryDelete(tx, [id]);
+      await tx.story.delete({ where: { id } }); // P2025 (rolls everything back) if the story doesn't exist
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
