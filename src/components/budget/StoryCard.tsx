@@ -8,6 +8,7 @@ import { cn, surname, displayName, ROLE_ABBREV, PERSON_ROLE_LABELS, formatTime, 
 import { useTags } from "@/lib/hooks/useTags"
 import { TagChip } from "@/components/tags/TagChip"
 import { CARD_SIZE } from "@/components/budget/card-size"
+import { isActiveStatus } from "@/lib/visual-statuses"
 import type { StoryListItem } from "@/types/index"
 
 const WORD_COUNT_LIMIT = 1400
@@ -155,10 +156,12 @@ export function StoryCard({
       setTimeout(() => setCopied(false), 2000)
     })
   }
-  const hasPhoto    = showPhotoIndicator ? story.visuals.some((v) => v.type === "PHOTO")   : false
-  const hasGraphic  = showPhotoIndicator ? story.visuals.some((v) => v.type === "GRAPHIC") : false
-  const hasMap      = showPhotoIndicator ? story.visuals.some((v) => v.type === "MAP")     : false
-  const hasVisualVideo = showPhotoIndicator ? story.visuals.some((v) => v.type === "VIDEO") : false
+  // Declined/canceled requests don't count as coverage; requested ones do (it's planned).
+  const liveVisuals = story.visuals.filter((v) => isActiveStatus(v.status))
+  const hasPhoto    = showPhotoIndicator ? liveVisuals.some((v) => v.type === "PHOTO")   : false
+  const hasGraphic  = showPhotoIndicator ? liveVisuals.some((v) => v.type === "GRAPHIC") : false
+  const hasMap      = showPhotoIndicator ? liveVisuals.some((v) => v.type === "MAP")     : false
+  const hasVisualVideo = showPhotoIndicator ? liveVisuals.some((v) => v.type === "VIDEO") : false
   const hasVisuals   = hasPhoto || hasGraphic || hasMap || hasVisualVideo || (videoCount ?? 0) > 0
   // Optional chaining: a few list endpoints hand-roll their payload and cast.
   const commentCount = story._count?.comments ?? 0

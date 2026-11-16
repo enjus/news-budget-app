@@ -353,6 +353,9 @@ export function StoryDetail({ story, onUpdate, readOnly }: StoryDetailProps) {
         storyId={story.id}
         visuals={story.visuals}
         onUpdate={onUpdate}
+        budgetLine={story.budgetLine}
+        onlinePubDate={story.onlinePubDate}
+        onlinePubDateTBD={story.onlinePubDateTBD}
       />
 
       {VIDEOS_ENABLED && <Separator />}

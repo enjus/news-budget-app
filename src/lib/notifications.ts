@@ -1,6 +1,7 @@
 import { sendEmail } from "@/lib/email";
 import { linkifyToHtml } from "@/lib/comment-text";
 import { formatDatePacific, isNotifiablePerson, pacificDateString, todayString } from "@/lib/utils";
+import { isNotifiableStatus } from "@/lib/visual-statuses";
 
 /**
  * The base URL of the app, used to build links back to items in emails.
@@ -24,6 +25,7 @@ export interface AssignedPerson {
 }
 /** Minimal shape of a visual element's credited person. */
 interface CreditedVisual {
+  status: string;
   person: (NotifiablePerson & { name: string }) | null;
 }
 
@@ -287,10 +289,20 @@ export async function notifyCommentTeam(
   });
 }
 
-/** Dedupe + extract notifiable emails (see notifiableEmail) from assignments and (for stories) credited visuals. */
+/**
+ * Dedupe + extract notifiable emails (see notifiableEmail) from assignments and
+ * (for stories) credited visuals. A visual counts only in a NOTIFIABLE status:
+ * a merely-requested one has no assignee to tell, and declined/canceled ones
+ * are off the story. Every person, assignee or credit, must still pass
+ * notifiableEmail() (active staff with an email).
+ */
 export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVisual[] = []): string[] {
   const emails = new Set<string>();
-  for (const p of [...assignments.map((a) => a.person), ...visuals.map((v) => v.person)]) {
+  const people = [
+    ...assignments.map((a) => a.person),
+    ...visuals.filter((v) => isNotifiableStatus(v.status)).map((v) => v.person),
+  ];
+  for (const p of people) {
     const email = notifiableEmail(p);
     if (email) emails.add(email);
   }

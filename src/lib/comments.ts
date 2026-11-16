@@ -103,7 +103,7 @@ export async function createComment(
           where: { id: parentId },
           select: {
             ...parentSelect,
-            visuals: { select: { person: { select: { name: true, email: true, isActive: true, isStaff: true } } } },
+            visuals: { select: { status: true, person: { select: { name: true, email: true, isActive: true, isStaff: true } } } },
             onBudget: true,
             status: true,
             pitchedAt: true,

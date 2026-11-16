@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { Plus, Trash2 } from "lucide-react"
+import { ExternalLink, Plus, Send, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -19,15 +20,15 @@ import { usePeople } from "@/lib/hooks/usePeople"
 import type { VisualWithPerson } from "@/types/index"
 import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
+import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
+import { VISUAL_REQUESTS_ENABLED } from "@/lib/features"
+import { VISUAL_STATUS_LABELS, isVisualStatus } from "@/lib/visual-statuses"
+import { canActOnVisual, parseDataUrl } from "@/lib/visual-requests"
+import { formatPubDate } from "@/lib/utils"
+import { VisualRequestForm } from "./VisualRequestForm"
 
-export type VisualTypeValue = "PHOTO" | "GRAPHIC" | "MAP" | "VIDEO"
-
-export const VISUAL_TYPE_LABELS: Record<VisualTypeValue, string> = {
-  PHOTO: "Photo",
-  GRAPHIC: "Graphic",
-  MAP: "Map",
-  VIDEO: "Video",
-}
+// Re-exported: StoryForm imports these from here.
+export { VISUAL_TYPE_LABELS, type VisualTypeValue }
 
 export interface NewVisual {
   type: VisualTypeValue
@@ -126,9 +127,36 @@ interface VisualSectionProps {
   visuals: VisualWithPerson[]
   onUpdate: () => void
   readOnly?: boolean
+  /** Story fields the Request form prefills from. */
+  budgetLine?: string
+  onlinePubDate?: string | Date | null
+  onlinePubDateTBD?: boolean
 }
 
-export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSectionProps) {
+type StatusVariant = "default" | "secondary" | "destructive" | "outline"
+
+// PLANNED shows no badge (it looks as it always did); the rest of the lifecycle does.
+const STATUS_BADGE_VARIANT: Record<string, StatusVariant> = {
+  REQUESTED: "outline",
+  ASSIGNED: "secondary",
+  IN_PROGRESS: "secondary",
+  DELIVERED: "default",
+  DECLINED: "destructive",
+  CANCELED: "outline",
+}
+
+export function VisualSection({
+  storyId,
+  visuals,
+  onUpdate,
+  readOnly,
+  budgetLine,
+  onlinePubDate,
+  onlinePubDateTBD,
+}: VisualSectionProps) {
+  const { data: session } = useSession()
+  const [isRequesting, setIsRequesting] = useState(false)
+
   async function handleAdd(visual: NewVisual): Promise<boolean> {
     try {
       const res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
@@ -163,6 +191,12 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
     }
   }
 
+  // Hide the remove button when the server would refuse it (requests: admin + finished only).
+  const actor = session?.user ? { role: session.user.appRole, personId: session.user.personId ?? null } : null
+  function canRemove(visual: VisualWithPerson): boolean {
+    return actor !== null && canActOnVisual(actor, visual, "delete")
+  }
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
@@ -172,44 +206,84 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
       {/* Existing visuals */}
       {visuals.length > 0 ? (
         <div className="space-y-2">
-          {visuals.map((visual) => (
-            <div
-              key={visual.id}
-              className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2"
-            >
-              <Badge
-                variant={visual.type === "PHOTO" ? "default" : "secondary"}
-                className="shrink-0"
+          {visuals.map((visual) => {
+            const isRequest = visual.status !== "PLANNED"
+            // Re-validated before rendering as an href, whatever the database holds.
+            const link = visual.dataUrl ? parseDataUrl(visual.dataUrl) : null
+            const details = [
+              visual.location,
+              visual.eventDateTime && `Event ${formatPubDate(visual.eventDateTime, false)}`,
+              visual.deadline && `Needed by ${formatPubDate(visual.deadline, false)}`,
+            ].filter(Boolean)
+
+            return (
+              <div
+                key={visual.id}
+                className="space-y-1 rounded-lg border bg-muted/30 px-3 py-2"
               >
-                {visual.type === "PHOTO" ? "Photo" : visual.type === "MAP" ? "Map" : visual.type === "VIDEO" ? "Video" : "Graphic"}
-              </Badge>
+                <div className="flex items-center gap-3">
+                  <Badge
+                    variant={visual.type === "PHOTO" ? "default" : "secondary"}
+                    className="shrink-0"
+                  >
+                    {VISUAL_TYPE_LABELS[visual.type as VisualTypeValue] ?? "Graphic"}
+                  </Badge>
 
-              {visual.description && (
-                <span className="flex-1 text-sm text-muted-foreground truncate">
-                  {visual.description}
-                </span>
-              )}
+                  {isRequest && (
+                    <Badge variant={STATUS_BADGE_VARIANT[visual.status] ?? "outline"} className="shrink-0">
+                      {isVisualStatus(visual.status) ? VISUAL_STATUS_LABELS[visual.status] : visual.status}
+                    </Badge>
+                  )}
+                  {isRequest && visual.priority === "URGENT" && (
+                    <Badge variant="destructive" className="shrink-0">Urgent</Badge>
+                  )}
 
-              {visual.person ? (
-                <PersonBadge person={visual.person as Person} />
-              ) : (
-                <span className="flex-1 text-xs text-muted-foreground italic">Unassigned</span>
-              )}
+                  {visual.description && (
+                    <span className="flex-1 text-sm text-muted-foreground truncate">
+                      {visual.description}
+                    </span>
+                  )}
 
-              {!readOnly && (
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={() => handleRemove(visual.id)}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  aria-label="Remove visual"
-                >
-                  <Trash2 className="size-3" />
-                </Button>
-              )}
-            </div>
-          ))}
+                  {link?.ok && link.value && (
+                    <a
+                      href={link.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex shrink-0 items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
+                    >
+                      Data <ExternalLink className="size-3" />
+                    </a>
+                  )}
+
+                  {visual.person ? (
+                    <PersonBadge person={visual.person as Person} />
+                  ) : (
+                    <span className="flex-1 text-xs text-muted-foreground italic">Unassigned</span>
+                  )}
+
+                  {!readOnly && canRemove(visual) && (
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => handleRemove(visual.id)}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      aria-label="Remove visual"
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  )}
+                </div>
+
+                {isRequest && details.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{details.join(" · ")}</p>
+                )}
+                {visual.status === "DECLINED" && visual.declineReason && (
+                  <p className="text-xs text-muted-foreground">Declined: {visual.declineReason}</p>
+                )}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">No visuals yet.</p>
@@ -217,6 +291,26 @@ export function VisualSection({ storyId, visuals, onUpdate, readOnly }: VisualSe
 
       {/* Add new visual */}
       {!readOnly && <VisualAddRow onAdd={handleAdd} />}
+
+      {/* Request a visual from the desk (dark-launched) */}
+      {!readOnly && VISUAL_REQUESTS_ENABLED &&
+        (isRequesting ? (
+          <VisualRequestForm
+            storyId={storyId}
+            budgetLine={budgetLine}
+            defaultDeadline={onlinePubDateTBD || !onlinePubDate ? null : typeof onlinePubDate === "string" ? onlinePubDate : onlinePubDate.toISOString()}
+            onSubmitted={() => {
+              setIsRequesting(false)
+              onUpdate()
+            }}
+            onCancel={() => setIsRequesting(false)}
+          />
+        ) : (
+          <Button type="button" size="sm" variant="outline" onClick={() => setIsRequesting(true)}>
+            <Send className="size-4" />
+            Request a visual
+          </Button>
+        ))}
     </div>
   )
 }

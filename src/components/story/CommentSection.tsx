@@ -14,6 +14,7 @@ import {
   hasAdminAccess,
   hasNotifiableTeam,
   type TeamMember,
+  type TeamVisual,
 } from "@/lib/utils"
 import { tokenizeCommentBody } from "@/lib/comment-text"
 import type { CommentWithAuthor } from "@/types/index"
@@ -27,10 +28,10 @@ interface CommentSectionProps {
   readOnly?: boolean
   /** The item's team, for deciding whether "Post and Notify All" would email
    *  anyone: `hasNotifiableTeam()` applies the server's rule (active staff
-   *  only, minus the poster). Without a notifiable person the button would
-   *  post and silently notify nobody, so it's hidden rather than disabled.
-   *  Videos have no visuals. */
-  team: { assignments: TeamMember[]; visuals?: TeamMember[] }
+   *  only, visual credits in a notifiable status only, minus the poster).
+   *  Without a notifiable person the button would post and silently notify
+   *  nobody, so it's hidden rather than disabled. Videos have no visuals. */
+  team: { assignments: TeamMember[]; visuals?: TeamVisual[] }
 }
 
 export function CommentSection({

@@ -3,6 +3,7 @@ import { isBeforeScheduleStart, SCHEDULE_START_LABEL } from "@/lib/schedule";
 import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
 import { normalizeHandle, normalizePhone, SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "@/lib/roster";
 import { ROSTER_LANGUAGE_CODES } from "@/lib/languages";
+import { VISUAL_STATUSES, parseDataUrl } from "@/lib/visual-requests";
 
 // ─── Slug ──────────────────────────────────────────────────────────────────────
 // Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
@@ -566,7 +567,71 @@ export const createVisualSchema = z.object({
   personId: z.string().cuid().nullable().optional(),
 });
 
-export const updateVisualSchema = createVisualSchema.partial();
+export const VisualStatusEnum = z.enum(VISUAL_STATUSES);
+export const VisualPriorityEnum = z.enum(["NORMAL", "URGENT"]);
+
+// Optional "Link to data". Absent stays undefined (so a PATCH leaves it alone);
+// blank becomes null (clears it); anything else must pass parseDataUrl().
+const dataUrlField = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined) return undefined;
+    const parsed = parseDataUrl(value);
+    if (!parsed.ok) {
+      ctx.addIssue({ code: "custom", message: parsed.error });
+      return z.NEVER;
+    }
+    return parsed.value;
+  });
+
+// Request details. eventDateTime/deadline follow the pub-date convention
+// (newsroom time encoded as UTC): the deadline is prefilled from onlinePubDate.
+const visualRequestDetails = {
+  eventDateTime: z.string().datetime({ offset: true }).nullable().optional(),
+  location: z.string().max(200).nullable().optional(),
+  deadline: z.string().datetime({ offset: true }).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  dataUrl: dataUrlField,
+};
+
+/**
+ * POST body for filing a request: `status: "REQUESTED"`. No personId — the
+ * assignee is chosen later. Unlike a plain "Add" visual (createVisualSchema),
+ * a request must say what's needed: the description is the one thing the
+ * visuals desk reads before anything else, so it can't be blank.
+ */
+export const requestVisualSchema = z.object({
+  status: z.literal("REQUESTED"),
+  type: VisualTypeEnum,
+  description: z.string().trim().min(1, "Describe what you need").max(500),
+  priority: VisualPriorityEnum.default("NORMAL"),
+  ...visualRequestDetails,
+});
+
+/**
+ * PATCH body. Spelled out rather than `createVisualSchema.partial()`: Zod v4's
+ * `.partial()` keeps defaults, which would reset `priority` on every edit.
+ */
+export const updateVisualSchema = z
+  .object({
+    type: VisualTypeEnum.optional(),
+    description: z.string().max(500).nullable().optional(),
+    personId: z.string().cuid().nullable().optional(),
+    status: VisualStatusEnum.optional(),
+    declineReason: z.string().max(500).nullable().optional(),
+    priority: VisualPriorityEnum.optional(),
+    ...visualRequestDetails,
+  })
+  .refine((v) => v.status !== "DECLINED" || (v.declineReason ?? "").trim() !== "", {
+    path: ["declineReason"],
+    message: "A reason is required to decline a request",
+  })
+  .refine((v) => v.declineReason === undefined || v.status === "DECLINED", {
+    path: ["declineReason"],
+    message: "A decline reason can only be set when declining",
+  });
 
 // ─── Comment ──────────────────────────────────────────────────────────────────
 
@@ -699,6 +764,7 @@ export type CreateAssignmentInput = z.infer<typeof createAssignmentSchema>;
 export type CreateStoryTagInput = z.infer<typeof createStoryTagSchema>;
 export type CreateVisualInput = z.infer<typeof createVisualSchema>;
 export type UpdateVisualInput = z.infer<typeof updateVisualSchema>;
+export type RequestVisualInput = z.infer<typeof requestVisualSchema>;
 export type CreateVideoInput = z.infer<typeof createVideoSchema>;
 export type UpdateVideoInput = z.infer<typeof updateVideoSchema>;
 export type CreateVideoAssignmentInput = z.infer<typeof createVideoAssignmentSchema>;

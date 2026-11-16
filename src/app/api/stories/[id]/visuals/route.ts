@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createVisualSchema } from "@/lib/validations";
+import { createVisualSchema, requestVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit } from "@/lib/api-helpers";
+import { CREATABLE_STATUSES } from "@/lib/visual-requests";
+import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
 
@@ -45,9 +46,31 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const limited = checkWriteLimit(session.user.id);
     if (limited) return limited;
 
+    const jsonError = requireJSON(request);
+    if (jsonError) return jsonError;
+
     const { id: storyId } = await params;
     const body = await request.json();
-    const result = createVisualSchema.safeParse(body);
+
+    // "Add" files a PLANNED visual (no status in the body); "Request" files a REQUESTED one.
+    const status = body?.status ?? "PLANNED";
+    if (!CREATABLE_STATUSES.includes(status)) {
+      return NextResponse.json(
+        { error: `status must be one of: ${CREATABLE_STATUSES.join(", ")}` },
+        { status: 400 }
+      );
+    }
+    const isRequest = status === "REQUESTED";
+
+    // The requester is recorded from the session, so the account must be linked to a Person.
+    if (isRequest && !session.user.personId) {
+      return NextResponse.json(
+        { error: "Your account isn't linked to a Person yet. Ask an admin to link it before filing a visual request." },
+        { status: 400 }
+      );
+    }
+
+    const result = isRequest ? requestVisualSchema.safeParse(body) : createVisualSchema.safeParse(body);
 
     if (!result.success) {
       return NextResponse.json(
@@ -64,22 +87,44 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Story not found" }, { status: 404 });
     }
 
-    if (result.data.personId) {
-      const person = await prisma.person.findUnique({ where: { id: result.data.personId } });
-      if (!person) {
-        return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    let visual;
+    if (result.data && "status" in result.data) {
+      // REQUESTED: no assignee yet; requestedById comes from the session, never the body.
+      const d = result.data;
+      visual = await prisma.visual.create({
+        data: {
+          storyId,
+          status: "REQUESTED",
+          requestedById: session.user.personId,
+          type: d.type,
+          description: d.description ?? null,
+          priority: d.priority,
+          eventDateTime: d.eventDateTime ? new Date(d.eventDateTime) : null,
+          location: d.location ?? null,
+          deadline: d.deadline ? new Date(d.deadline) : null,
+          notes: d.notes ?? null,
+          dataUrl: d.dataUrl ?? null,
+        },
+        include: { person: true },
+      });
+    } else {
+      const d = result.data;
+      if (d.personId) {
+        const person = await prisma.person.findUnique({ where: { id: d.personId } });
+        if (!person) {
+          return NextResponse.json({ error: "Person not found" }, { status: 404 });
+        }
       }
+      visual = await prisma.visual.create({
+        data: {
+          storyId,
+          type: d.type,
+          description: d.description ?? null,
+          personId: d.personId ?? null,
+        },
+        include: { person: true },
+      });
     }
-
-    const visual = await prisma.visual.create({
-      data: {
-        storyId,
-        type: result.data.type,
-        description: result.data.description ?? null,
-        personId: result.data.personId ?? null,
-      },
-      include: { person: true },
-    });
 
     return NextResponse.json(visual, { status: 201 });
   } catch (error) {

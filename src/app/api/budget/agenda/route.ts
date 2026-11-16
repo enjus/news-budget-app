@@ -11,7 +11,7 @@ const personSelect = { select: { id: true, name: true, defaultRole: true } } as 
 
 const storyInclude = {
   assignments: { include: { person: personSelect } },
-  visuals: { select: { id: true, type: true, person: { select: { name: true } } } },
+  visuals: { select: { id: true, type: true, status: true, person: { select: { name: true } } } },
   videos: { select: { id: true } },
   tags: true,
   _count: { select: { comments: true } },

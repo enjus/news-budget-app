@@ -84,6 +84,11 @@ describe("pitchStatusLine", () => {
 
 const staff = (name: string, email: string | null, isActive = true) => ({ name, email, isActive, isStaff: true })
 const contributor = (name: string, email: string | null) => ({ name, email, isActive: true, isStaff: false })
+// A visual with an active staffer credited, in the given status.
+const visual = (status: string, email: string, isActive = true) => ({
+  status,
+  person: staff(email, email, isActive),
+})
 
 describe("notifiableEmail", () => {
   it("returns the email of an active staffer", () => {
@@ -112,8 +117,45 @@ describe("collectEmails", () => {
         { person: contributor("C", "c@x.com"), role: "PHOTOGRAPHER" },
         { person: staff("I", "i@x.com", false), role: "EDITOR" },
       ],
-      [{ person: staff("A", "a@x.com") }, { person: staff("B", "b@x.com") }, { person: null }]
+      [visual("PLANNED", "a@x.com"), visual("PLANNED", "b@x.com"), { status: "PLANNED", person: null }]
     )
     expect(emails).toEqual(["a@x.com", "b@x.com"])
+  })
+
+  it("emails assignees of planned, assigned, in-progress and delivered visuals", () => {
+    const visuals = ["PLANNED", "ASSIGNED", "IN_PROGRESS", "DELIVERED"].map((s) => visual(s, `${s.toLowerCase()}@x.com`))
+    expect(collectEmails([], visuals).sort()).toEqual([
+      "assigned@x.com",
+      "delivered@x.com",
+      "in_progress@x.com",
+      "planned@x.com",
+    ])
+  })
+
+  it("skips requested, declined and canceled visuals", () => {
+    const visuals = ["REQUESTED", "DECLINED", "CANCELED"].map((s) => visual(s, `${s.toLowerCase()}@x.com`))
+    expect(collectEmails([], visuals)).toEqual([])
+  })
+
+  it("still skips inactive people on notifiable visuals", () => {
+    expect(collectEmails([], [visual("ASSIGNED", "gone@x.com", false)])).toEqual([])
+  })
+
+  it("still skips contributors on notifiable visuals", () => {
+    expect(collectEmails([], [{ status: "ASSIGNED", person: contributor("C", "c@x.com") }])).toEqual([])
+  })
+
+  it("a notifiable status does not rescue a non-notifiable person, and vice versa", () => {
+    // Status passes, person fails (contributor / inactive); person passes, status fails (REQUESTED).
+    const emails = collectEmails(
+      [{ person: staff("A", "a@x.com"), role: "REPORTER" }],
+      [
+        { status: "IN_PROGRESS", person: contributor("C", "c@x.com") },
+        visual("DELIVERED", "gone@x.com", false),
+        visual("REQUESTED", "req@x.com"),
+        visual("ASSIGNED", "ok@x.com"),
+      ]
+    )
+    expect(emails).toEqual(["a@x.com", "ok@x.com"])
   })
 })
