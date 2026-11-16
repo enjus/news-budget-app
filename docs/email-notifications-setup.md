@@ -28,16 +28,39 @@ User clicks "Save & Notify Team"
 
 If `SMTP_HOST` is not set, `sendEmail()` silently no-ops — the app works fine without email configured.
 
+## Visual Request Emails
+
+Filing a visual request (`POST /api/stories/[id]/visuals` with `status: "REQUESTED"`) emails the desk for that visual type. Recipients come from runtime env vars, read at send time, so changing a desk address is a `.env` edit and a restart, not a rebuild:
+
+| Variable | Used for |
+|----------|----------|
+| `VISUAL_REQUEST_EMAILS_PHOTO` | Photo requests |
+| `VISUAL_REQUEST_EMAILS_GRAPHIC` | Graphic **and Map** requests |
+| `VISUAL_REQUEST_EMAILS_VIDEO` | Video requests (decided value: the same address as `_PHOTO`, kept separate so it can diverge) |
+
+Each is a comma-separated list; whitespace is trimmed and duplicates dropped. If the list for a type is empty, the send is logged and skipped and the request is still filed. The email is fire-and-forget: a failure never fails the API call.
+
+**Subject**: `News Budget visual request (Photo): {slug}`, or `URGENT visual request (Photo): {slug}` for urgent requests. **Body**: the requester, slug and budget line, then type, priority (urgent only), what's needed, event time, location, needed-by, data link, and notes (blank fields omitted), and a link to the story. Event and needed-by times follow the pub-date convention (newsroom time encoded as UTC).
+
+Code: `src/lib/visual-notifications.ts` (`deskRecipients()`, `visualRequestEmail()`, `notifyVisualDesk()`); spec in `docs/visual-requests-slice-2.md`.
+
+### Story-delete notices to visual assignees
+
+When a story is deleted — by hand (`DELETE /api/stories/[id]`) or by the nightly purge (`/api/cron/purge-shelved`) — each assignee of an ASSIGNED or IN_PROGRESS visual on it gets one email, subject `News Budget story deleted: {slug}`, listing their visuals: an ASSIGNED one was removed with the story; an IN_PROGRESS one was kept but is no longer attached to a story. Recipients follow the usual rule (active staff with an email, `notifiableEmail()`). The notices are read inside the delete transaction and sent only after it commits. The API route sends fire-and-forget; the cron awaits the sends and reports `notified` in its response, and still emails the assignees of already-deleted batches if a later batch fails.
+
+Code: `notifyVisualAssigneesOfStoryDelete()` in `src/lib/visual-notifications.ts`, fed by `settleVisualsForStoryDelete()` in `src/lib/story-delete.ts`.
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `src/lib/email.ts` | Nodemailer transport; `sendEmail(params)` function |
 | `src/lib/notifications.ts` | `notifyStoryUpdated()` — builds and sends story update emails |
+| `src/lib/visual-notifications.ts` | `notifyVisualDesk()` — desk email when a visual is requested; `notifyVisualAssigneesOfStoryDelete()` — assignee notice when a story with assigned visuals is deleted |
 
 ## Local Testing
 
-Use [MailHog](https://github.com/mailhog/MailHog) to capture emails without delivering them:
+Use [Mailpit](https://mailpit.axllent.org/) (`brew install mailpit`, then `mailpit`) or [MailHog](https://github.com/mailhog/MailHog) to capture emails without delivering them. Both listen for SMTP on `localhost:1025` and show the inbox at http://localhost:8025:
 
 ```bash
 docker run -d -p 1025:1025 -p 8025:8025 mailhog/mailhog
@@ -49,6 +72,8 @@ SMTP_PORT=1025
 ```
 
 Open http://localhost:8025 to view captured emails.
+
+**Seeded people aren't staff.** Every notification recipient must pass `notifiableEmail()` (active, `isStaff: true`, with an email), and `prisma/seed.ts` creates people with `isStaff` false. To test story-update, comment, or story-delete emails locally, set `isStaff = true` (and an email) on the assignee first, e.g. in Prisma Studio or with `UPDATE "Person" SET "isStaff" = true WHERE id = '...'`. The visual-request desk email is unaffected: its recipients come from the `VISUAL_REQUEST_EMAILS_*` variables, not from people.
 
 ## Server Requirements
 

@@ -7,7 +7,7 @@ import { isNotifiableStatus } from "@/lib/visual-statuses";
  * The base URL of the app, used to build links back to items in emails.
  * e.g. https://ornews-advancelocal.msappproxy.net/news-budget
  */
-const APP_URL =
+export const APP_URL =
   process.env.APP_PUBLIC_URL ||
   "https://ornews-advancelocal.msappproxy.net/news-budget";
 
@@ -309,7 +309,7 @@ export function collectEmails(assignments: AssignedPerson[], visuals: CreditedVi
   return Array.from(emails);
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

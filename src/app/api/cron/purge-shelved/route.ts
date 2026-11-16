@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { deleteStoriesWithVisuals } from "@/lib/story-delete"
 import { isAuthorizedCronRequest } from "@/lib/cron-auth"
+import { PURGE_ACTOR, notifyVisualAssigneesOfStoryDelete, type DeletedStoryNotice } from "@/lib/visual-notifications"
 
 export const dynamic = "force-dynamic"
 
@@ -39,17 +40,41 @@ export async function GET(request: NextRequest) {
 
   // Stories go through the visual-aware delete (Visual.storyId is SetNull, not cascade),
   // in small batches so a backlog can't exceed the transaction timeout. A batch
-  // that throws ends the run (the rejection propagates here and becomes a 500);
-  // the next scheduled run picks the remaining stories up. It never retries the
-  // same batch in a loop.
-  const [stories, videos] = await Promise.all([
-    deleteStoriesWithVisuals(prisma, { status: "SHELVED", shelvedAt: { lte: cutoff } }),
-    prisma.video.deleteMany({ where: { status: "SHELVED", shelvedAt: { lte: cutoff } } }),
-  ])
+  // that throws ends the run (the rejection propagates and becomes a 500); the
+  // next scheduled run picks the remaining stories up. It never retries the
+  // same batch in a loop. `notices` is filled per committed batch, so the
+  // assignees of stories that really were deleted are emailed even when a
+  // later batch fails.
+  const notices: DeletedStoryNotice[] = []
+  let purged: { stories: number; videos: number } | null = null
+  let failure: unknown = null
+  try {
+    const [stories, videos] = await Promise.all([
+      deleteStoriesWithVisuals(prisma, { status: "SHELVED", shelvedAt: { lte: cutoff } }, { notices }),
+      prisma.video.deleteMany({ where: { status: "SHELVED", shelvedAt: { lte: cutoff } } }),
+    ])
+    purged = { stories, videos: videos.count }
+  } catch (error) {
+    failure = error
+  }
+
+  // Awaited, unlike the API routes: nobody is waiting on this response, and a
+  // dangling promise can be frozen with the function on a serverless host.
+  // notifyVisualAssigneesOfStoryDelete never throws.
+  const notified = await notifyVisualAssigneesOfStoryDelete(notices, PURGE_ACTOR)
+
+  if (failure) {
+    console.error("purge-shelved failed:", failure)
+    return NextResponse.json(
+      { error: "Purge failed", shelvedExpiredPitches: shelvedExpiredPitches.count, notified },
+      { status: 500 }
+    )
+  }
 
   return NextResponse.json({
     shelvedExpiredPitches: shelvedExpiredPitches.count,
-    purged: { stories, videos: videos.count },
+    purged,
+    notified,
     cutoffDate: cutoff.toISOString(),
   })
 }

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { updateStorySchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
 import { settleVisualsForStoryDelete } from "@/lib/story-delete";
+import { notifyVisualAssigneesOfStoryDelete } from "@/lib/visual-notifications";
 import { checkWriteLimit, prismaErrorCode, checkVersionConflict } from "@/lib/api-helpers";
 import { commentInclude, commentOrderBy } from "@/lib/comments";
 
@@ -194,10 +195,19 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    await prisma.$transaction(async (tx) => {
-      await settleVisualsForStoryDelete(tx, [id]);
+    const notices = await prisma.$transaction(async (tx) => {
+      const n = await settleVisualsForStoryDelete(tx, [id]);
       await tx.story.delete({ where: { id } }); // P2025 (rolls everything back) if the story doesn't exist
+      return n;
     });
+
+    // Only after the commit, and fire-and-forget like notifyStoryTeam: the
+    // story is gone whether or not its visual assignees hear about it.
+    if (notices.length > 0) {
+      notifyVisualAssigneesOfStoryDelete(notices, session.user.name ?? session.user.email ?? "a newsroom user").catch(
+        (error) => console.error("Story-delete visual assignee emails failed:", error)
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
