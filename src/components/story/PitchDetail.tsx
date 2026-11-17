@@ -310,19 +310,8 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         </div>
       )}
 
-      {/* Contact & notes */}
-      {story.notes && (
-        <div className="rounded-lg border bg-muted/20 p-4 space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Contact &amp; notes
-          </p>
-          <p className="text-sm whitespace-pre-wrap">{story.notes}</p>
-          <p className="text-xs text-muted-foreground pt-1">
-            Visible to any signed-in staffer while this is a pitch. Sending it to budget also
-            emails this to everyone assigned.
-          </p>
-        </div>
-      )}
+      {/* Source material & contact */}
+      {story.notes && <SourceMaterial notes={story.notes} />}
 
       <Separator />
 
@@ -333,6 +322,51 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         team={story}
         readOnly={readOnly}
       />
+    </div>
+  )
+}
+
+/** Above this many characters the panel starts collapsed. */
+const SOURCE_COLLAPSE_AT = 1200
+
+/** The pitch's notes: often a whole pasted email, so long ones start
+ *  collapsed behind "Show all". */
+function SourceMaterial({ notes }: { notes: string }) {
+  const long = notes.length > SOURCE_COLLAPSE_AT
+  const [expanded, setExpanded] = useState(false)
+  const collapsed = long && !expanded
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Source material &amp; contact
+      </p>
+      <div className="relative">
+        <p
+          id="pitch-source-material"
+          className={`text-sm whitespace-pre-wrap break-words ${collapsed ? "max-h-56 overflow-hidden" : ""}`}
+        >
+          {notes}
+        </p>
+        {collapsed && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background/90 to-transparent" />
+        )}
+      </div>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-controls="pitch-source-material"
+          className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+        >
+          {expanded ? "Show less" : `Show all (${notes.length.toLocaleString()} characters)`}
+        </button>
+      )}
+      <p className="pt-1 text-xs text-muted-foreground">
+        Visible to any signed-in staffer while this is a pitch. Sending it to budget also
+        emails this to everyone assigned (long notes are shortened in the email).
+      </p>
     </div>
   )
 }

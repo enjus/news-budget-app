@@ -8,7 +8,12 @@ A newsroom-wide pool for tips and unassigned stories, built entirely on the `Sto
 
 - `pitchedAt` — non-null → the story is in the Pitches pool; `onBudget` must be false.
 - `expiresAt` — pitch shelf-life deadline; null = evergreen.
-- `pitchText` — the tip as filed; write-once, never accepted by `updateStorySchema`.
+- `pitchText` — the tip as filed; write-once, never accepted by `updateStorySchema`. Capped at `PITCH_TEXT_MAX` (500): it's the short summary shown in the pool, search and email subjects.
+- `notes` — labeled **"Source material & contact"** on pitches: where a whole forwarded email, release or call notes go, plus tipster contact info. `NOTES_MAX` (50,000) applies to story, video and pitch notes alike, since a pitch keeps its notes when sent to budget. The pool endpoint never sends notes; it returns a computed `hasNotes` flag instead, shown on the row as "More information provided". On the pitch page, notes over 1,200 characters start collapsed behind "Show all". Team-notification emails include at most `NOTES_EMAIL_MAX` (3,000) characters of notes (`notesForEmail()` in `src/lib/notifications.ts`).
+
+## Filing dialog
+
+Pasting into **Pitch** anything that would push it past `PITCH_TEXT_MAX` is redirected: the pasted text is appended to Source material instead, and a notice asks for a short pitch, offering "Use the subject line as the pitch" (when the paste has a `Subject:` line) and Undo.
 
 ## Where the code lives
 

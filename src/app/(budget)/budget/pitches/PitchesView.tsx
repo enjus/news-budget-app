@@ -1,9 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ClipboardEvent } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,7 @@ import {
 import { PitchRow } from "@/components/budget/PitchRow"
 import { usePitches } from "@/lib/hooks/usePitches"
 import { apiPath } from "@/lib/api-path"
+import { NOTES_MAX, PITCH_TEXT_MAX } from "@/lib/validations"
 import type { PitchListItem } from "@/types"
 
 export function PitchesView() {
@@ -159,6 +160,45 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   // Blank = let the server default to 7 days out (see /api/pitches).
   const [expiresAt, setExpiresAt] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  // Set when a long paste into Pitch was moved to Source material instead.
+  // Holds what both fields looked like before, for Undo, and the pasted
+  // email's subject line (if any) for the one-click "use as pitch" option.
+  const [moved, setMoved] = useState<{ prevText: string; prevNotes: string; length: number; subject: string | null } | null>(null)
+
+  function reset() {
+    setText("")
+    setNotes("")
+    setEvergreen(false)
+    setExpiresAt("")
+    setMoved(null)
+  }
+
+  /** Pasting a whole email into Pitch is the natural habit, but Pitch is the
+   *  short summary. Anything that wouldn't fit goes to Source material instead,
+   *  and the reporter is asked for a summary. */
+  function handlePitchPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const pasted = e.clipboardData.getData("text")
+    const el = e.currentTarget
+    const resulting = text.length - (el.selectionEnd - el.selectionStart) + pasted.length
+    if (resulting <= PITCH_TEXT_MAX) return
+    e.preventDefault()
+    const subject = pasted.match(/^\s*subject:\s*(.+)$/im)?.[1]?.trim() || null
+    setMoved({ prevText: text, prevNotes: notes, length: pasted.length, subject })
+    setNotes(notes.trim() ? `${notes.trimEnd()}\n\n${pasted}` : pasted)
+  }
+
+  function undoMove() {
+    if (!moved) return
+    setText(moved.prevText)
+    setNotes(moved.prevNotes)
+    setMoved(null)
+  }
+
+  function useSubjectAsPitch() {
+    if (!moved?.subject) return
+    setText(moved.subject.slice(0, PITCH_TEXT_MAX))
+    setMoved(null)
+  }
 
   async function submit() {
     if (!text.trim()) return
@@ -183,10 +223,7 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
         throw new Error(data.error ?? "Failed to file pitch")
       }
       toast.success("Pitch filed")
-      setText("")
-      setNotes("")
-      setEvergreen(false)
-      setExpiresAt("")
+      reset()
       setOpen(false)
       onFiled()
     } catch (err) {
@@ -197,42 +234,89 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setMoved(null) }}>
       <DialogTrigger asChild>
         <Button size="sm" className="gap-1">
           <Plus className="size-4" />
           File a pitch
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>File a pitch</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="pitch-text">Pitch</Label>
+            <div className="flex items-baseline justify-between">
+              <Label htmlFor="pitch-text">Pitch</Label>
+              <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                {text.length} / {PITCH_TEXT_MAX}
+              </span>
+            </div>
+            <p id="pitch-text-hint" className="text-xs text-muted-foreground">
+              A sentence or two — what people scan in the pool.
+            </p>
             <textarea
               id="pitch-text"
+              aria-describedby="pitch-text-hint"
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              rows={4}
-              maxLength={500}
+              onChange={(e) => {
+                setText(e.target.value)
+                if (moved && e.target.value.trim()) setMoved(null)
+              }}
+              onPaste={handlePitchPaste}
+              rows={3}
+              maxLength={PITCH_TEXT_MAX}
               placeholder="A caller says there's a pattern of unpermitted demolitions on the east side..."
               className="w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            {moved && (
+              <div role="status" className="flex gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+                <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <div className="space-y-1">
+                  <p>
+                    <span className="font-medium">
+                      That looked like a full email ({moved.length.toLocaleString()} characters)
+                    </span>
+                    , so it went into Source material below. Add a one- or two-sentence pitch here.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {moved.subject && (
+                      <button type="button" onClick={useSubjectAsPitch} className="font-medium underline underline-offset-2">
+                        Use the subject line as the pitch
+                      </button>
+                    )}
+                    <button type="button" onClick={undoMove} className="underline underline-offset-2">
+                      Undo
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="pitch-notes">Contact &amp; notes (optional)</Label>
+            <Label htmlFor="pitch-notes">
+              Source material &amp; contact <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <p id="pitch-notes-hint" className="text-xs text-muted-foreground">
+              Paste the whole email, release or call notes. Kept off the pool list — only shown on the pitch&apos;s own page.
+            </p>
             <textarea
               id="pitch-notes"
+              aria-describedby="pitch-notes-hint"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              placeholder="Caller's name, number, anything else worth knowing"
-              className="w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              rows={8}
+              maxLength={NOTES_MAX}
+              placeholder="Tipster's name and number, the original email, links…"
+              className="max-h-[40vh] w-full rounded-md border bg-muted/30 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
+            <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+              <span>Put the tipster&apos;s contact info here, not in the pitch.</span>
+              {notes.length > 0 && <span className="shrink-0 tabular-nums">{notes.length.toLocaleString()} characters</span>}
+            </div>
           </div>
 
           <div className="space-y-1.5">

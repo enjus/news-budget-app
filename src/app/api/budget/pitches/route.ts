@@ -8,9 +8,12 @@ export const dynamic = 'force-dynamic'
 // Explicit select, not include (departs from the other budget routes) — notes
 // may carry a tipster's contact details, which have no business sitting in
 // every browser's memory for every open pitch. It loads only on the detail
-// view. Keep in sync with PitchListItem in src/types/index.ts.
+// view. `notes` is selected only to compute `hasNotes` and is stripped
+// before the response is sent. Keep in sync with PitchListItem in
+// src/types/index.ts.
 const pitchSelect = {
   id: true,
+  notes: true,
   pitchText: true,
   expiresAt: true,
   pitchedAt: true,
@@ -39,7 +42,12 @@ export async function GET() {
       orderBy: { pitchedAt: "desc" },
     });
 
-    return NextResponse.json(pitches);
+    const items = pitches.map(({ notes, ...rest }) => ({
+      ...rest,
+      hasNotes: !!notes?.trim(),
+    }));
+
+    return NextResponse.json(items);
   } catch (error) {
     console.error("GET /api/budget/pitches error:", error);
     return NextResponse.json({ error: "Failed to fetch pitches" }, { status: 500 });

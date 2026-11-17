@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { truncateAtWord, pitchStatusLine, notifiableEmail, collectEmails } from "@/lib/notifications"
+import { truncateAtWord, notesForEmail, pitchStatusLine, notifiableEmail, collectEmails } from "@/lib/notifications"
 
 const TIP =
   "Tipster says Multnomah County's new shelter on SE 82nd won't open until spring — contractor walked off the job"
@@ -157,5 +157,24 @@ describe("collectEmails", () => {
       ]
     )
     expect(emails).toEqual(["a@x.com", "ok@x.com"])
+  })
+})
+
+describe("notesForEmail", () => {
+  it("returns short notes unchanged (trimmed)", () => {
+    expect(notesForEmail("  Call Dana\nat noon  ", 100)).toEqual({ text: "Call Dana\nat noon", truncated: false })
+  })
+
+  it("cuts long notes at a nearby line break or space and adds an ellipsis", () => {
+    const notes = "line one is here\nline two runs on and on"
+    const { text, truncated } = notesForEmail(notes, 22)
+    expect(truncated).toBe(true)
+    expect(text).toBe("line one is here\nline…")
+  })
+
+  it("hard-cuts when there's no break near the limit", () => {
+    const { text, truncated } = notesForEmail("a".repeat(50), 10)
+    expect(truncated).toBe(true)
+    expect(text).toBe("a".repeat(10) + "…")
   })
 })
