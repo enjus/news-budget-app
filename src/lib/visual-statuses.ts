@@ -45,6 +45,19 @@ export const TERMINAL_STATUSES: readonly VisualStatus[] = ["DELIVERED", "DECLINE
 /** Real work exists, so these survive a story delete as unplaced (`storyId = null`). The rest die with the story. */
 export const UNPLACE_ON_STORY_DELETE_STATUSES: readonly VisualStatus[] = ["IN_PROGRESS", "DELIVERED"]
 
+/** A request still being worked: the dashboard's default "Open" view. */
+export const OPEN_REQUEST_STATUSES: readonly VisualStatus[] = ["REQUESTED", "ASSIGNED", "IN_PROGRESS"]
+
+/** Every status a request (not a PLANNED credit) can have: what the dashboard lists. */
+export const REQUEST_STATUSES: readonly VisualStatus[] = VISUAL_STATUSES.filter((s) => s !== "PLANNED")
+
+/**
+ * A request in one of these can be attached to a story, or moved to another
+ * one. PLANNED is a credit and always has its story; DECLINED and CANCELED
+ * requests are dead and don't go on stories.
+ */
+export const ATTACHABLE_STATUSES: readonly VisualStatus[] = ["REQUESTED", "ASSIGNED", "IN_PROGRESS", "DELIVERED"]
+
 /** Statuses a new row may be created with. */
 export const CREATABLE_STATUSES: readonly VisualStatus[] = ["PLANNED", "REQUESTED"]
 
@@ -69,6 +82,7 @@ export const isActiveStatus = (status: string): boolean => (ACTIVE_STATUSES as r
 export const isCreditedStatus = (status: string): boolean => (CREDITED_STATUSES as readonly string[]).includes(status)
 export const isNotifiableStatus = (status: string): boolean => (NOTIFIABLE_STATUSES as readonly string[]).includes(status)
 export const isTerminalStatus = (status: string): boolean => (TERMINAL_STATUSES as readonly string[]).includes(status)
+export const isAttachableStatus = (status: string): boolean => (ATTACHABLE_STATUSES as readonly string[]).includes(status)
 
 /** Whether `from` → `to` is a legal status change. Same-status is not a transition (reassign is a personId change). */
 export function canTransition(from: string, to: string): boolean {

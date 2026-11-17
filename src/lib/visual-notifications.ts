@@ -5,7 +5,7 @@
 // sendEmail(), and are the only impure part. Spec: docs/visual-requests-slice-2.md.
 
 import { sendEmail } from "@/lib/email"
-import { APP_URL, escapeHtml, notifiableEmail, type NotifiablePerson } from "@/lib/notifications"
+import { APP_URL, escapeHtml, notifiableEmail, truncateAtWord, type NotifiablePerson } from "@/lib/notifications"
 import { formatPubDate } from "@/lib/utils"
 import { parseDataUrl } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS } from "@/lib/visual-types"
@@ -56,7 +56,10 @@ export function deskRecipients(type: string, env: Record<string, string | undefi
 
 // ─── Desk email ───────────────────────────────────────────────────────────────
 
-/** What the desk email needs: the request plus its story and requester. */
+/** Longest description prefix used as a standalone request's subject (same cut as pitch subjects). */
+const STANDALONE_SUBJECT_MAX = 55
+
+/** What the desk email needs: the request plus its story (null when standalone) and requester. */
 export interface VisualRequestEmailInput {
   id: string
   type: string
@@ -69,7 +72,7 @@ export interface VisualRequestEmailInput {
   deadline: Date | string | null
   notes: string | null
   dataUrl: string | null
-  story: { id: string; slug: string; budgetLine: string }
+  story: { id: string; slug: string; budgetLine: string } | null
   requestedBy: { name: string } | null
 }
 
@@ -88,21 +91,31 @@ function row(label: string, value: string | null | undefined): Row | null {
 /**
  * The desk email for a newly filed request. Same shape as the story-update
  * email in notifications.ts: a one-line lead, the slug and budget line, the
- * details as label/value rows, and a link to the story (there is no request
- * page yet — the story's Visuals section shows the request).
+ * details as label/value rows, and links. Every desk email links to the
+ * request page, where the desk works it; a story request also links to the
+ * story. A standalone request (no story) takes its subject from the
+ * description, since there's no slug.
  */
 export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
   const label = typeLabel(v.type)
   const urgent = v.priority === "URGENT"
+  const story = v.story
+  const name = story ? story.slug : truncateAtWord(v.description || `${label} request`, STANDALONE_SUBJECT_MAX)
   const subject = urgent
-    ? `URGENT visual request (${label}): ${v.story.slug}`
-    : `News Budget visual request (${label}): ${v.story.slug}`
+    ? `URGENT visual request (${label}): ${name}`
+    : `News Budget visual request (${label}): ${name}`
 
-  const lead = v.requestedBy
-    ? `${v.requestedBy.name} requested a ${label.toLowerCase()} for a story in the News Budget.`
-    : `A ${label.toLowerCase()} was requested for a story in the News Budget.`
+  const noun = label.toLowerCase()
+  const lead = story
+    ? v.requestedBy
+      ? `${v.requestedBy.name} requested a ${noun} for a story in the News Budget.`
+      : `A ${noun} was requested for a story in the News Budget.`
+    : v.requestedBy
+      ? `${v.requestedBy.name} requested a ${noun} in the News Budget. It isn't attached to a story yet.`
+      : `A ${noun} was requested in the News Budget. It isn't attached to a story yet.`
 
-  const link = `${APP_URL}/stories/${v.story.id}`
+  const requestLink = `${APP_URL}/requests/${v.id}`
+  const storyLink = story ? `${APP_URL}/stories/${story.id}` : null
 
   // dataUrl was validated on write; re-check before emitting an href (defense
   // in depth, same rule as the UI). A link that somehow fails is shown as text.
@@ -130,15 +143,18 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
 
   const text =
     `${lead}\n\n` +
-    `${v.story.slug}: ${v.story.budgetLine}\n\n` +
+    (story ? `${story.slug}: ${story.budgetLine}\n\n` : "") +
     rows.map((r) => `${r.label}: ${r.text}`).join("\n") +
-    `\n\nView the story: ${link}`
+    `\n\nView the request: ${requestLink}` +
+    (storyLink ? `\nView the story: ${storyLink}` : "")
 
   const html =
     `<p>${escapeHtml(lead)}</p>` +
-    `<p><strong>${escapeHtml(v.story.slug)}:</strong> ${escapeHtml(v.story.budgetLine)}</p>` +
+    (story ? `<p><strong>${escapeHtml(story.slug)}:</strong> ${escapeHtml(story.budgetLine)}</p>` : "") +
     rows.map((r) => `<p><strong>${escapeHtml(r.label)}:</strong> ${r.html}</p>`).join("") +
-    `<p><a href="${link}">View the story in the News Budget</a></p>`
+    `<p><a href="${requestLink}">View the request in the News Budget</a>` +
+    (storyLink ? ` · <a href="${storyLink}">View the story</a>` : "") +
+    `</p>`
 
   return { subject, text, html }
 }

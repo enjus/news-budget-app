@@ -165,6 +165,17 @@ describe("requestVisualSchema", () => {
 // Regression: spelled out instead of createVisualSchema.partial(), because
 // Zod v4's .partial() keeps defaults and would reset priority on every edit.
 describe("updateVisualSchema", () => {
+  it("takes a story id to attach or move a request, and leaves it alone when absent", () => {
+    const id = "ckz1q2w3e0000abcdefghijk"
+    expect(updateVisualSchema.parse({ storyId: id })).toEqual({ storyId: id })
+    expect(updateVisualSchema.parse({ notes: "x" })).not.toHaveProperty("storyId")
+  })
+
+  it("rejects a null story id (no detaching) and a non-cuid one", () => {
+    expect(updateVisualSchema.safeParse({ storyId: null }).success).toBe(false)
+    expect(updateVisualSchema.safeParse({ storyId: "not a cuid" }).success).toBe(false)
+  })
+
   it("leaves unsent fields out, including priority and dataUrl", () => {
     expect(updateVisualSchema.parse({ notes: "hi" })).toEqual({ notes: "hi" })
   })

@@ -622,6 +622,9 @@ export const updateVisualSchema = z
     status: VisualStatusEnum.optional(),
     declineReason: z.string().max(500).nullable().optional(),
     priority: VisualPriorityEnum.optional(),
+    // Attach a request to a story, or move it to another. No null: detaching
+    // back to "no story" isn't supported (slice 3, decision 4).
+    storyId: z.string().cuid().optional(),
     ...visualRequestDetails,
   })
   .refine((v) => v.status !== "DECLINED" || (v.declineReason ?? "").trim() !== "", {
