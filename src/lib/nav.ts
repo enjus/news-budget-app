@@ -122,6 +122,9 @@ const SECTIONS: SectionDef[] = [
       { label: "Teams", href: "/admin/teams", match: ["/admin/teams"] },
       { label: "Tags", href: "/admin/tags", match: ["/admin/tags"] },
       { label: "Calendar", href: "/admin/calendar", match: ["/admin/calendar"] },
+      // Desk routing for visual requests. Shown whether or not the flag is on,
+      // so routing can be set up before go-live.
+      { label: "Visual requests", href: "/admin/visual-requests", match: ["/admin/visual-requests"] },
     ],
   },
 ]

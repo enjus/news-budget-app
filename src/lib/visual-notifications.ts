@@ -1,57 +1,25 @@
-// Visual request emails (issue #23, slice 2): the desk email sent when a
+// Visual request emails (issue #23, slices 2–3): the desk email sent when a
 // request is filed, and the assignee notice sent when a story with assigned
-// visuals is deleted. Recipient selection and subject/body building are pure
-// and unit-tested; the senders at the bottom read process.env and call
-// sendEmail(), and are the only impure part. Spec: docs/visual-requests-slice-2.md.
-
+// visuals is deleted. Recipient selection (including the /admin/visual-requests
+// routing table, passed in as rows) and subject/body building are pure and
+// unit-tested. The one sender here, for story-delete notices, calls sendEmail();
+// the desk sender reads the table and lives in visual-desk-routing-server.ts.
+// Specs: docs/visual-requests-slice-2.md, docs/visual-requests-slice-3.md.
 import { sendEmail } from "@/lib/email"
 import { APP_URL, escapeHtml, notifiableEmail, truncateAtWord, type NotifiablePerson } from "@/lib/notifications"
 import { formatPubDate } from "@/lib/utils"
 import { parseDataUrl } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS } from "@/lib/visual-types"
 
+// Desk routing (recipient resolution and list validation) has no mail
+// dependency, so the admin page can use it in the browser. Re-exported here so
+// existing imports keep working.
+export * from "@/lib/visual-desk-routing"
+
 export interface EmailContent {
   subject: string
   text: string
   html: string
-}
-
-// ─── Desk recipients ──────────────────────────────────────────────────────────
-
-/** Env var holding each type's desk list. Map has no desk of its own and reads the graphic list. */
-export const DESK_EMAIL_ENV: Record<string, string> = {
-  PHOTO: "VISUAL_REQUEST_EMAILS_PHOTO",
-  GRAPHIC: "VISUAL_REQUEST_EMAILS_GRAPHIC",
-  MAP: "VISUAL_REQUEST_EMAILS_GRAPHIC",
-  VIDEO: "VISUAL_REQUEST_EMAILS_VIDEO",
-}
-
-/**
- * Split a comma-separated address list: trimmed, blanks dropped, duplicates
- * removed case-insensitively (first spelling wins). No syntax check beyond
- * that — the relay rejects a bad address and sendEmail() logs it.
- */
-export function parseEmailList(raw: string | null | undefined): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const part of (raw ?? "").split(",")) {
-    const email = part.trim()
-    const key = email.toLowerCase()
-    if (!email || seen.has(key)) continue
-    seen.add(key)
-    out.push(email)
-  }
-  return out
-}
-
-/**
- * The desk addresses for a visual type, read from `env` (the caller passes
- * process.env; tests pass a plain object). Empty when the type has no desk or
- * its list is unset — the caller logs and skips rather than failing.
- */
-export function deskRecipients(type: string, env: Record<string, string | undefined>): string[] {
-  const key = DESK_EMAIL_ENV[type]
-  return key ? parseEmailList(env[key]) : []
 }
 
 // ─── Desk email ───────────────────────────────────────────────────────────────
@@ -261,22 +229,6 @@ export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): 
 }
 
 // ─── Senders ──────────────────────────────────────────────────────────────────
-
-/**
- * Email the desk for a newly filed request. Fire-and-forget from the POST
- * visuals route: the request is already saved, and nothing here throws past
- * sendEmail() (which logs and returns false). With no list configured for the
- * type (VISUAL_REQUEST_EMAILS_*), it logs and skips — the request still stands.
- */
-export async function notifyVisualDesk(visual: VisualRequestEmailInput): Promise<void> {
-  const recipients = deskRecipients(visual.type, process.env)
-  if (recipients.length === 0) {
-    console.warn(`Visual request desk email skipped: no recipients configured for ${visual.type} (visual ${visual.id})`)
-    return
-  }
-  const { subject, text, html } = visualRequestEmail(visual)
-  await sendEmail({ to: recipients, subject, text, html })
-}
 
 /**
  * Tell each assignee of an ASSIGNED / IN_PROGRESS visual that its story was

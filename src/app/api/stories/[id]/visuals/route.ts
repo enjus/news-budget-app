@@ -6,7 +6,7 @@ import { createVisualSchema, requestVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
 import { CREATABLE_STATUSES, visualRequestCreateData } from "@/lib/visual-requests";
 import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
-import { notifyVisualDesk } from "@/lib/visual-notifications";
+import { notifyVisualDesk } from "@/lib/visual-desk-routing-server";
 
 export const dynamic = 'force-dynamic'
 

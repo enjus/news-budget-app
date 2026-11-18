@@ -274,6 +274,7 @@ Each stage ends with the four checks green and a stop for review. Nothing is com
 Work through this after PR 3b deploys, before turning the flag on in production.
 
 - [x] **Ryan's answer on self-claim**: "both", Nov 17. Desk editors assign anyone; anyone linked can claim an unassigned request and release it while ASSIGNED. Built in PR 3b, stage 6.
+- [x] Confirm with Ryan that release-then-claim is enough, or whether photographers need a direct handoff. **Confirmed Nov 18: release-then-claim is enough; no direct handoff.**
 - [ ] **Schema pushed** with PR 3b's deploy: `pg_dump` backup, then `npx prisma db push` (adds the `VisualDeskRouting` table; additive, no backfill). See section 15.
 - [ ] **Desk addresses set on the server:** `VISUAL_REQUEST_EMAILS_PHOTO`, `VISUAL_REQUEST_EMAILS_GRAPHIC`, and **confirm `VISUAL_REQUEST_EMAILS_VIDEO` is set** (`visualrequests@oregonian.com`). These stay the fallback when a type has no address list in the admin page. An empty list with no table row silently skips the desk email for that type.
 - [ ] **Desk routing page checked** at `/admin/visual-requests`: each type shows the addresses it will actually use, and Map shows that it follows Graphic unless given its own list.
@@ -321,7 +322,7 @@ A companion pure `deskRecipientSource(type, env, rows)` returns which step answe
 
 **Consequence to know:** clearing a field means "use the fallback", not "send nothing". To stop a type's desk email entirely, its env var must also be empty. That keeps the page from silently switching off intake; it's stated on the page.
 
-`notifyVisualDesk()` reads the rows (`prisma.visualDeskRouting.findMany()`, four rows at most) before resolving. If that read fails, it logs and resolves from `env` alone, so a database hiccup can't stop the desk email.
+`notifyVisualDesk()` reads the rows (`prisma.visualDeskRouting.findMany()`, four rows at most) before resolving. As built: the pure routing and validation functions live in `src/lib/visual-desk-routing.ts`, with no mail or database import, so the admin page can run `validateEmailList` in the browser. They're re-exported from `visual-notifications.ts`. The desk sender and the table read moved to `src/lib/visual-desk-routing-server.ts`. If that read fails, it logs and resolves from `env` alone, so a database hiccup can't stop the desk email.
 
 ### Validation
 

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest"
 import {
   PURGE_ACTOR,
   deskRecipients,
+  deskRecipientSource,
+  validateEmailList,
+  DESK_LIST_MAX_ADDRESSES,
+  DESK_LIST_MAX_LENGTH,
   parseEmailList,
   storyDeletedEmail,
   storyDeletedNotices,
@@ -49,6 +53,104 @@ describe("deskRecipients", () => {
 
   it("never reads process.env on its own", () => {
     expect(deskRecipients("PHOTO", { VISUAL_REQUEST_EMAILS_GRAPHIC: "g@x.com" })).toEqual([])
+  })
+})
+
+describe("deskRecipients with the routing table (slice 3 §14)", () => {
+  const env = {
+    VISUAL_REQUEST_EMAILS_PHOTO: "photo-env@x.com",
+    VISUAL_REQUEST_EMAILS_GRAPHIC: "graphic-env@x.com",
+    VISUAL_REQUEST_EMAILS_VIDEO: "video-env@x.com",
+  }
+  const row = (type: string, emails: string) => ({ type, emails })
+
+  it("uses a type's own row when it has addresses", () => {
+    const rows = [row("PHOTO", "photo-db@x.com, b@x.com"), row("GRAPHIC", "graphic-db@x.com"), row("VIDEO", "video-db@x.com")]
+    expect(deskRecipients("PHOTO", env, rows)).toEqual(["photo-db@x.com", "b@x.com"])
+    expect(deskRecipients("GRAPHIC", env, rows)).toEqual(["graphic-db@x.com"])
+    expect(deskRecipients("VIDEO", env, rows)).toEqual(["video-db@x.com"])
+    expect(deskRecipientSource("PHOTO", env, rows)).toBe("table")
+  })
+
+  it("falls back to the env var with no row", () => {
+    expect(deskRecipients("PHOTO", env, [row("GRAPHIC", "graphic-db@x.com")])).toEqual(["photo-env@x.com"])
+    expect(deskRecipientSource("PHOTO", env, [])).toBe("env")
+  })
+
+  it("falls back to the env var when the row is empty or only separators", () => {
+    for (const emails of ["", "   ", " , ,"]) {
+      expect(deskRecipients("VIDEO", env, [row("VIDEO", emails)]), JSON.stringify(emails)).toEqual(["video-env@x.com"])
+    }
+  })
+
+  it("Map: its own row, then the Graphic row, then the Graphic env var", () => {
+    expect(deskRecipients("MAP", env, [row("MAP", "map-db@x.com"), row("GRAPHIC", "graphic-db@x.com")])).toEqual(["map-db@x.com"])
+    expect(deskRecipientSource("MAP", env, [row("MAP", "map-db@x.com")])).toBe("table")
+
+    expect(deskRecipients("MAP", env, [row("GRAPHIC", "graphic-db@x.com")])).toEqual(["graphic-db@x.com"])
+    expect(deskRecipientSource("MAP", env, [row("GRAPHIC", "graphic-db@x.com")])).toBe("graphic table")
+
+    expect(deskRecipients("MAP", env, [])).toEqual(["graphic-env@x.com"])
+    expect(deskRecipientSource("MAP", env, [])).toBe("env")
+  })
+
+  it("Map with its own empty row still follows Graphic", () => {
+    const rows = [row("MAP", " "), row("GRAPHIC", "graphic-db@x.com")]
+    expect(deskRecipients("MAP", env, rows)).toEqual(["graphic-db@x.com"])
+    expect(deskRecipients("MAP", env, [row("MAP", "")])).toEqual(["graphic-env@x.com"])
+  })
+
+  it("only Map follows Graphic: other types never borrow another row", () => {
+    expect(deskRecipients("PHOTO", {}, [row("GRAPHIC", "graphic-db@x.com")])).toEqual([])
+    expect(deskRecipients("VIDEO", {}, [row("PHOTO", "photo-db@x.com")])).toEqual([])
+  })
+
+  it("is empty, source none, when nothing is configured or the type is unknown", () => {
+    expect(deskRecipients("PHOTO", {}, [])).toEqual([])
+    expect(deskRecipientSource("PHOTO", {}, [])).toBe("none")
+    expect(deskRecipients("HOLOGRAM", env, [row("HOLOGRAM", "h@x.com")])).toEqual([])
+    expect(deskRecipientSource("HOLOGRAM", env, [])).toBe("none")
+  })
+
+  it("keeps slice 2 behavior when no rows are passed", () => {
+    expect(deskRecipients("GRAPHIC", env)).toEqual(["graphic-env@x.com"])
+    expect(deskRecipients("MAP", env)).toEqual(["graphic-env@x.com"])
+  })
+})
+
+describe("validateEmailList", () => {
+  it("normalizes a good list: trimmed, blanks and duplicates dropped", () => {
+    expect(validateEmailList(" a@x.com ,, B@x.com, a@X.com ,")).toEqual({ ok: true, emails: ["a@x.com", "B@x.com"] })
+  })
+
+  it("accepts empty input as an empty list (use the fallback)", () => {
+    expect(validateEmailList("")).toEqual({ ok: true, emails: [] })
+    expect(validateEmailList(" , ")).toEqual({ ok: true, emails: [] })
+  })
+
+  it("names exactly the bad address among good ones", () => {
+    expect(validateEmailList("visualrequests@oregonian.com, dave@oregonian, mfriesen@oregonian.com")).toEqual({
+      ok: false,
+      errors: [{ address: "dave@oregonian", message: "dave@oregonian isn't a valid email address" }],
+    })
+  })
+
+  it("gives one error per bad address", () => {
+    const result = validateEmailList("nope, also nope@, ok@x.com")
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.map((e) => e.address)).toEqual(["nope", "also nope@"])
+  })
+
+  it("rejects too many addresses or too long a list", () => {
+    const many = Array.from({ length: DESK_LIST_MAX_ADDRESSES + 1 }, (_, i) => `p${i}@x.com`).join(",")
+    const tooMany = validateEmailList(many)
+    expect(tooMany.ok).toBe(false)
+    if (!tooMany.ok) expect(tooMany.errors[0].address).toBeNull()
+
+    const exactly = Array.from({ length: DESK_LIST_MAX_ADDRESSES }, (_, i) => `p${i}@x.com`).join(",")
+    expect(validateEmailList(exactly).ok).toBe(true)
+
+    expect(validateEmailList("a".repeat(DESK_LIST_MAX_LENGTH + 1)).ok).toBe(false)
   })
 })
 

@@ -33,6 +33,7 @@ describe("sectionForPath", () => {
 
   it("assigns /admin routes to Admin", () => {
     expect(sectionForPath("/admin/teams")).toBe("admin")
+    expect(sectionForPath("/admin/visual-requests")).toBe("admin")
   })
 
   it("assigns /requests routes to Requests", () => {
@@ -77,6 +78,11 @@ describe("navSections", () => {
     expect(forRole("ADMIN").enabled).toBe(true)
     expect(forRole("ADMIN").inTopBar).toBe(false)
     expect(forRole("ADMIN").tabs.map((t) => t.label)).toContain("People")
+    expect(forRole("ADMIN").tabs).toContainEqual({
+      label: "Visual requests",
+      href: "/admin/visual-requests",
+      match: ["/admin/visual-requests"],
+    })
   })
 
   it("shows Me for a viewer with a linked person even without create rights", () => {

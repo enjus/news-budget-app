@@ -31,6 +31,7 @@ model User {
   availabilityCreated Availability[] @relation("availabilityCreated")
   availabilityUpdated Availability[] @relation("availabilityUpdated")
   shiftsCreated ShiftAssignment[] @relation("shiftsCreated")
+  visualDeskRoutingUpdated VisualDeskRouting[] @relation("visualDeskRoutingUpdated")
 
   @@index([appRole])
 }
@@ -366,6 +367,20 @@ model Visual {
   @@index([storyId])
   @@index([personId])
   @@index([archived])
+}
+
+// Where each visual type's desk email goes (issue #23, slice 3 §14), edited at
+// /admin/visual-requests. One row per type at most. A missing or empty row falls
+// back to the VISUAL_REQUEST_EMAILS_* env var; MAP with no row follows GRAPHIC.
+// Resolved by deskRecipients() in src/lib/visual-notifications.ts.
+model VisualDeskRouting {
+  // VisualType: PHOTO | GRAPHIC | MAP | VIDEO
+  type        String   @id
+  // Comma-separated, stored as normalized by parseEmailList().
+  emails      String
+  updatedAt   DateTime @updatedAt
+  updatedBy   User?    @relation("visualDeskRoutingUpdated", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById String?
 }
 
 // Videos can be standalone (storyId = null) or attached to a story.
