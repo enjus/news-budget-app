@@ -64,7 +64,9 @@ export const CREATABLE_STATUSES: readonly VisualStatus[] = ["PLANNED", "REQUESTE
 const TRANSITIONS: Record<VisualStatus, readonly VisualStatus[]> = {
   PLANNED: [],
   REQUESTED: ["ASSIGNED", "DECLINED", "CANCELED"],
-  ASSIGNED: ["IN_PROGRESS", "DECLINED", "CANCELED"], // reassigning stays ASSIGNED
+  // Reassigning stays ASSIGNED. → REQUESTED is "release": the assignee hands it
+  // back to the queue (assignee cleared) before starting work.
+  ASSIGNED: ["REQUESTED", "IN_PROGRESS", "DECLINED", "CANCELED"],
   IN_PROGRESS: ["DELIVERED", "CANCELED"],
   DELIVERED: [],
   DECLINED: [],

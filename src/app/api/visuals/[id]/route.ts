@@ -4,12 +4,14 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
+import { notifyRequesterOfOutcome } from "@/lib/visual-requester-notify-server";
 import { checkReadLimit, checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 import {
   canActOnVisual,
   canBeAssigned,
   canTransition,
   isAttachableStatus,
+  visualPatchGuard,
   isTerminalStatus,
   VISUAL_STATUS_LABELS,
   type VisualAction,
@@ -23,8 +25,10 @@ type RouteContext = { params: Promise<{ id: string }> };
 // Fields that only mean something on a request, not on a PLANNED credit.
 const REQUEST_ONLY_FIELDS = ["priority", "eventDateTime", "location", "deadline", "notes", "dataUrl"] as const;
 
-// The lifecycle action a status change needs (ASSIGNED is covered by "assign").
+// The lifecycle action a status change needs (ASSIGNED is covered by "assign";
+// REQUESTED can only be reached from ASSIGNED, which is a release).
 const ACTION_FOR_STATUS: Partial<Record<string, VisualAction>> = {
+  REQUESTED: "release",
   ASSIGNED: "assign",
   IN_PROGRESS: "advance",
   DELIVERED: "advance",
@@ -172,6 +176,15 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
+    // Release (ASSIGNED → REQUESTED) clears the assignee, so it can't also set one.
+    const releasing = transitioning && nextStatus === "REQUESTED";
+    if (releasing && input.personId !== undefined) {
+      return NextResponse.json(
+        { error: "Releasing a request clears its assignee; don't send personId with it" },
+        { status: 400 }
+      );
+    }
+
     // A finished request's details are locked (canActOnVisual's "update" rule
     // says the same; this gives the clearer 409). Attaching isn't a detail edit:
     // a DELIVERED request can still be placed on a story.
@@ -210,7 +223,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (action) actions.add(action);
     }
     for (const action of actions) {
-      if (!canActOnVisual(actor, existing, action)) {
+      // For "assign", the target matters: non-elevated users may only claim for themselves.
+      if (!canActOnVisual(actor, existing, action, action === "assign" ? input.personId : undefined)) {
         return NextResponse.json({ error: "Not authorized to change this visual" }, { status: 403 });
       }
     }
@@ -254,17 +268,28 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (input.eventDateTime !== undefined) data.eventDateTime = input.eventDateTime ? new Date(input.eventDateTime) : null;
     if (input.deadline !== undefined) data.deadline = input.deadline ? new Date(input.deadline) : null;
     if (attaching) data.storyId = input.storyId;
+    if (releasing) data.personId = null;
     if (transitioning) data.status = nextStatus;
     if (nextStatus === "DECLINED") data.declineReason = input.declineReason!.trim();
 
     // Guard on the status, assignee and story we validated against, so two racing
-    // transitions, reassignments or attaches can't both win.
+    // claims, transitions, reassignments or attaches can't both win (the loser gets 409).
     const updated = await prisma.visual.updateMany({
-      where: { id, status: existing.status, personId: existing.personId, storyId: existing.storyId },
+      where: visualPatchGuard(existing),
       data,
     });
     if (updated.count === 0) {
       return NextResponse.json({ error: "This visual was changed by someone else. Please reload." }, { status: 409 });
+    }
+
+    // Decline and delivery tell the requester (slice 3, decision 2), after the
+    // write commits. Fire-and-forget, like the other notifications: the change
+    // stands whether or not the email goes.
+    if (transitioning && (nextStatus === "DECLINED" || nextStatus === "DELIVERED")) {
+      notifyRequesterOfOutcome(id, {
+        personId: actor.personId,
+        name: session.user.name ?? session.user.email ?? "a newsroom user",
+      }).catch((error) => console.error("Visual request requester email failed:", error));
     }
 
     const visual = await prisma.visual.findUnique({ where: { id }, include: patchInclude });

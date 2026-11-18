@@ -1,57 +1,25 @@
-// Visual request emails (issue #23, slice 2): the desk email sent when a
+// Visual request emails (issue #23, slices 2–3): the desk email sent when a
 // request is filed, and the assignee notice sent when a story with assigned
-// visuals is deleted. Recipient selection and subject/body building are pure
-// and unit-tested; the senders at the bottom read process.env and call
-// sendEmail(), and are the only impure part. Spec: docs/visual-requests-slice-2.md.
-
+// visuals is deleted. Recipient selection (including the /admin/visual-requests
+// routing table, passed in as rows) and subject/body building are pure and
+// unit-tested. The one sender here, for story-delete notices, calls sendEmail();
+// the desk sender reads the table and lives in visual-desk-routing-server.ts.
+// Specs: docs/visual-requests-slice-2.md, docs/visual-requests-slice-3.md.
 import { sendEmail } from "@/lib/email"
 import { APP_URL, escapeHtml, notifiableEmail, truncateAtWord, type NotifiablePerson } from "@/lib/notifications"
 import { formatPubDate } from "@/lib/utils"
 import { parseDataUrl } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS } from "@/lib/visual-types"
 
+// Desk routing (recipient resolution and list validation) has no mail
+// dependency, so the admin page can use it in the browser. Re-exported here so
+// existing imports keep working.
+export * from "@/lib/visual-desk-routing"
+
 export interface EmailContent {
   subject: string
   text: string
   html: string
-}
-
-// ─── Desk recipients ──────────────────────────────────────────────────────────
-
-/** Env var holding each type's desk list. Map has no desk of its own and reads the graphic list. */
-export const DESK_EMAIL_ENV: Record<string, string> = {
-  PHOTO: "VISUAL_REQUEST_EMAILS_PHOTO",
-  GRAPHIC: "VISUAL_REQUEST_EMAILS_GRAPHIC",
-  MAP: "VISUAL_REQUEST_EMAILS_GRAPHIC",
-  VIDEO: "VISUAL_REQUEST_EMAILS_VIDEO",
-}
-
-/**
- * Split a comma-separated address list: trimmed, blanks dropped, duplicates
- * removed case-insensitively (first spelling wins). No syntax check beyond
- * that — the relay rejects a bad address and sendEmail() logs it.
- */
-export function parseEmailList(raw: string | null | undefined): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const part of (raw ?? "").split(",")) {
-    const email = part.trim()
-    const key = email.toLowerCase()
-    if (!email || seen.has(key)) continue
-    seen.add(key)
-    out.push(email)
-  }
-  return out
-}
-
-/**
- * The desk addresses for a visual type, read from `env` (the caller passes
- * process.env; tests pass a plain object). Empty when the type has no desk or
- * its list is unset — the caller logs and skips rather than failing.
- */
-export function deskRecipients(type: string, env: Record<string, string | undefined>): string[] {
-  const key = DESK_EMAIL_ENV[type]
-  return key ? parseEmailList(env[key]) : []
 }
 
 // ─── Desk email ───────────────────────────────────────────────────────────────
@@ -163,6 +131,8 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
 
 /** A visual whose assignee should hear that its story was deleted: ASSIGNED or IN_PROGRESS only. */
 export interface DeletedStoryNotice {
+  /** The visual's id: an IN_PROGRESS one survives as unplaced, and its notice links to its request page. */
+  id: string
   type: string
   status: string
   person: (NotifiablePerson & { name: string }) | null
@@ -172,26 +142,35 @@ export interface DeletedStoryNotice {
 /** Statuses whose assignee gets a notice. REQUESTED has no assignee; the rest are credits or over. */
 export const STORY_DELETE_NOTICE_STATUSES: readonly string[] = ["ASSIGNED", "IN_PROGRESS"]
 
+/** One visual's line in a notice; `href` is set when there's somewhere to go (the request page). */
+export interface NoticeLine {
+  text: string
+  href?: string
+}
+
 /** One recipient's notice: every line is one of their visuals on the deleted story. */
 export interface StoryDeletedGroup {
   email: string
   name: string
   story: { id: string; slug: string; budgetLine: string }
-  lines: string[]
+  lines: NoticeLine[]
 }
 
 /** How a deleted story's sender is described in the notice. */
 export const PURGE_ACTOR = "the nightly purge of stories shelved more than 90 days"
 
-function noticeLine(n: DeletedStoryNotice): string | null {
+function noticeLine(n: DeletedStoryNotice): NoticeLine | null {
   const label = typeLabel(n.type)
   switch (n.status) {
     case "ASSIGNED":
-      return `${label} (assigned): this assignment was removed with the story.`
+      return { text: `${label} (assigned): this assignment was removed with the story.` }
     case "IN_PROGRESS":
-      // Slice 3's dashboard doesn't exist yet, so don't point at it; update this
-      // line to link to /requests when it ships.
-      return `${label} (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.`
+      // The visual survives unplaced (storyId = null); its request page is
+      // where it gets attached to another story.
+      return {
+        text: `${label} (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:`,
+        href: `${APP_URL}/requests/${n.id}`,
+      }
     default:
       return null
   }
@@ -223,7 +202,8 @@ export function storyDeletedNotices(notices: DeletedStoryNotice[]): StoryDeleted
 
 /**
  * The notice for one recipient. `deletedBy` is the session user's name for a
- * manual delete, or PURGE_ACTOR for the cron. No link: the story is gone.
+ * manual delete, or PURGE_ACTOR for the cron. No link to the story (it's
+ * gone); an in-progress visual's line links to its request page.
  */
 export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): EmailContent {
   const subject = `News Budget story deleted: ${group.story.slug}`
@@ -233,36 +213,112 @@ export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): 
     `${lead}\n\n` +
     `${group.story.slug}: ${group.story.budgetLine}\n\n` +
     `Your visuals on it:\n` +
-    group.lines.map((l) => `- ${l}`).join("\n") +
+    group.lines.map((l) => `- ${l.text}${l.href ? ` ${l.href}` : ""}`).join("\n") +
     `\n\nDeleted by: ${deletedBy}`
 
   const html =
     `<p>${escapeHtml(lead)}</p>` +
     `<p><strong>${escapeHtml(group.story.slug)}:</strong> ${escapeHtml(group.story.budgetLine)}</p>` +
     `<p><strong>Your visuals on it:</strong></p>` +
-    `<ul>${group.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>` +
+    `<ul>${group.lines
+      .map((l) => `<li>${escapeHtml(l.text)}${l.href ? ` <a href="${escapeHtml(l.href)}">${escapeHtml(l.href)}</a>` : ""}</li>`)
+      .join("")}</ul>` +
     `<p><strong>Deleted by:</strong> ${escapeHtml(deletedBy)}</p>`
 
   return { subject, text, html }
 }
 
-// ─── Senders ──────────────────────────────────────────────────────────────────
+// ─── Requester notice (decline / delivery) ────────────────────────────────────
+
+/** The outcomes the requester hears about (slice 3, decision 2). Assignment and progress send nothing. */
+export const REQUESTER_NOTICE_STATUSES: readonly string[] = ["DECLINED", "DELIVERED"]
 
 /**
- * Email the desk for a newly filed request. Fire-and-forget from the POST
- * visuals route: the request is already saved, and nothing here throws past
- * sendEmail() (which logs and returns false). With no list configured for the
- * type (VISUAL_REQUEST_EMAILS_*), it logs and skips — the request still stands.
+ * Who to tell that a request was declined or delivered: the requester, through
+ * the usual notifiableEmail() rule (active staff with an email), unless they
+ * made the change themselves. `actorPersonId` is the session's personId (null
+ * for an unlinked account, which never matches).
  */
-export async function notifyVisualDesk(visual: VisualRequestEmailInput): Promise<void> {
-  const recipients = deskRecipients(visual.type, process.env)
-  if (recipients.length === 0) {
-    console.warn(`Visual request desk email skipped: no recipients configured for ${visual.type} (visual ${visual.id})`)
-    return
-  }
-  const { subject, text, html } = visualRequestEmail(visual)
-  await sendEmail({ to: recipients, subject, text, html })
+export function requesterNoticeRecipient(
+  visual: { requestedById: string | null; requestedBy: NotifiablePerson | null },
+  actorPersonId: string | null,
+): string | null {
+  if (!visual.requestedById || !visual.requestedBy) return null
+  if (actorPersonId !== null && visual.requestedById === actorPersonId) return null
+  return notifiableEmail(visual.requestedBy)
 }
+
+/** What the requester's decline/delivery email needs. */
+export interface RequesterNoticeInput {
+  id: string
+  type: string
+  status: string
+  description: string | null
+  declineReason: string | null
+  story: { id: string; slug: string; budgetLine: string } | null
+  /** The assignee: on delivery, who delivered it (the credit). */
+  person: { name: string } | null
+  /** Who made the change, for "declined by". */
+  actorName: string
+}
+
+/**
+ * The requester's email when their request is declined (with the reason) or
+ * delivered. Same shape as the desk email: subject names the story slug, or
+ * the description for a standalone request; links to the request page and, for
+ * a story request, the story. Returns null for any other status.
+ */
+export function requesterNoticeEmail(v: RequesterNoticeInput): EmailContent | null {
+  if (!REQUESTER_NOTICE_STATUSES.includes(v.status)) return null
+  const label = typeLabel(v.type)
+  const noun = label.toLowerCase()
+  const delivered = v.status === "DELIVERED"
+  const name = v.story ? v.story.slug : truncateAtWord(v.description || `${label} request`, STANDALONE_SUBJECT_MAX)
+  const subject = delivered
+    ? `News Budget visual delivered (${label}): ${name}`
+    : `News Budget visual request declined (${label}): ${name}`
+
+  const lead = delivered
+    ? v.person
+      ? `Your ${noun} request was delivered by ${v.person.name}.`
+      : `Your ${noun} request was marked delivered.`
+    : `Your ${noun} request was declined by ${v.actorName}.`
+
+  const requestLink = `${APP_URL}/requests/${v.id}`
+  const storyLink = v.story ? `${APP_URL}/stories/${v.story.id}` : null
+
+  const rows: Row[] = [
+    row("You asked for", v.description),
+    delivered ? null : row("Reason", v.declineReason),
+  ].filter((r): r is Row => r !== null)
+
+  const closing = delivered
+    ? v.story
+      ? null
+      : "It isn't attached to a story yet. Attach it to one from its request page."
+    : "If you still need it, talk to the visuals desk or file a new request."
+
+  const text =
+    `${lead}\n\n` +
+    (v.story ? `${v.story.slug}: ${v.story.budgetLine}\n\n` : "") +
+    rows.map((r) => `${r.label}: ${r.text}`).join("\n") +
+    (closing ? `\n\n${closing}` : "") +
+    `\n\nView the request: ${requestLink}` +
+    (storyLink ? `\nView the story: ${storyLink}` : "")
+
+  const html =
+    `<p>${escapeHtml(lead)}</p>` +
+    (v.story ? `<p><strong>${escapeHtml(v.story.slug)}:</strong> ${escapeHtml(v.story.budgetLine)}</p>` : "") +
+    rows.map((r) => `<p><strong>${escapeHtml(r.label)}:</strong> ${r.html}</p>`).join("") +
+    (closing ? `<p>${escapeHtml(closing)}</p>` : "") +
+    `<p><a href="${requestLink}">View the request in the News Budget</a>` +
+    (storyLink ? ` · <a href="${storyLink}">View the story</a>` : "") +
+    `</p>`
+
+  return { subject, text, html }
+}
+
+// ─── Senders ──────────────────────────────────────────────────────────────────
 
 /**
  * Tell each assignee of an ASSIGNED / IN_PROGRESS visual that its story was

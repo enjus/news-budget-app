@@ -15,7 +15,9 @@ import {
   isNotifiableStatus,
   canTransition,
   canActOnVisual,
+  canClaimVisual,
   availableVisualActions,
+  visualPatchGuard,
   canBeAssigned,
   visualRequestCreateData,
   partitionVisualsForStoryDelete,
@@ -69,6 +71,7 @@ describe("canTransition", () => {
     ["REQUESTED", "ASSIGNED"],
     ["REQUESTED", "DECLINED"],
     ["REQUESTED", "CANCELED"],
+    ["ASSIGNED", "REQUESTED"], // release
     ["ASSIGNED", "IN_PROGRESS"],
     ["ASSIGNED", "DECLINED"],
     ["ASSIGNED", "CANCELED"],
@@ -136,12 +139,90 @@ describe("canActOnVisual", () => {
     }
   })
 
-  it("assign: elevated roles or the assignee", () => {
-    const v = visual("ASSIGNED", { personId: ME })
-    expect(canActOnVisual(actor("SUPERVISOR"), visual("REQUESTED"), "assign")).toBe(true)
-    expect(canActOnVisual(actor("PRODUCER"), visual("REQUESTED"), "assign")).toBe(false)
-    expect(canActOnVisual(actor("PRODUCER"), v, "assign")).toBe(true)
-    expect(canActOnVisual(actor("PRODUCER", OTHER), v, "assign")).toBe(false)
+  describe("assign, claim and release (self-claim, Ryan Nov 17)", () => {
+    const THIRD = "person-third"
+
+    it("elevated assign is unchanged: anyone, on a requested or assigned request", () => {
+      for (const role of ["SUPERVISOR", "MANAGING_PRODUCER", "LEADERSHIP", "ADMIN"]) {
+        expect(canActOnVisual(actor(role), visual("REQUESTED"), "assign", OTHER), role).toBe(true)
+        expect(canActOnVisual(actor(role), visual("REQUESTED"), "assign", ME), role).toBe(true)
+        expect(canActOnVisual(actor(role), visual("ASSIGNED", { personId: OTHER }), "assign", THIRD), role).toBe(true)
+        expect(canActOnVisual(actor(role), visual("REQUESTED"), "assign"), `${role} picker`).toBe(true)
+      }
+    })
+
+    it("claim: a producer may assign an unassigned requested request to themselves", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("REQUESTED"), "assign", ME)).toBe(true)
+      expect(canClaimVisual(actor("PRODUCER"), visual("REQUESTED"))).toBe(true)
+    })
+
+    it("claim for someone else is denied", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("REQUESTED"), "assign", OTHER)).toBe(false)
+      expect(canActOnVisual(actor("PRODUCER"), visual("REQUESTED"), "assign")).toBe(false)
+    })
+
+    it("claiming an already-assigned request is denied", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("ASSIGNED", { personId: OTHER }), "assign", ME)).toBe(false)
+      expect(canClaimVisual(actor("PRODUCER"), visual("ASSIGNED", { personId: OTHER }))).toBe(false)
+      // A row that's somehow REQUESTED with an assignee is not "unassigned" either.
+      expect(canActOnVisual(actor("PRODUCER"), visual("REQUESTED", { personId: OTHER }), "assign", ME)).toBe(false)
+      expect(canClaimVisual(actor("ADMIN"), visual("ASSIGNED", { personId: OTHER }))).toBe(false)
+    })
+
+    it("a non-elevated assignee can no longer hand the request to someone else", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("ASSIGNED", { personId: ME }), "assign", OTHER)).toBe(false)
+    })
+
+    it("an unlinked account can't claim", () => {
+      expect(canActOnVisual(actor("PRODUCER", null), visual("REQUESTED"), "assign", null)).toBe(false)
+      expect(canClaimVisual(actor("PRODUCER", null), visual("REQUESTED"))).toBe(false)
+    })
+
+    it("claim only applies to requests; other statuses are denied", () => {
+      for (const status of ["IN_PROGRESS", "DELIVERED", "DECLINED", "CANCELED"]) {
+        expect(canActOnVisual(actor("PRODUCER"), visual(status), "assign", ME), status).toBe(false)
+      }
+    })
+
+    it("release: the assignee of an ASSIGNED request", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("ASSIGNED", { personId: ME }), "release")).toBe(true)
+      expect(canTransition("ASSIGNED", "REQUESTED")).toBe(true)
+    })
+
+    it("releasing someone else's request is denied, even for a desk editor", () => {
+      const theirs = visual("ASSIGNED", { personId: OTHER })
+      expect(canActOnVisual(actor("PRODUCER"), theirs, "release")).toBe(false)
+      expect(canActOnVisual(actor("SUPERVISOR"), theirs, "release")).toBe(false)
+      expect(canActOnVisual(actor("ADMIN"), theirs, "release")).toBe(false)
+    })
+
+    it("release is denied once work has started, or on any other status", () => {
+      for (const status of ["REQUESTED", "IN_PROGRESS", "DELIVERED", "DECLINED", "CANCELED", "PLANNED"]) {
+        expect(canActOnVisual(actor("PRODUCER"), visual(status, { personId: ME }), "release"), status).toBe(false)
+      }
+      expect(canTransition("IN_PROGRESS", "REQUESTED")).toBe(false)
+    })
+
+    it("PLANNED credits keep their open assign rule", () => {
+      expect(canActOnVisual(actor("PRODUCER"), visual("PLANNED"), "assign", OTHER)).toBe(true)
+    })
+  })
+
+  describe("visualPatchGuard", () => {
+    it("pins the status, assignee and story the route validated against", () => {
+      expect(visualPatchGuard({ id: "v1", status: "REQUESTED", personId: null, storyId: null })).toEqual({
+        id: "v1", status: "REQUESTED", personId: null, storyId: null,
+      })
+    })
+
+    it("so a second simultaneous claim matches no row", () => {
+      // Both claimants read (REQUESTED, no assignee) and build the same guard.
+      const guard = visualPatchGuard({ id: "v1", status: "REQUESTED", personId: null, storyId: "s1" })
+      // After the first claim commits, the row no longer matches it.
+      const rowAfterFirstClaim = { id: "v1", status: "ASSIGNED", personId: "person-first", storyId: "s1" }
+      const matches = (Object.keys(guard) as (keyof typeof guard)[]).every((k) => guard[k] === rowAfterFirstClaim[k])
+      expect(matches).toBe(false)
+    })
   })
 
   it("advance: the assignee or elevated roles", () => {
@@ -256,7 +337,7 @@ describe("availableVisualActions", () => {
   const show = (actor: VisualActor, status: string): VisualButton[] => availableVisualActions(actor, v(status))
 
   it("gives the desk (elevated, not admin) the whole workflow but not cancel or delete", () => {
-    expect(show(desk, "REQUESTED")).toEqual(["assign", "decline", "edit", "attach"])
+    expect(show(desk, "REQUESTED")).toEqual(["assign", "claim", "decline", "edit", "attach"])
     expect(show(desk, "ASSIGNED")).toEqual(["assign", "start", "decline", "edit", "attach"])
     expect(show(desk, "IN_PROGRESS")).toEqual(["deliver", "edit", "attach"])
     expect(show(desk, "DELIVERED")).toEqual(["attach"])
@@ -265,32 +346,40 @@ describe("availableVisualActions", () => {
   })
 
   it("gives an admin cancel and delete on top", () => {
-    expect(show(admin, "REQUESTED")).toEqual(["assign", "decline", "cancel", "edit", "attach"])
+    expect(show(admin, "REQUESTED")).toEqual(["assign", "claim", "decline", "cancel", "edit", "attach"])
     expect(show(admin, "IN_PROGRESS")).toEqual(["deliver", "cancel", "edit", "attach"])
     expect(show(admin, "DELIVERED")).toEqual(["attach", "delete"])
     expect(show(admin, "DECLINED")).toEqual(["delete"])
     expect(show(admin, "CANCELED")).toEqual(["delete"])
   })
 
-  it("lets the assignee reassign, advance and attach, but not decline, cancel or edit", () => {
-    expect(show(shooter, "ASSIGNED")).toEqual(["assign", "start", "attach"])
+  it("lets the assignee start, release and attach, but not reassign, decline, cancel or edit", () => {
+    expect(show(shooter, "ASSIGNED")).toEqual(["start", "release", "attach"])
     expect(show(shooter, "IN_PROGRESS")).toEqual(["deliver", "attach"])
     expect(show(shooter, "DELIVERED")).toEqual(["attach"])
   })
 
   it("lets the requester cancel, edit and attach while the request is live", () => {
-    expect(show(reporter, "REQUESTED")).toEqual(["cancel", "edit", "attach"])
+    expect(show(reporter, "REQUESTED")).toEqual(["claim", "cancel", "edit", "attach"])
     expect(show(reporter, "ASSIGNED")).toEqual(["cancel", "edit", "attach"])
     expect(show(reporter, "IN_PROGRESS")).toEqual(["cancel", "edit", "attach"])
     expect(show(reporter, "DELIVERED")).toEqual(["attach"])
     expect(show(reporter, "DECLINED")).toEqual([])
   })
 
-  it("shows an uninvolved producer and a viewer nothing", () => {
+  it("shows an uninvolved producer only Claim, and only on an unassigned request", () => {
     for (const status of REQUEST_STATUSES) {
-      expect(show(stranger, status), status).toEqual([])
-      expect(show(viewer, status), status).toEqual([])
+      expect(show(stranger, status), status).toEqual(status === "REQUESTED" ? ["claim"] : [])
     }
+  })
+
+  it("shows a viewer nothing", () => {
+    for (const status of REQUEST_STATUSES) expect(show(viewer, status), status).toEqual([])
+  })
+
+  it("offers Claim to nobody without a linked Person", () => {
+    expect(availableVisualActions({ role: "PRODUCER", personId: null }, v("REQUESTED"))).toEqual([])
+    expect(availableVisualActions({ role: "SUPERVISOR", personId: null }, v("REQUESTED"))).toEqual(["assign", "decline", "edit", "attach"])
   })
 
   it("shows nothing on a PLANNED credit, which has no request page", () => {
@@ -299,13 +388,15 @@ describe("availableVisualActions", () => {
 
   it("only offers buttons the permission and transition rules both allow", () => {
     const actions: Record<VisualButton, VisualAction> = {
-      assign: "assign", start: "advance", deliver: "advance", decline: "decline",
-      cancel: "cancel", edit: "update", attach: "attach", delete: "delete",
+      assign: "assign", claim: "assign", start: "advance", deliver: "advance", release: "release",
+      decline: "decline", cancel: "cancel", edit: "update", attach: "attach", delete: "delete",
     }
     for (const actor of [desk, admin, shooter, reporter, stranger]) {
       for (const status of REQUEST_STATUSES) {
         for (const button of show(actor, status)) {
-          expect(canActOnVisual(actor, v(status), actions[button]), `${actor.personId} ${status} ${button}`).toBe(true)
+          // Claim is an assign to yourself; the server checks it with that target.
+          const target = button === "claim" ? actor.personId : undefined
+          expect(canActOnVisual(actor, v(status), actions[button], target), `${actor.personId} ${status} ${button}`).toBe(true)
         }
       }
     }

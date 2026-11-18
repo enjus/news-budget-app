@@ -7,6 +7,10 @@ import {
   parseRequestListQuery,
   requestFiltersToQuery,
   requestListWhere,
+  isDefaultFilters,
+  isStatusChipActive,
+  toggleStatusChip,
+  toggleTypeFilter,
   type RequestFilters,
   type SortableRequest,
 } from "./visual-request-list"
@@ -171,5 +175,57 @@ describe("compareRequests", () => {
       r("new", { createdAt: "2026-11-12T00:00:00.000Z" }),
       r("a", { createdAt: "2026-11-01T00:00:00.000Z" }),
     ])).toEqual(["a", "b", "new"])
+  })
+})
+
+describe("dashboard chips", () => {
+  const D = DEFAULT_REQUEST_FILTERS
+
+  it("knows the default view", () => {
+    expect(isDefaultFilters(D)).toBe(true)
+    expect(isDefaultFilters({ ...D, placement: "unplaced" })).toBe(false)
+    expect(isDefaultFilters({ ...D, status: "closed" })).toBe(false)
+  })
+
+  it("Open and All closed replace the selection; clicking an active All closed goes back to Open", () => {
+    expect(toggleStatusChip({ ...D, status: ["ASSIGNED"] }, "open").status).toBe("open")
+    expect(toggleStatusChip(D, "closed").status).toBe("closed")
+    expect(toggleStatusChip({ ...D, status: "closed" }, "closed").status).toBe("open")
+    expect(toggleStatusChip({ ...D, status: ["REQUESTED"] }, "closed").status).toBe("closed")
+  })
+
+  it("a single status starts a fresh list from Open or All closed", () => {
+    expect(toggleStatusChip(D, "REQUESTED").status).toEqual(["REQUESTED"])
+    expect(toggleStatusChip({ ...D, status: "closed" }, "DECLINED").status).toEqual(["DECLINED"])
+  })
+
+  it("toggles statuses in and out, in lifecycle order, back to Open when empty", () => {
+    const a = toggleStatusChip(D, "DELIVERED")
+    const b = toggleStatusChip(a, "REQUESTED")
+    expect(b.status).toEqual(["REQUESTED", "DELIVERED"])
+    expect(toggleStatusChip(b, "DELIVERED").status).toEqual(["REQUESTED"])
+    expect(toggleStatusChip(toggleStatusChip(b, "DELIVERED"), "REQUESTED").status).toBe("open")
+  })
+
+  it("marks the active chips", () => {
+    expect(isStatusChipActive(D, "open")).toBe(true)
+    expect(isStatusChipActive(D, "REQUESTED")).toBe(false)
+    const f = { ...D, status: ["ASSIGNED" as const] }
+    expect(isStatusChipActive(f, "ASSIGNED")).toBe(true)
+    expect(isStatusChipActive(f, "open")).toBe(false)
+    expect(isStatusChipActive({ ...D, status: "closed" }, "closed")).toBe(true)
+  })
+
+  it("toggles types, in a fixed order, with none meaning every type", () => {
+    const a = toggleTypeFilter(D, "VIDEO")
+    const b = toggleTypeFilter(a, "PHOTO")
+    expect(b.types).toEqual(["PHOTO", "VIDEO"])
+    expect(toggleTypeFilter(toggleTypeFilter(b, "PHOTO"), "VIDEO").types).toEqual([])
+  })
+
+  it("leaves the other filters alone", () => {
+    const f: RequestFilters = { ...D, assignee: "me", placement: "unplaced" }
+    expect(toggleStatusChip(f, "closed")).toMatchObject({ assignee: "me", placement: "unplaced" })
+    expect(toggleTypeFilter(f, "MAP")).toMatchObject({ assignee: "me", placement: "unplaced" })
   })
 })

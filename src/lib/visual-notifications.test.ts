@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest"
 import {
   PURGE_ACTOR,
+  requesterNoticeEmail,
+  requesterNoticeRecipient,
+  type RequesterNoticeInput,
   deskRecipients,
+  deskRecipientSource,
+  validateEmailList,
+  DESK_LIST_MAX_ADDRESSES,
+  DESK_LIST_MAX_LENGTH,
   parseEmailList,
   storyDeletedEmail,
   storyDeletedNotices,
@@ -49,6 +56,104 @@ describe("deskRecipients", () => {
 
   it("never reads process.env on its own", () => {
     expect(deskRecipients("PHOTO", { VISUAL_REQUEST_EMAILS_GRAPHIC: "g@x.com" })).toEqual([])
+  })
+})
+
+describe("deskRecipients with the routing table (slice 3 §14)", () => {
+  const env = {
+    VISUAL_REQUEST_EMAILS_PHOTO: "photo-env@x.com",
+    VISUAL_REQUEST_EMAILS_GRAPHIC: "graphic-env@x.com",
+    VISUAL_REQUEST_EMAILS_VIDEO: "video-env@x.com",
+  }
+  const row = (type: string, emails: string) => ({ type, emails })
+
+  it("uses a type's own row when it has addresses", () => {
+    const rows = [row("PHOTO", "photo-db@x.com, b@x.com"), row("GRAPHIC", "graphic-db@x.com"), row("VIDEO", "video-db@x.com")]
+    expect(deskRecipients("PHOTO", env, rows)).toEqual(["photo-db@x.com", "b@x.com"])
+    expect(deskRecipients("GRAPHIC", env, rows)).toEqual(["graphic-db@x.com"])
+    expect(deskRecipients("VIDEO", env, rows)).toEqual(["video-db@x.com"])
+    expect(deskRecipientSource("PHOTO", env, rows)).toBe("table")
+  })
+
+  it("falls back to the env var with no row", () => {
+    expect(deskRecipients("PHOTO", env, [row("GRAPHIC", "graphic-db@x.com")])).toEqual(["photo-env@x.com"])
+    expect(deskRecipientSource("PHOTO", env, [])).toBe("env")
+  })
+
+  it("falls back to the env var when the row is empty or only separators", () => {
+    for (const emails of ["", "   ", " , ,"]) {
+      expect(deskRecipients("VIDEO", env, [row("VIDEO", emails)]), JSON.stringify(emails)).toEqual(["video-env@x.com"])
+    }
+  })
+
+  it("Map: its own row, then the Graphic row, then the Graphic env var", () => {
+    expect(deskRecipients("MAP", env, [row("MAP", "map-db@x.com"), row("GRAPHIC", "graphic-db@x.com")])).toEqual(["map-db@x.com"])
+    expect(deskRecipientSource("MAP", env, [row("MAP", "map-db@x.com")])).toBe("table")
+
+    expect(deskRecipients("MAP", env, [row("GRAPHIC", "graphic-db@x.com")])).toEqual(["graphic-db@x.com"])
+    expect(deskRecipientSource("MAP", env, [row("GRAPHIC", "graphic-db@x.com")])).toBe("graphic table")
+
+    expect(deskRecipients("MAP", env, [])).toEqual(["graphic-env@x.com"])
+    expect(deskRecipientSource("MAP", env, [])).toBe("env")
+  })
+
+  it("Map with its own empty row still follows Graphic", () => {
+    const rows = [row("MAP", " "), row("GRAPHIC", "graphic-db@x.com")]
+    expect(deskRecipients("MAP", env, rows)).toEqual(["graphic-db@x.com"])
+    expect(deskRecipients("MAP", env, [row("MAP", "")])).toEqual(["graphic-env@x.com"])
+  })
+
+  it("only Map follows Graphic: other types never borrow another row", () => {
+    expect(deskRecipients("PHOTO", {}, [row("GRAPHIC", "graphic-db@x.com")])).toEqual([])
+    expect(deskRecipients("VIDEO", {}, [row("PHOTO", "photo-db@x.com")])).toEqual([])
+  })
+
+  it("is empty, source none, when nothing is configured or the type is unknown", () => {
+    expect(deskRecipients("PHOTO", {}, [])).toEqual([])
+    expect(deskRecipientSource("PHOTO", {}, [])).toBe("none")
+    expect(deskRecipients("HOLOGRAM", env, [row("HOLOGRAM", "h@x.com")])).toEqual([])
+    expect(deskRecipientSource("HOLOGRAM", env, [])).toBe("none")
+  })
+
+  it("keeps slice 2 behavior when no rows are passed", () => {
+    expect(deskRecipients("GRAPHIC", env)).toEqual(["graphic-env@x.com"])
+    expect(deskRecipients("MAP", env)).toEqual(["graphic-env@x.com"])
+  })
+})
+
+describe("validateEmailList", () => {
+  it("normalizes a good list: trimmed, blanks and duplicates dropped", () => {
+    expect(validateEmailList(" a@x.com ,, B@x.com, a@X.com ,")).toEqual({ ok: true, emails: ["a@x.com", "B@x.com"] })
+  })
+
+  it("accepts empty input as an empty list (use the fallback)", () => {
+    expect(validateEmailList("")).toEqual({ ok: true, emails: [] })
+    expect(validateEmailList(" , ")).toEqual({ ok: true, emails: [] })
+  })
+
+  it("names exactly the bad address among good ones", () => {
+    expect(validateEmailList("visualrequests@oregonian.com, dave@oregonian, mfriesen@oregonian.com")).toEqual({
+      ok: false,
+      errors: [{ address: "dave@oregonian", message: "dave@oregonian isn't a valid email address" }],
+    })
+  })
+
+  it("gives one error per bad address", () => {
+    const result = validateEmailList("nope, also nope@, ok@x.com")
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.errors.map((e) => e.address)).toEqual(["nope", "also nope@"])
+  })
+
+  it("rejects too many addresses or too long a list", () => {
+    const many = Array.from({ length: DESK_LIST_MAX_ADDRESSES + 1 }, (_, i) => `p${i}@x.com`).join(",")
+    const tooMany = validateEmailList(many)
+    expect(tooMany.ok).toBe(false)
+    if (!tooMany.ok) expect(tooMany.errors[0].address).toBeNull()
+
+    const exactly = Array.from({ length: DESK_LIST_MAX_ADDRESSES }, (_, i) => `p${i}@x.com`).join(",")
+    expect(validateEmailList(exactly).ok).toBe(true)
+
+    expect(validateEmailList("a".repeat(DESK_LIST_MAX_LENGTH + 1)).ok).toBe(false)
   })
 })
 
@@ -186,6 +291,7 @@ describe("storyDeletedNotices", () => {
   const staff = (name: string, email: string, isActive = true) => ({ name, email, isActive, isStaff: true })
   const contributor = { name: "Cy", email: "cy@x.com", isActive: true, isStaff: false }
   const notice = (over: Partial<DeletedStoryNotice>): DeletedStoryNotice => ({
+    id: "v1",
     type: "PHOTO",
     status: "ASSIGNED",
     person: staff("Ann", "ann@x.com"),
@@ -196,14 +302,17 @@ describe("storyDeletedNotices", () => {
   it("groups several visuals for one person into one notice with a line each", () => {
     const groups = storyDeletedNotices([
       notice({ type: "PHOTO", status: "ASSIGNED" }),
-      notice({ type: "GRAPHIC", status: "IN_PROGRESS" }),
+      notice({ id: "v2", type: "GRAPHIC", status: "IN_PROGRESS" }),
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0].email).toBe("ann@x.com")
     expect(groups[0].name).toBe("Ann")
     expect(groups[0].lines).toEqual([
-      "Photo (assigned): this assignment was removed with the story.",
-      "Graphic (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.",
+      { text: "Photo (assigned): this assignment was removed with the story." },
+      {
+        text: "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:",
+        href: expect.stringMatching(/\/requests\/v2$/),
+      },
     ])
   })
 
@@ -246,8 +355,11 @@ describe("storyDeletedEmail", () => {
     name: "Ann",
     story: { id: "s1", slug: "COUNCIL", budgetLine: "Council votes on budget" },
     lines: [
-      "Photo (assigned): this assignment was removed with the story.",
-      "Graphic (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.",
+      { text: "Photo (assigned): this assignment was removed with the story." },
+      {
+        text: "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:",
+        href: "https://news.example/requests/v2",
+      },
     ],
   }
 
@@ -256,11 +368,21 @@ describe("storyDeletedEmail", () => {
     expect(subject).toBe("News Budget story deleted: COUNCIL")
     expect(text).toContain("A story you have a visual assignment on was deleted from the News Budget.")
     expect(text).toContain("COUNCIL: Council votes on budget")
-    expect(text).toContain("- Photo (assigned): this assignment was removed with the story.")
-    expect(text).toContain("- Graphic (in progress): your visual was kept but is no longer attached to a story.")
+    expect(text).toContain("- Photo (assigned): this assignment was removed with the story.\n")
+    expect(text).toContain("- Graphic (in progress): your visual was kept and is now unplaced.")
     expect(html).toContain("<li>Photo (assigned): this assignment was removed with the story.</li>")
-    expect(html).toContain("<li>Graphic (in progress): your visual was kept")
-    expect(text).not.toContain("http")
+    expect(html).toContain("<li>Graphic (in progress): your visual was kept and is now unplaced.")
+  })
+
+  it("links an in-progress visual to its request page, and nothing else", () => {
+    const { text, html } = storyDeletedEmail(group, "Sam Okafor")
+    expect(text).toContain("from its request page: https://news.example/requests/v2\n")
+    expect(html).toContain(
+      'from its request page: <a href="https://news.example/requests/v2">https://news.example/requests/v2</a></li>'
+    )
+    // One link only: the assigned line has none, and there's no link to the deleted story.
+    expect(text.match(/https?:\/\//g)).toHaveLength(1)
+    expect(html).not.toContain("/stories/")
   })
 
   it("names who deleted it, a person or the purge", () => {
@@ -269,5 +391,104 @@ describe("storyDeletedEmail", () => {
       "Deleted by: the nightly purge of stories shelved more than 90 days"
     )
     expect(storyDeletedEmail(group, "<Sam>").html).toContain("<strong>Deleted by:</strong> &lt;Sam&gt;")
+  })
+})
+
+describe("requesterNoticeRecipient", () => {
+  const staff = { email: "ann@x.com", isActive: true, isStaff: true }
+
+  it("emails an active staff requester", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, "p-desk")).toBe("ann@x.com")
+  })
+
+  it("still emails when the actor's account isn't linked to a Person", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, null)).toBe("ann@x.com")
+  })
+
+  it("skips the requester when they made the change themselves", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, "p-ann")).toBeNull()
+  })
+
+  it("follows notifiableEmail: no contributor, inactive staffer, or missing email", () => {
+    for (const person of [
+      { ...staff, isStaff: false },
+      { ...staff, isActive: false },
+      { ...staff, email: null },
+    ]) {
+      expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: person }, "p-desk")).toBeNull()
+    }
+  })
+
+  it("skips a request whose requester is gone", () => {
+    expect(requesterNoticeRecipient({ requestedById: null, requestedBy: null }, "p-desk")).toBeNull()
+  })
+})
+
+describe("requesterNoticeEmail", () => {
+  const base: RequesterNoticeInput = {
+    id: "v1",
+    type: "PHOTO",
+    status: "DELIVERED",
+    description: "Portrait of the new superintendent",
+    declineReason: null,
+    story: { id: "s1", slug: "SUPERINTENDENT", budgetLine: "New superintendent starts Monday" },
+    person: { name: "Beth Nakamura" },
+    actorName: "Sam Okafor",
+  }
+  const email = (over: Partial<RequesterNoticeInput>) => requesterNoticeEmail({ ...base, ...over })!
+
+  it("only covers declined and delivered", () => {
+    for (const status of ["PLANNED", "REQUESTED", "ASSIGNED", "IN_PROGRESS", "CANCELED"]) {
+      expect(requesterNoticeEmail({ ...base, status }), status).toBeNull()
+    }
+  })
+
+  it("delivered on a story: who delivered it, the story, both links", () => {
+    const { subject, text, html } = email({})
+    expect(subject).toBe("News Budget visual delivered (Photo): SUPERINTENDENT")
+    expect(text).toContain("Your photo request was delivered by Beth Nakamura.")
+    expect(text).toContain("SUPERINTENDENT: New superintendent starts Monday")
+    expect(text).toContain("You asked for: Portrait of the new superintendent")
+    expect(text).not.toContain("Reason:")
+    expect(text).not.toContain("isn't attached")
+    expect(text).toMatch(/View the request: \S+\/requests\/v1\nView the story: \S+\/stories\/s1$/)
+    expect(html).toMatch(/<a href="[^"]+\/requests\/v1">View the request in the News Budget<\/a>/)
+  })
+
+  it("delivered standalone: subject from the description, a nudge to attach it, request link only", () => {
+    const { subject, text, html } = email({
+      story: null,
+      description: "Gov. Tina Kotek is speaking in Portland, update our file photos",
+    })
+    expect(subject).toBe("News Budget visual delivered (Photo): Gov. Tina Kotek is speaking in Portland, update our…")
+    expect(text).toContain("It isn't attached to a story yet. Attach it to one from its request page.")
+    expect(text).toMatch(/View the request: \S+\/requests\/v1$/)
+    expect(html).not.toContain("/stories/")
+  })
+
+  it("delivered with no assignee on the row still reads sensibly", () => {
+    expect(email({ person: null }).text).toContain("Your photo request was marked delivered.")
+  })
+
+  it("declined: who declined it, the reason, what to do next", () => {
+    const { subject, text, html } = email({ status: "DECLINED", declineReason: "No photographer free that night", type: "GRAPHIC" })
+    expect(subject).toBe("News Budget visual request declined (Graphic): SUPERINTENDENT")
+    expect(text).toContain("Your graphic request was declined by Sam Okafor.")
+    expect(text).toContain("Reason: No photographer free that night")
+    expect(text).toContain("If you still need it, talk to the visuals desk or file a new request.")
+    expect(html).toContain("<strong>Reason:</strong> No photographer free that night")
+  })
+
+  it("declined standalone has no story line or story link", () => {
+    const { subject, text } = email({ status: "DECLINED", declineReason: "Use file art", story: null, description: "Kotek portraits" })
+    expect(subject).toBe("News Budget visual request declined (Photo): Kotek portraits")
+    expect(text).not.toContain("/stories/")
+  })
+
+  it("escapes HTML in the reason and description", () => {
+    const { html } = email({ status: "DECLINED", declineReason: "<b>no</b> & \"never\"", description: "<i>x</i>" })
+    expect(html).toContain("&lt;b&gt;no&lt;/b&gt; &amp; &quot;never&quot;")
+    expect(html).toContain("&lt;i&gt;x&lt;/i&gt;")
+    expect(html).not.toContain("<b>no</b>")
   })
 })

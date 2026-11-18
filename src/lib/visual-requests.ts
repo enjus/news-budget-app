@@ -10,12 +10,13 @@ export * from "./visual-statuses"
 
 export type VisualAction =
   | "update"   // edit details (type, description, notes, dataUrl, …)
-  | "assign"   // set or change personId
+  | "assign"   // set or change personId (pass the target: non-elevated users may only claim for themselves)
   | "advance"  // → IN_PROGRESS, → DELIVERED
   | "decline"
   | "cancel"
   | "delete"
   | "attach"   // set or change storyId (attach a request to a story, or move it)
+  | "release"  // ASSIGNED → REQUESTED: the assignee hands it back to the queue
 
 export interface VisualActor {
   role: string
@@ -33,10 +34,21 @@ export interface VisualPermissionTarget {
 /**
  * Who may do what to a visual. PLANNED rows keep today's rules: any content
  * creator can edit or delete them (that is how "Add" and its remove button work).
- * REQUESTED and later follow the issue's permissions table. Doesn't check
- * whether the *transition* is legal — pair with canTransition().
+ * REQUESTED and later follow the issue's permissions table, plus self-claim
+ * (Ryan, Nov 17). Doesn't check whether the *transition* is legal — pair with
+ * canTransition().
+ *
+ * `targetPersonId` is who an "assign" would assign, and is ignored otherwise.
+ * Elevated roles may assign anyone. Anyone else may only *claim*: assign an
+ * unassigned REQUESTED request to themselves. So a non-elevated assignee can't
+ * hand a request to a colleague; they release it instead.
  */
-export function canActOnVisual(actor: VisualActor, visual: VisualPermissionTarget, action: VisualAction): boolean {
+export function canActOnVisual(
+  actor: VisualActor,
+  visual: VisualPermissionTarget,
+  action: VisualAction,
+  targetPersonId?: string | null,
+): boolean {
   if (!canCreateContent(actor.role)) return false
 
   if (visual.status === "PLANNED") {
@@ -53,7 +65,17 @@ export function canActOnVisual(actor: VisualActor, visual: VisualPermissionTarge
       // and still works on a DELIVERED request.
       return !isTerminalStatus(visual.status) && (isRequester || hasElevatedAccess(actor.role))
     case "assign":
-      return hasElevatedAccess(actor.role) || isAssignee
+      if (hasElevatedAccess(actor.role)) return true
+      return (
+        actor.personId !== null &&
+        targetPersonId === actor.personId &&
+        visual.status === "REQUESTED" &&
+        visual.personId === null
+      )
+    case "release":
+      // The assignee only, and only before work starts. A desk editor who isn't
+      // the assignee reassigns instead.
+      return isAssignee && visual.status === "ASSIGNED"
     case "advance":
       return isAssignee || hasElevatedAccess(actor.role)
     case "decline":
@@ -68,11 +90,34 @@ export function canActOnVisual(actor: VisualActor, visual: VisualPermissionTarge
   }
 }
 
+/** Whether the actor can assign this request to themselves: unassigned, REQUESTED, and a linked Person. */
+export function canClaimVisual(actor: VisualActor, visual: VisualPermissionTarget): boolean {
+  return (
+    actor.personId !== null &&
+    visual.status === "REQUESTED" &&
+    visual.personId === null &&
+    canActOnVisual(actor, visual, "assign", actor.personId)
+  )
+}
+
+/**
+ * The `where` for the PATCH route's guarded write: the row must still have the
+ * status, assignee and story the route validated against. Two people claiming
+ * the same request both validate against (REQUESTED, no assignee); the first
+ * write changes both, so the second matches nothing and gets a 409. Same for
+ * racing transitions, reassignments and attaches.
+ */
+export function visualPatchGuard(existing: { id: string; status: string; personId: string | null; storyId: string | null }) {
+  return { id: existing.id, status: existing.status, personId: existing.personId, storyId: existing.storyId }
+}
+
 /** The action buttons a request's page can show, in display order. */
 export type VisualButton =
-  | "assign"   // Assign (REQUESTED) or Reassign (ASSIGNED)
+  | "assign"   // Assign (REQUESTED) or Reassign (ASSIGNED): the person picker, elevated only
+  | "claim"    // assign an unassigned REQUESTED request to yourself
   | "start"    // ASSIGNED → IN_PROGRESS
   | "deliver"  // IN_PROGRESS → DELIVERED
+  | "release"  // ASSIGNED → REQUESTED, by the assignee
   | "decline"
   | "cancel"
   | "edit"
@@ -89,9 +134,12 @@ export function availableVisualActions(actor: VisualActor, visual: VisualPermiss
   if (visual.status === "PLANNED") return []
   const can = (action: VisualAction) => canActOnVisual(actor, visual, action)
   const buttons: VisualButton[] = []
+  // With no target, "assign" is only true for elevated roles: the picker can name anyone.
   if (can("assign") && (visual.status === "REQUESTED" || visual.status === "ASSIGNED")) buttons.push("assign")
+  if (canClaimVisual(actor, visual)) buttons.push("claim")
   if (can("advance") && canTransition(visual.status, "IN_PROGRESS")) buttons.push("start")
   if (can("advance") && canTransition(visual.status, "DELIVERED")) buttons.push("deliver")
+  if (can("release") && canTransition(visual.status, "REQUESTED")) buttons.push("release")
   if (can("decline") && canTransition(visual.status, "DECLINED")) buttons.push("decline")
   if (can("cancel") && canTransition(visual.status, "CANCELED")) buttons.push("cancel")
   if (can("update")) buttons.push("edit")

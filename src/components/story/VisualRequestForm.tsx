@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiPath } from "@/lib/api-path"
+import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning"
 import { parseDataUrl } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
 
@@ -32,7 +33,11 @@ export interface EditableRequestFields {
 }
 
 interface VisualRequestFormProps {
-  /** The story to file the request on. Ignored when `editing`. */
+  /**
+   * The story to file the request on. Without it (and without `editing`) the
+   * form files a standalone request through POST /api/visuals, for /requests/new.
+   * Ignored when `editing`.
+   */
   storyId?: string
   /** No longer read: the description placeholder is a fixed example. Kept so callers needn't change. */
   budgetLine?: string
@@ -40,7 +45,8 @@ interface VisualRequestFormProps {
   defaultDeadline?: string | null
   /** Edit an existing request instead of filing one: PATCHes /api/visuals/[id] with every field. */
   editing?: { id: string; initial: EditableRequestFields }
-  onSubmitted: () => void
+  /** Called after a successful save, with the request the server returned. */
+  onSubmitted: (visual: { id: string }) => void
   onCancel: () => void
 }
 
@@ -65,6 +71,10 @@ function OptionalDateTime({ value, onChange }: { value: string | null; onChange:
  * already in newsroom-time-as-UTC (the same values StoryForm sends for pub dates)
  * and are passed through untouched.
  *
+ * With no `storyId` it files a standalone request (POST /api/visuals), which
+ * can be attached to a story later from its request page. That's a whole page
+ * of its own, so it gets the unsaved-changes guard StoryForm uses.
+ *
  * With `editing`, the same form edits an existing request's details on its
  * request page: prefilled, PATCHed, and no linked Person needed (the server's
  * "update" rule decides who may edit).
@@ -73,6 +83,7 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
   const { data: session, status: sessionStatus } = useSession()
   const unlinked = !editing && sessionStatus === "authenticated" && !session?.user?.personId
   const initial = editing?.initial
+  const standalone = !editing && storyId === undefined
 
   const [type, setType] = useState<VisualTypeValue>((initial?.type as VisualTypeValue) ?? "PHOTO")
   const [description, setDescription] = useState(initial?.description ?? "")
@@ -87,9 +98,13 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
   // Same checks the server runs (requestVisualSchema); the inline errors just save a round trip.
   const link = parseDataUrl(dataUrl)
   const hasDescription = description.trim() !== ""
-  const canSubmit =
-    sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting &&
-    (editing !== undefined || storyId !== undefined)
+  const canSubmit = sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting
+
+  // Only the standalone page: the inline story form sits inside a page that
+  // has its own guards, and a reload there loses little.
+  const [saved, setSaved] = useState(false)
+  const dirty = [description, location, notes, dataUrl].some((v) => v.trim() !== "") || eventDateTime !== null || deadline !== null
+  useUnsavedChangesWarning(standalone && dirty && !saved, "Leave this page? Your visual request hasn't been filed yet.")
 
   async function handleSubmit() {
     if (!canSubmit || !link.ok) return
@@ -120,7 +135,7 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
         if (deadline) body.deadline = deadline
         if (notes.trim()) body.notes = notes.trim()
         if (link.value) body.dataUrl = link.value
-        res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
+        res = await fetch(apiPath(standalone ? "/api/visuals" : `/api/stories/${storyId}/visuals`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -130,8 +145,10 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
         const json = await res.json().catch(() => ({}))
         throw new Error(json?.error ?? `Failed to ${editing ? "save request" : "file request"} (${res.status})`)
       }
+      const json = await res.json().catch(() => ({}))
+      setSaved(true)
       toast.success(editing ? "Request updated" : "Visual requested")
-      onSubmitted()
+      onSubmitted({ id: json?.id ?? editing?.id ?? "" })
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : editing ? "Failed to save request" : "Failed to file request")
     } finally {
@@ -189,12 +206,20 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
             autoComplete="off"
             required
             aria-required
-            placeholder="e.g. Portrait of the new superintendent for Sunday's story"
+            placeholder={
+              standalone
+                ? "e.g. Gov. Kotek speaks in Portland on Tuesday; update our file photos"
+                : "e.g. Portrait of the new superintendent for Sunday's story"
+            }
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           {!hasDescription && (
-            <p className="text-xs text-muted-foreground">Required: say what the visuals desk should produce.</p>
+            <p className="text-xs text-muted-foreground">
+              {standalone
+                ? "Required: say what the visuals desk should produce, and what it's for."
+                : "Required: say what the visuals desk should produce."}
+            </p>
           )}
         </div>
       </div>

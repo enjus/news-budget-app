@@ -111,6 +111,40 @@ export function requestFiltersToQuery(filters: RequestFilters): string {
   return params.toString()
 }
 
+/** Whether these are the plain dashboard's filters (nothing to clear). */
+export function isDefaultFilters(filters: RequestFilters): boolean {
+  return requestFiltersToQuery(filters) === ""
+}
+
+/** A status chip on the dashboard: Open, each status, or All closed. */
+export type StatusChip = "open" | "closed" | VisualStatus
+
+export function isStatusChipActive(filters: RequestFilters, chip: StatusChip): boolean {
+  if (chip === "open" || chip === "closed") return filters.status === chip
+  return Array.isArray(filters.status) && filters.status.includes(chip)
+}
+
+/**
+ * Click a status chip. Open and All closed replace the selection (clicking an
+ * active All closed goes back to Open). A single status toggles in or out of
+ * an explicit list, starting a fresh list from Open or All closed; emptying
+ * the list goes back to Open. Lists stay in lifecycle order so URLs are stable.
+ */
+export function toggleStatusChip(filters: RequestFilters, chip: StatusChip): RequestFilters {
+  if (chip === "open") return { ...filters, status: "open" }
+  if (chip === "closed") return { ...filters, status: filters.status === "closed" ? "open" : "closed" }
+  const current = Array.isArray(filters.status) ? filters.status : []
+  const next = current.includes(chip) ? current.filter((s) => s !== chip) : [...current, chip]
+  if (next.length === 0) return { ...filters, status: "open" }
+  return { ...filters, status: REQUEST_STATUSES.filter((s) => next.includes(s)) }
+}
+
+/** Click a type chip: toggles it in or out; none selected means every type. */
+export function toggleTypeFilter(filters: RequestFilters, type: VisualTypeValue): RequestFilters {
+  const next = filters.types.includes(type) ? filters.types.filter((t) => t !== type) : [...filters.types, type]
+  return { ...filters, types: VISUAL_TYPES.filter((t) => next.includes(t)) }
+}
+
 export interface RequestListContext {
   /** `session.user.personId`; null for an unlinked account. */
   personId: string | null

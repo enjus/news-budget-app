@@ -1,6 +1,6 @@
 # Visual requests — Slice 3 (dashboard, standalone requests, go-live)
 
-Source: issue #23; builds on [`visual-requests-slice-1.md`](visual-requests-slice-1.md) and [`visual-requests-slice-2.md`](visual-requests-slice-2.md). Scope set by Elliot's answers of Nov 16 (decision log: "Elliot's answers", "Standalone requests"). Status: approved Nov 17 (all section 10 defaults), in progress (stage 1).
+Source: issue #23; builds on [`visual-requests-slice-1.md`](visual-requests-slice-1.md) and [`visual-requests-slice-2.md`](visual-requests-slice-2.md). Scope set by Elliot's answers of Nov 16 (decision log: "Elliot's answers", "Standalone requests"). Status: built. PR 3a merged and deployed; PR 3b (stages 4–8) in review, Nov 18. Go-live per section 13 after it deploys.
 
 ## Goal
 
@@ -17,7 +17,7 @@ Everything needed to turn `NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED` on in production
 
 ## Out of scope
 
-Calendar invites and `METHOD:REQUEST`/`CANCEL` (slice 4); requester confirmation on filing (slice 4); archive, unarchive and purge of visuals (the `archived` columns stay unused); comments on requests; a history/audit trail of status changes. The only schema change is the desk-routing table (section 14), in the second PR. Self-claim and requester emails are open questions (section 10), each with a proposed default.
+Calendar invites and `METHOD:REQUEST`/`CANCEL` (slice 4); requester confirmation on filing (slice 4); archive, unarchive and purge of visuals (the `archived` columns stay unused); comments on requests; a history/audit trail of status changes. The only schema change is the desk-routing table (section 14), in the second PR. Self-claim is in (Ryan, Nov 17; section 1 and decision 1).
 
 ## Repo conventions (unchanged from slices 1 and 2)
 
@@ -33,11 +33,21 @@ The slice 1 table stands (`canActOnVisual`, `canTransition`). Two additions, bot
 
 **New action `attach`** (set or change `storyId`): the requester, the current assignee, or an elevated role. The assignee is included because the photographer often knows where the photo ended up. Not allowed on PLANNED (a credit always has a story) or on DECLINED / CANCELED (dead requests don't go on stories). Allowed on REQUESTED, ASSIGNED, IN_PROGRESS, DELIVERED.
 
+**Self-claim (Ryan, photo desk, Nov 17: "both").** Desk editors (elevated) keep assigning anyone. In addition:
+
+- **Claim:** any content creator with a linked Person can assign an *unassigned* REQUESTED request to *themselves*. `canActOnVisual` takes the target `personId` for `assign`, so assigning yourself is distinguishable from assigning someone else.
+- **Non-elevated users can only ever assign themselves.** Assigning anyone else is 403. **This replaces slice 1's "the current assignee may reassign" rule**: an assignee who can't do the work releases it instead of handing it to a colleague.
+- **Release:** the current assignee can send an ASSIGNED request back to REQUESTED, clearing the assignee. Not once it is IN_PROGRESS. This adds the ASSIGNED → REQUESTED transition and a `release` action. Elevated users who aren't the assignee don't get Release; they reassign.
+- The app doesn't record whether a request was claimed or assigned by the desk, so an assignee can release either.
+- **Two people claiming at once:** the PATCH `updateMany` is already guarded on the status and assignee it validated against (REQUESTED, none), so the second claim matches no row and gets a 409.
+
 **New pure helper `availableVisualActions(actor, visual)`**: returns the buttons to show, each one the conjunction of `canActOnVisual` and, for status changes, `canTransition`:
 
 | Button | Shown when |
 |---|---|
-| Assign / Reassign | `assign` allowed and status REQUESTED or ASSIGNED |
+| Assign / Reassign | elevated role, status REQUESTED or ASSIGNED (the person picker) |
+| Claim | linked Person, status REQUESTED, no assignee: assigns it to the viewer |
+| Release | the current assignee, status ASSIGNED: back to REQUESTED, assignee cleared |
 | Start | `advance` allowed and ASSIGNED → IN_PROGRESS legal |
 | Mark delivered | `advance` allowed and IN_PROGRESS → DELIVERED legal |
 | Decline | `decline` allowed and → DECLINED legal |
@@ -167,7 +177,7 @@ The story route's call drops its `if (visual.story)` guard; both POST routes cal
 
 **IN_PROGRESS story-delete notice**: the line becomes "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page: <APP_URL>/requests/<id>". `DeletedStoryNotice` gains the visual `id`; notice lines become `{ text, href? }` so the HTML can render a real link. The ASSIGNED line is unchanged.
 
-**Requester emails**: see decision 2.
+**Requester emails** (decision 2, built in stage 8): on DECLINED, `News Budget visual request declined (Photo): SLUG` with who declined it and the reason; on DELIVERED, `News Budget visual delivered (Photo): SLUG` with who delivered it, plus a nudge to attach a standalone one. The description stands in for a standalone request's slug. Requester only, through `notifiableEmail()`, skipped when they made the change; fire-and-forget after the PATCH commits. Nothing on assign, claim, release, start or cancel.
 
 ## 6. New Story form hint
 
@@ -205,7 +215,7 @@ A new section in `src/lib/nav.ts`:
 
 ## 10. Decisions (all defaults approved Nov 17)
 
-1. **Self-claim** (question for Ryan, photo desk). Proposed default: **not in this slice**; assign stays elevated-only. Design if wanted: a new `claim` action letting any content creator with a linked Person assign an *unassigned* REQUESTED visual to *themselves* only (PATCH `personId` equal to their own, existing `personId` null). Pair it with a "Release" back to REQUESTED by the assignee, which needs a new ASSIGNED → REQUESTED transition, or a mistaken claim is stuck until an editor reassigns. Roughly one stage of work: permissions and tests, the PATCH rule, a "Claim" button on the detail page and an "Unassigned" filter that's already planned. Can follow go-live as its own small PR.
+1. **Self-claim: IN this PR** (Ryan, photo desk, Nov 17: "both"). Built in stage 6 per section 1. The original design note, kept for reference: a new `claim` action letting any content creator with a linked Person assign an *unassigned* REQUESTED visual to *themselves* only (PATCH `personId` equal to their own, existing `personId` null). Pair it with a "Release" back to REQUESTED by the assignee, which needs a new ASSIGNED → REQUESTED transition, or a mistaken claim is stuck until an editor reassigns. Roughly one stage of work: permissions and tests, the PATCH rule, a "Claim" button on the detail page and an "Unassigned" filter that's already planned. Can follow go-live as its own small PR.
 2. **Requester emails.** Issue #23 r2 resolved that the requester is emailed on **decline** (with the reason) and on **delivery**; the Nov 16 decision moved "requester confirmations" to slice 4. Proposed default: **pull decline and delivered into this slice**, keep the on-filing confirmation in slice 4. A standalone request has no story page for the requester to watch, and a silent decline leaves them thinking coverage is arranged. Rules: fire-and-forget from the PATCH route after the transition commits; requester only, through `notifiableEmail()`; skipped when the requester made the change themselves; links to the request page. Adds one stage.
 3. **Who sees the nav item.** Proposed default: content creators when the flag is on, as in section 7. Alternative: elevated roles only, with requesters using the story page.
 4. **Detach.** Proposed default: attach and move only, no detach to "no story". Detach adds a state change nobody has asked for; a request filed on the wrong story can be moved. Story delete already unplaces work that needs it.
@@ -223,7 +233,7 @@ A new section in `src/lib/nav.ts`:
 | "Attach existing" picker on the story page, DELIVERED only | Attach from the request page, any live status | Standalone requests need placing before delivery too; decision 6 |
 | `GET /api/visuals/unplaced` | `GET /api/visuals?placement=unplaced` | One list route |
 | `/requests/my` folds into `/me` | Dashboard filters | Decision 7 |
-| Assign: "elevated, or the assignee themselves" | Elevated or current assignee (reassign only) | Elliot Nov 16; decision 1 |
+| Assign: "elevated, or the assignee themselves" | Elevated assign anyone; anyone linked may claim an unassigned request for themselves and release it while ASSIGNED; no non-elevated handoffs | Ryan Nov 17; decision 1 |
 | Archive filter and actions | Not built; 90-day window on closed rows | Out of scope; decision 8 |
 | New indexes `[status, storyId]`, `[eventDateTime]` | None | Not needed at this volume |
 | Desk email on transition back into REQUESTED (unarchive) | Not applicable | No unarchive yet |
@@ -247,27 +257,29 @@ Each stage ends with the four checks green and a stop for review. Nothing is com
 
 **Stage 5 — standalone filing and story-side polish.** `/requests/new`, `VisualRequestForm` without a story, the New Story hint, the IN_PROGRESS notice link. Review point: the full standalone flow end to end.
 
-**Stage 6 — desk routing admin page** (section 14). The `VisualDeskRouting` table and a local `db push`; `deskRecipients()` taking the rows; `validateEmailList()`; `notifyVisualDesk` reading the table; `GET`/`PUT /api/admin/visual-desk-routing`; `/admin/visual-requests` and its Admin tab. Review point: the fallback order, the per-address errors, and the page. Manual: change a list in the page and file a request against Mailpit.
+**Stage 6 — self-claim and release** (section 1, decision 1). `canActOnVisual` takes the target person for `assign`; the `release` action and the ASSIGNED → REQUESTED transition; `availableVisualActions` gains Claim and Release; the PATCH route passes the target and clears the assignee on release; Claim and Release buttons on the request page. Pure tests for each rule. Review point: the permission changes, especially the removed assignee handoff. Manual: claim, release, and two simultaneous claims (second gets 409).
 
-**Stage 7 — requester emails and wrap-up** (requester emails approved as decision 2). Builders, tests, PATCH wiring, docs, go-live checklist, decision log, PR description draft.
+**Stage 7 — desk routing admin page** (section 14). The `VisualDeskRouting` table and a local `db push`; `deskRecipients()` taking the rows; `validateEmailList()`; `notifyVisualDesk` reading the table; `GET`/`PUT /api/admin/visual-desk-routing`; `/admin/visual-requests` and its Admin tab. Review point: the fallback order, the per-address errors, and the page. Manual: change a list in the page and file a request against Mailpit.
 
-**This runs to seven stages, split into two PRs:**
+**Stage 8 — requester emails and wrap-up** (requester emails approved as decision 2). Builders, tests, PATCH wiring, docs, go-live checklist, decision log, PR description draft.
+
+**This runs to eight stages, split into two PRs:**
 
 - **PR 3a, stages 1–3: standalone requests and the request page.** Everything works by URL with the flag off: the API, filing by API, the detail page, attach. It changes nothing a production user can reach except the "Open" link on story-page request rows, which only appear on requests that exist. No schema change.
-- **PR 3b, stages 4–7: dashboard, filing UI, desk routing, emails, go-live.** Has the one schema change (section 14). Ends with the checklist; the flag is turned on after it deploys.
+- **PR 3b, stages 4–8: dashboard, filing UI, self-claim, desk routing, emails, go-live.** Has the one schema change (section 14). Ends with the checklist; the flag is turned on after it deploys.
 
-If decision 1 comes back "yes, before go-live", self-claim becomes a stage in PR 3b.
 
 ## 13. Go-live checklist
 
 Work through this after PR 3b deploys, before turning the flag on in production.
 
-- [ ] **Ryan's answer on self-claim**, recorded in the decision log **before PR 3b merges**. If the answer is "yes, before go-live", self-claim becomes a stage in PR 3b (decision 1).
-- [ ] **Schema pushed** with PR 3b's deploy: `pg_dump` backup, then `npx prisma db push` (adds the `VisualDeskRouting` table; additive, no backfill). See section 15.
+- [x] **Ryan's answer on self-claim**: "both", Nov 17. Desk editors assign anyone; anyone linked can claim an unassigned request and release it while ASSIGNED. Built in PR 3b, stage 6.
+- [x] Confirm with Ryan that release-then-claim is enough, or whether photographers need a direct handoff. **Confirmed Nov 18: release-then-claim is enough; no direct handoff.**
+- [ ] **Schema pushed** with PR 3b's deploy: `pg_dump` backup, then the deploy script (`bash ~/deploy-news-budget.sh` on or-newsutil2), which runs `npx prisma db push` and adds the `VisualDeskRouting` table (additive, no backfill). See section 15.
 - [ ] **Desk addresses set on the server:** `VISUAL_REQUEST_EMAILS_PHOTO`, `VISUAL_REQUEST_EMAILS_GRAPHIC`, and **confirm `VISUAL_REQUEST_EMAILS_VIDEO` is set** (`visualrequests@oregonian.com`). These stay the fallback when a type has no address list in the admin page. An empty list with no table row silently skips the desk email for that type.
 - [ ] **Desk routing page checked** at `/admin/visual-requests`: each type shows the addresses it will actually use, and Map shows that it follows Graphic unless given its own list.
 - [ ] `NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED=true` in the server `.env`, then a **full rebuild**: the flag is baked into the client bundle, so a restart alone isn't enough.
-- [ ] Smoke test in production: file a story request and a standalone one, check both desk emails arrive, work one through to delivered, and confirm the Requests nav item shows for a producer and not for a viewer.
+- [ ] Smoke test in production. Before the flag: file a standalone request at `/requests/new`, check its desk email arrives, and work it through to delivered. After the rebuild: confirm the Requests nav item shows for a producer and not for a viewer, file a story request from a story page, and check its desk email.
 - [ ] **Heads-up note to the newsroom before the flag flips:** a few lines saying what's new (Request a visual on the story page, standalone requests from Requests, the dashboard), that Add Visual still just records a visual already arranged, and who to ask on the visuals desk.
 
 ## 14. Desk routing in the app (PR 3b, added Nov 17)
@@ -310,7 +322,7 @@ A companion pure `deskRecipientSource(type, env, rows)` returns which step answe
 
 **Consequence to know:** clearing a field means "use the fallback", not "send nothing". To stop a type's desk email entirely, its env var must also be empty. That keeps the page from silently switching off intake; it's stated on the page.
 
-`notifyVisualDesk()` reads the rows (`prisma.visualDeskRouting.findMany()`, four rows at most) before resolving. If that read fails, it logs and resolves from `env` alone, so a database hiccup can't stop the desk email.
+`notifyVisualDesk()` reads the rows (`prisma.visualDeskRouting.findMany()`, four rows at most) before resolving. As built: the pure routing and validation functions live in `src/lib/visual-desk-routing.ts`, with no mail or database import, so the admin page can run `validateEmailList` in the browser. They're re-exported from `visual-notifications.ts`. The desk sender and the table read moved to `src/lib/visual-desk-routing-server.ts`. If that read fails, it logs and resolves from `env` alone, so a database hiccup can't stop the desk email.
 
 ### Validation
 
@@ -349,5 +361,5 @@ One card per type (Photo, Graphic, Map, Video), each with:
 ## 15. Deploy
 
 - **PR 3a:** no schema change. `git pull`, build, `chown`, restart, as usual.
-- **PR 3b:** one additive table. On the server: `pg_dump` backup, `git pull`, **`npx prisma db push`** (creates `VisualDeskRouting`; no existing data touched), build, `chown` to apache, restart. Vercel preview deploys apply it automatically through `vercel-build`; production does not.
+- **PR 3b:** one additive table. On or-newsutil2: `pg_dump` backup first, then the deploy script, `bash ~/deploy-news-budget.sh`, which runs **`npx prisma db push`**. The push creates `VisualDeskRouting` and touches no existing data. Vercel preview deploys apply it automatically through `vercel-build`; production does not.
 - The flag is turned on only after PR 3b is deployed and the checklist in section 13 is done.

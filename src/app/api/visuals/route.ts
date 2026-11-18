@@ -7,7 +7,7 @@ import { canCreateContent } from "@/lib/utils";
 import { checkReadLimit, checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 import { visualRequestCreateData } from "@/lib/visual-requests";
 import { REQUEST_LIST_CAP, compareRequests, parseRequestListQuery } from "@/lib/visual-request-list";
-import { notifyVisualDesk } from "@/lib/visual-notifications";
+import { notifyVisualDesk } from "@/lib/visual-desk-routing-server";
 
 export const dynamic = 'force-dynamic'
 

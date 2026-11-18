@@ -213,3 +213,29 @@ export interface VisualRequestDetail {
     status: string;
   } | null;
 }
+
+/** One row of GET /api/visuals (the /requests dashboard). No notes or dataUrl: those load on the request page. */
+export interface VisualRequestListItem {
+  id: string;
+  type: string;
+  status: string;
+  priority: string;
+  description: string | null;
+  /** Newsroom time encoded as UTC, like pub dates. */
+  eventDateTime: string | null;
+  location: string | null;
+  /** Newsroom time encoded as UTC, like pub dates. */
+  deadline: string | null;
+  declineReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  person: { id: string; name: string } | null;
+  requestedBy: { id: string; name: string } | null;
+  story: { id: string; slug: string; budgetLine: string } | null;
+}
+
+export interface VisualRequestList {
+  requests: VisualRequestListItem[];
+  /** True when more rows matched than GET /api/visuals returns (REQUEST_LIST_CAP). */
+  truncated: boolean;
+}

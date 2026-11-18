@@ -1,12 +1,13 @@
 import type { Metadata } from "next"
 import { hasAdminAccess, canViewMyTeams, canCreateContent } from "@/lib/utils"
+import { VISUAL_REQUESTS_ENABLED } from "@/lib/features"
 
 // Single source of truth for the two-level nav: TopNav renders the sections,
 // SectionTabNav renders the active section's tabs, and the mobile menu
 // renders both. Budget is one tool among several (Schedule, Pitches), so
 // its old top-level links (Daily, Enterprise, …) live here as tabs.
 
-export type NavSectionId = "budget" | "pitches" | "schedule" | "admin"
+export type NavSectionId = "budget" | "pitches" | "requests" | "schedule" | "admin"
 
 export interface NavContext {
   appRole: string
@@ -79,6 +80,19 @@ const SECTIONS: SectionDef[] = [
     tabs: () => [],
   },
   {
+    // The visuals desk's queue (issue #23, slice 3). Shown to content creators
+    // (the desk, and the people who file requests) once the flag is on. Read
+    // access is universal, so a VIEWER can still open /requests by URL; the
+    // same soft model as Teams. No tabs: the dashboard's filters do that job.
+    id: "requests",
+    label: "Requests",
+    href: "/requests",
+    match: ["/requests"],
+    enabled: (ctx) => VISUAL_REQUESTS_ENABLED && canCreateContent(ctx.appRole),
+    inTopBar: true,
+    tabs: () => [],
+  },
+  {
     id: "schedule",
     label: "Schedule",
     href: "/schedule/today",
@@ -108,6 +122,9 @@ const SECTIONS: SectionDef[] = [
       { label: "Teams", href: "/admin/teams", match: ["/admin/teams"] },
       { label: "Tags", href: "/admin/tags", match: ["/admin/tags"] },
       { label: "Calendar", href: "/admin/calendar", match: ["/admin/calendar"] },
+      // Desk routing for visual requests. Shown whether or not the flag is on,
+      // so routing can be set up before go-live.
+      { label: "Visual requests", href: "/admin/visual-requests", match: ["/admin/visual-requests"] },
     ],
   },
 ]
