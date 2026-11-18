@@ -172,6 +172,12 @@ describe("notesForEmail", () => {
     expect(text).toBe("line one is here\nline…")
   })
 
+  it("counts and cuts by code point, never splitting an emoji", () => {
+    const { text, truncated } = notesForEmail("😀".repeat(30), 10)
+    expect(truncated).toBe(true)
+    expect(text).toBe("😀".repeat(10) + "…")
+  })
+
   it("hard-cuts when there's no break near the limit", () => {
     const { text, truncated } = notesForEmail("a".repeat(50), 10)
     expect(truncated).toBe(true)

@@ -161,9 +161,10 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   const [expiresAt, setExpiresAt] = useState("")
   const [submitting, setSubmitting] = useState(false)
   // Set when a long paste into Pitch was moved to Source material instead.
-  // Holds what both fields looked like before, for Undo, and the pasted
-  // email's subject line (if any) for the one-click "use as pitch" option.
-  const [moved, setMoved] = useState<{ prevText: string; prevNotes: string; length: number; subject: string | null } | null>(null)
+  // `added` is exactly what was appended to the notes, so Undo can take just
+  // that back out without touching anything typed there since; `subject` is
+  // the pasted email's subject line (if any) for the "use as pitch" option.
+  const [moved, setMoved] = useState<{ added: string; length: number; subject: string | null } | null>(null)
 
   function reset() {
     setText("")
@@ -174,23 +175,28 @@ function FilePitchDialog({ onFiled }: { onFiled: () => void }) {
   }
 
   /** Pasting a whole email into Pitch is the natural habit, but Pitch is the
-   *  short summary. Anything that wouldn't fit goes to Source material instead,
-   *  and the reporter is asked for a summary. */
+   *  short summary. A paste longer than the whole Pitch limit goes to Source
+   *  material instead, and the reporter is asked for a summary. A shorter
+   *  paste is left alone (maxLength trims it if the box is nearly full). */
   function handlePitchPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
     const pasted = e.clipboardData.getData("text")
-    const el = e.currentTarget
-    const resulting = text.length - (el.selectionEnd - el.selectionStart) + pasted.length
-    if (resulting <= PITCH_TEXT_MAX) return
+    if (pasted.length <= PITCH_TEXT_MAX) return
     e.preventDefault()
+    const added = notes.trim() ? `\n\n${pasted}` : pasted
+    const base = notes.trim() ? notes.trimEnd() : ""
+    if (base.length + added.length > NOTES_MAX) {
+      toast.error(`That's too long to file — Source material holds up to ${NOTES_MAX.toLocaleString()} characters.`)
+      return
+    }
     const subject = pasted.match(/^\s*subject:\s*(.+)$/im)?.[1]?.trim() || null
-    setMoved({ prevText: text, prevNotes: notes, length: pasted.length, subject })
-    setNotes(notes.trim() ? `${notes.trimEnd()}\n\n${pasted}` : pasted)
+    setMoved({ added, length: pasted.length, subject })
+    setNotes(base + added)
   }
 
   function undoMove() {
     if (!moved) return
-    setText(moved.prevText)
-    setNotes(moved.prevNotes)
+    const i = notes.lastIndexOf(moved.added)
+    if (i >= 0) setNotes(notes.slice(0, i) + notes.slice(i + moved.added.length))
     setMoved(null)
   }
 

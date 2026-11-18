@@ -69,9 +69,11 @@ export function notesForEmail(notes: string, max = NOTES_EMAIL_MAX): { text: str
   const trimmed = notes.trim();
   const chars = Array.from(trimmed);
   if (chars.length <= max) return { text: trimmed, truncated: false };
-  const head = chars.slice(0, max).join("");
+  // Work in code points throughout, so the limit and the break search agree
+  // and an emoji at the boundary isn't split.
+  const head = chars.slice(0, max);
   const breakAt = Math.max(head.lastIndexOf("\n"), head.lastIndexOf(" "));
-  const cut = breakAt > max * 0.8 ? head.slice(0, breakAt) : head;
+  const cut = (breakAt > max * 0.8 ? head.slice(0, breakAt) : head).join("");
   return { text: cut.trimEnd() + "…", truncated: true };
 }
 

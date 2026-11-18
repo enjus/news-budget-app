@@ -31,8 +31,25 @@ import type { StoryWithRelations } from "@/types/index"
 
 interface PitchDetailProps {
   story: StoryWithRelations
-  onUpdate: () => void
+  /** Refetch the story. May return the SWR revalidation promise, which
+   *  SourceMaterial awaits so a save doesn't flash the old text. */
+  onUpdate: () => void | Promise<unknown>
   readOnly?: boolean
+}
+
+/** PATCH a pitch's Story row with optimistic locking (`version`). Resolves
+ *  "conflict" on a 409 (someone else saved first); throws with the server's
+ *  message on any other failure. */
+async function patchPitch(id: string, body: Record<string, unknown>): Promise<"ok" | "conflict"> {
+  const res = await fetch(apiPath(`/api/stories/${id}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (res.ok) return "ok"
+  if (res.status === 409) return "conflict"
+  const json = await res.json().catch(() => ({}))
+  throw new Error(json?.error ?? "Failed to update")
 }
 
 /**
@@ -136,19 +153,10 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
   async function patchExpiry(expiresAt: string | null) {
     setWorking(true)
     try {
-      const res = await fetch(apiPath(`/api/stories/${story.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiresAt, version: story.version }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        if (res.status === 409) {
-          toast.error("This pitch was modified by another user. Reloading…")
-          onUpdate()
-          return
-        }
-        throw new Error(json?.error ?? "Failed to update")
+      if ((await patchPitch(story.id, { expiresAt, version: story.version })) === "conflict") {
+        toast.error("This pitch was modified by another user. Reloading…")
+        onUpdate()
+        return
       }
       toast.success(expiresAt ? "Expiry extended 7 days" : "Marked evergreen")
       onUpdate()
@@ -351,7 +359,7 @@ function SourceMaterial({
   notes: string | null
   version: number
   readOnly?: boolean
-  onUpdate: () => void
+  onUpdate: () => void | Promise<unknown>
 }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -374,25 +382,18 @@ function SourceMaterial({
     setSaving(true)
     try {
       const value = draft.trim() ? draft : null
-      const res = await fetch(apiPath(`/api/stories/${storyId}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes: value, version }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        if (res.status === 409) {
-          // Keep the editor open with the draft so nothing typed is lost;
-          // the refreshed version lets the next Save go through.
-          toast.error("This pitch was changed by someone else. Check the latest version, then save again.")
-          onUpdate()
-          return
-        }
-        throw new Error(json?.error ?? "Failed to save")
+      if ((await patchPitch(storyId, { notes: value, version })) === "conflict") {
+        // Keep the editor open with the draft so nothing typed is lost;
+        // the refreshed version lets the next Save go through.
+        toast.error("This pitch was changed by someone else. Check the latest version, then save again.")
+        onUpdate()
+        return
       }
+      // Wait for the refetch before closing, so the panel doesn't briefly
+      // show the old text and look like the save didn't take.
+      await onUpdate()
       toast.success("Source material saved")
       setEditing(false)
-      onUpdate()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save")
     } finally {
@@ -477,8 +478,9 @@ function SourceMaterial({
       )}
 
       <p className="pt-1 text-xs text-muted-foreground">
-        Visible to any signed-in staffer while this is a pitch. Sending it to budget also
-        emails this to everyone assigned (long notes are shortened in the email).
+        Visible to any signed-in staffer while this is a pitch, and stays with the story once
+        it&apos;s sent to budget, where &ldquo;Save &amp; Notify Team&rdquo; emails it to the team
+        (shortened if long).
       </p>
     </div>
   )
