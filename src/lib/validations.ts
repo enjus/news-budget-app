@@ -3,7 +3,7 @@ import { isBeforeScheduleStart, SCHEDULE_START_LABEL } from "@/lib/schedule";
 import { TAG_COLOR_KEYS, TAG_ICON_KEYS, TAG_KEY_PATTERN, RESERVED_TAG_KEYS, labelToTagKey } from "@/lib/tags";
 import { normalizeHandle, normalizePhone, SOCIAL_PLATFORM_LABELS, type SocialPlatform } from "@/lib/roster";
 import { ROSTER_LANGUAGE_CODES } from "@/lib/languages";
-import { VISUAL_STATUSES, parseDataUrl } from "@/lib/visual-requests";
+import { VISUAL_STATUSES, parseDataUrl, parseVisualLinks } from "@/lib/visual-requests";
 
 // ─── Shared length limits ──────────────────────────────────────────────────────
 // Story/video notes double as a pitch's "Source material & contact" field, where
@@ -580,8 +580,9 @@ export const createVisualSchema = z.object({
 export const VisualStatusEnum = z.enum(VISUAL_STATUSES);
 export const VisualPriorityEnum = z.enum(["NORMAL", "URGENT"]);
 
-// Optional "Link to data". Absent stays undefined (so a PATCH leaves it alone);
-// blank becomes null (clears it); anything else must pass parseDataUrl().
+// Legacy single "Link to data", still accepted from older clients and mapped
+// into `links` by linksFromInput(). Absent stays undefined (so a PATCH leaves it
+// alone); blank becomes null (clears it); anything else must pass parseDataUrl().
 const dataUrlField = z
   .string()
   .nullable()
@@ -596,6 +597,26 @@ const dataUrlField = z
     return parsed.value;
   });
 
+// "Links": the whole list, replacing what's stored ([] clears it). Blanks are
+// dropped and each entry must pass parseDataUrl(), via parseVisualLinks(); a
+// bad one's message names its position. The raw cap only bounds the payload;
+// the real limit (VISUAL_LINKS_MAX non-blank links) is parseVisualLinks()'s.
+const linksField = z
+  .array(z.string())
+  .max(20)
+  .optional()
+  .transform((value, ctx) => {
+    if (value === undefined) return undefined;
+    const parsed = parseVisualLinks(value);
+    if (!parsed.ok) {
+      for (const e of parsed.errors) {
+        ctx.addIssue({ code: "custom", message: e.message, path: e.index === null ? [] : [e.index] });
+      }
+      return z.NEVER;
+    }
+    return parsed.value;
+  });
+
 // Request details. eventDateTime/deadline follow the pub-date convention
 // (newsroom time encoded as UTC): the deadline is prefilled from onlinePubDate.
 const visualRequestDetails = {
@@ -603,6 +624,7 @@ const visualRequestDetails = {
   location: z.string().max(200).nullable().optional(),
   deadline: z.string().datetime({ offset: true }).nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  links: linksField,
   dataUrl: dataUrlField,
 };
 

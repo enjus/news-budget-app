@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { ExternalLink, Plus, Send, Trash2 } from "lucide-react"
+import { Plus, Send, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -23,7 +23,8 @@ import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
 import { VISUAL_REQUESTS_ENABLED } from "@/lib/features"
-import { canActOnVisual, parseDataUrl } from "@/lib/visual-requests"
+import { canActOnVisual, visualLinks } from "@/lib/visual-requests"
+import { VisualLinkList } from "@/components/visuals/VisualLinkList"
 import { formatPubDate } from "@/lib/utils"
 import { VisualRequestForm } from "./VisualRequestForm"
 import { UrgentBadge, VisualStatusBadge } from "@/components/visuals/VisualStatusBadge"
@@ -197,8 +198,9 @@ export function VisualSection({
         <div className="space-y-2">
           {visuals.map((visual) => {
             const isRequest = visual.status !== "PLANNED"
-            // Re-validated before rendering as an href, whatever the database holds.
-            const link = visual.dataUrl ? parseDataUrl(visual.dataUrl) : null
+            // `links`, or an older request's single dataUrl. VisualLinkList
+            // re-validates each before rendering it as an href.
+            const links = isRequest ? visualLinks(visual) : []
             const details = [
               visual.location,
               visual.eventDateTime && `Event ${formatPubDate(visual.eventDateTime, false)}`,
@@ -226,17 +228,6 @@ export function VisualSection({
                     <span className="flex-1 text-sm text-muted-foreground truncate">
                       {visual.description}
                     </span>
-                  )}
-
-                  {link?.ok && link.value && (
-                    <a
-                      href={link.value}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex shrink-0 items-center gap-1 text-xs text-primary underline-offset-4 hover:underline"
-                    >
-                      Data <ExternalLink className="size-3" />
-                    </a>
                   )}
 
                   {visual.person ? (
@@ -271,6 +262,12 @@ export function VisualSection({
 
                 {isRequest && details.length > 0 && (
                   <p className="text-xs text-muted-foreground">{details.join(" · ")}</p>
+                )}
+                {links.length > 0 && (
+                  <div className="flex min-w-0 items-baseline gap-2 text-xs">
+                    <span className="shrink-0 text-muted-foreground">{links.length > 1 ? "Links" : "Link"}</span>
+                    <VisualLinkList links={links} variant="compact" className="min-w-0" />
+                  </div>
                 )}
                 {visual.status === "DECLINED" && visual.declineReason && (
                   <p className="text-xs text-muted-foreground">Declined: {visual.declineReason}</p>

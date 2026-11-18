@@ -8,7 +8,7 @@
 import { sendEmail } from "@/lib/email"
 import { APP_URL, escapeHtml, notifiableEmail, truncateAtWord, type NotifiablePerson } from "@/lib/notifications"
 import { formatPubDate } from "@/lib/utils"
-import { parseDataUrl } from "@/lib/visual-requests"
+import { linkHref, visualLinks } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS } from "@/lib/visual-types"
 
 // Desk routing (recipient resolution and list validation) has no mail
@@ -39,7 +39,9 @@ export interface VisualRequestEmailInput {
   /** Newsroom time encoded as UTC, like pub dates. */
   deadline: Date | string | null
   notes: string | null
-  dataUrl: string | null
+  /** Read through visualLinks(), with the legacy dataUrl as fallback. */
+  links?: readonly string[] | null
+  dataUrl?: string | null
   story: { id: string; slug: string; budgetLine: string } | null
   requestedBy: { name: string } | null
 }
@@ -54,6 +56,31 @@ type Row = { label: string; text: string; html: string }
 function row(label: string, value: string | null | undefined): Row | null {
   if (!value) return null
   return { label, text: value, html: escapeHtml(value).replace(/\n/g, "<br>") }
+}
+
+/** A row in the plain-text body: "Label: value", or "Label:" then the value's own lines when it starts with one. */
+function rowText(r: Row): string {
+  return r.text.startsWith("\n") ? `${r.label}:${r.text}` : `${r.label}: ${r.text}`
+}
+
+/**
+ * The "Link" / "Links" row: one link inline, several one per line. Links were
+ * validated on write; each is re-checked (linkHref) before it becomes an href,
+ * and one that somehow fails is shown as text. Null when there are none.
+ */
+function linksRow(visual: { links?: readonly string[] | null; dataUrl?: string | null }): Row | null {
+  const links = visualLinks(visual)
+  if (links.length === 0) return null
+  const html = links.map((link) => {
+    const href = linkHref(link)
+    return href ? `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>` : escapeHtml(link)
+  })
+  if (links.length === 1) return { label: "Link", text: links[0], html: html[0] }
+  return {
+    label: "Links",
+    text: links.map((l) => `\n- ${l}`).join(""),
+    html: html.join("<br>"),
+  }
 }
 
 /**
@@ -85,11 +112,6 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
   const requestLink = `${APP_URL}/requests/${v.id}`
   const storyLink = story ? `${APP_URL}/stories/${story.id}` : null
 
-  // dataUrl was validated on write; re-check before emitting an href (defense
-  // in depth, same rule as the UI). A link that somehow fails is shown as text.
-  const parsedLink = v.dataUrl ? parseDataUrl(v.dataUrl) : null
-  const safeHref = parsedLink && parsedLink.ok ? parsedLink.value : null
-
   const rows: Row[] = [
     row("Type", label),
     urgent ? row("Priority", "Urgent") : null,
@@ -97,22 +119,14 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
     row("Event", v.eventDateTime ? formatPubDate(v.eventDateTime, false) : null),
     row("Location", v.location),
     row("Needed by", v.deadline ? formatPubDate(v.deadline, false) : null),
-    v.dataUrl
-      ? {
-          label: "Data",
-          text: v.dataUrl,
-          html: safeHref
-            ? `<a href="${escapeHtml(safeHref)}">${escapeHtml(safeHref)}</a>`
-            : escapeHtml(v.dataUrl),
-        }
-      : null,
+    linksRow(v),
     row("Notes", v.notes),
   ].filter((r): r is Row => r !== null)
 
   const text =
     `${lead}\n\n` +
     (story ? `${story.slug}: ${story.budgetLine}\n\n` : "") +
-    rows.map((r) => `${r.label}: ${r.text}`).join("\n") +
+    rows.map(rowText).join("\n") +
     `\n\nView the request: ${requestLink}` +
     (storyLink ? `\nView the story: ${storyLink}` : "")
 
@@ -255,6 +269,9 @@ export interface RequesterNoticeInput {
   status: string
   description: string | null
   declineReason: string | null
+  /** The requester's own links, read through visualLinks() (legacy dataUrl as fallback). */
+  links?: readonly string[] | null
+  dataUrl?: string | null
   story: { id: string; slug: string; budgetLine: string } | null
   /** The assignee: on delivery, who delivered it (the credit). */
   person: { name: string } | null
@@ -289,6 +306,7 @@ export function requesterNoticeEmail(v: RequesterNoticeInput): EmailContent | nu
 
   const rows: Row[] = [
     row("You asked for", v.description),
+    linksRow(v),
     delivered ? null : row("Reason", v.declineReason),
   ].filter((r): r is Row => r !== null)
 
@@ -301,7 +319,7 @@ export function requesterNoticeEmail(v: RequesterNoticeInput): EmailContent | nu
   const text =
     `${lead}\n\n` +
     (v.story ? `${v.story.slug}: ${v.story.budgetLine}\n\n` : "") +
-    rows.map((r) => `${r.label}: ${r.text}`).join("\n") +
+    rows.map(rowText).join("\n") +
     (closing ? `\n\n${closing}` : "") +
     `\n\nView the request: ${requestLink}` +
     (storyLink ? `\nView the story: ${storyLink}` : "")

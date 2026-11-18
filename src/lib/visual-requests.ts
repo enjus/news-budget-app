@@ -9,7 +9,7 @@ export * from "./visual-statuses"
 // ─── Permissions ──────────────────────────────────────────────────────────────
 
 export type VisualAction =
-  | "update"   // edit details (type, description, notes, dataUrl, …)
+  | "update"   // edit details (type, description, notes, links, …)
   | "assign"   // set or change personId (pass the target: non-elevated users may only claim for themselves)
   | "advance"  // → IN_PROGRESS, → DELIVERED
   | "decline"
@@ -171,7 +171,7 @@ export const DATA_URL_MAX_LENGTH = 2048
 export type ParsedDataUrl = { ok: true; value: string | null } | { ok: false; error: string }
 
 /**
- * Validates the requester's "Link to data". A security check, not cosmetics:
+ * Validates one of a request's links (parseVisualLinks runs it on each). A security check, not cosmetics:
  * "is it a URL" accepts `javascript:` links, which are unsafe as a clickable
  * href. Accepts only https with no embedded credentials; empty input becomes
  * `null`. `value` is the normalized href. Run it again before rendering.
@@ -199,6 +199,67 @@ export function parseDataUrl(input: string | null | undefined): ParsedDataUrl {
   return { ok: true, value: url.href }
 }
 
+// ─── Links ────────────────────────────────────────────────────────────────────
+
+/** Most links one request can carry. */
+export const VISUAL_LINKS_MAX = 5
+
+export type ParsedVisualLinks =
+  | { ok: true; value: string[] }
+  /** `index` is the entry's position in the input (0-based), or null for a whole-list error. */
+  | { ok: false; errors: { index: number | null; message: string }[] }
+
+/**
+ * Validates a request's "Links" list: blank entries are dropped, each of the
+ * rest must pass parseDataUrl() (https only), and at most VISUAL_LINKS_MAX may
+ * remain. A bad entry's message names its position as the person typed it
+ * ("Link 2: …"), counting blanks, so it matches the form's rows. Returns the
+ * normalized hrefs in order. Shared by the form and the API.
+ */
+export function parseVisualLinks(inputs: readonly (string | null | undefined)[]): ParsedVisualLinks {
+  const value: string[] = []
+  const errors: { index: number | null; message: string }[] = []
+  inputs.forEach((input, index) => {
+    const parsed = parseDataUrl(input)
+    if (!parsed.ok) errors.push({ index, message: `Link ${index + 1}: ${parsed.error}` })
+    else if (parsed.value !== null) value.push(parsed.value)
+  })
+  const filled = inputs.filter((i) => (i ?? "").trim() !== "").length
+  if (filled > VISUAL_LINKS_MAX) {
+    errors.unshift({ index: null, message: `A request can have up to ${VISUAL_LINKS_MAX} links` })
+  }
+  return errors.length > 0 ? { ok: false, errors } : { ok: true, value }
+}
+
+/**
+ * The links to show for a visual: `links` when it has any, otherwise the
+ * legacy single `dataUrl` (rows filed before multiple links existed), otherwise
+ * none. Values are as stored: pass each through linkHref() before rendering
+ * it as an href. Every place a request's links are shown reads them here.
+ */
+export function visualLinks(visual: { links?: readonly string[] | null; dataUrl?: string | null }): string[] {
+  if (visual.links && visual.links.length > 0) return [...visual.links]
+  const legacy = (visual.dataUrl ?? "").trim()
+  return legacy ? [legacy] : []
+}
+
+/** The href to render for a stored link, or null to show it as plain text (it fails parseDataUrl()). */
+export function linkHref(link: string): string | null {
+  const parsed = parseDataUrl(link)
+  return parsed.ok ? parsed.value : null
+}
+
+/**
+ * The `links` a create or PATCH should write, from a parsed body: `links` when
+ * sent; otherwise a legacy `dataUrl` (an older client mid-deploy) mapped into a
+ * list, a cleared one to []; undefined when neither was sent (leave it alone).
+ */
+export function linksFromInput(input: { links?: string[]; dataUrl?: string | null }): string[] | undefined {
+  if (input.links !== undefined) return input.links
+  if (input.dataUrl !== undefined) return input.dataUrl ? [input.dataUrl] : []
+  return undefined
+}
+
 // ─── Filing a request ─────────────────────────────────────────────────────────
 
 /** A parsed request body (requestVisualSchema's output). Spelled out so this module needn't import validations.ts. */
@@ -210,6 +271,8 @@ export interface VisualRequestInput {
   location?: string | null
   deadline?: string | null
   notes?: string | null
+  links?: string[]
+  /** Legacy single link from an older client; mapped into `links`. */
   dataUrl?: string | null
 }
 
@@ -232,6 +295,7 @@ export function visualRequestCreateData(input: VisualRequestInput, requestedById
     location: input.location ?? null,
     deadline: input.deadline ? new Date(input.deadline) : null,
     notes: input.notes ?? null,
-    dataUrl: input.dataUrl ?? null,
+    // Writes go to `links` only; dataUrl is left at its default (null).
+    links: linksFromInput(input) ?? [],
   }
 }

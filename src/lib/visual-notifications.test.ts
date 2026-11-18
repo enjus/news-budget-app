@@ -167,6 +167,7 @@ describe("visualRequestEmail", () => {
     location: null,
     deadline: null,
     notes: null,
+    links: [],
     dataUrl: null,
     story: { id: "s1", slug: "SUPERINTENDENT", budgetLine: "New superintendent starts Monday" },
     requestedBy: { name: "Ann Smith" },
@@ -202,7 +203,7 @@ describe("visualRequestEmail", () => {
 
   it("omits optional rows when they are null and includes them when set", () => {
     const sparse = visualRequestEmail(base).text
-    for (const label of ["Event:", "Location:", "Needed by:", "Data:", "Notes:"]) {
+    for (const label of ["Event:", "Location:", "Needed by:", "Link:", "Links:", "Notes:"]) {
       expect(sparse, label).not.toContain(label)
     }
 
@@ -212,25 +213,62 @@ describe("visualRequestEmail", () => {
       location: "City Hall",
       deadline: "2026-11-23T06:00:00.000Z",
       notes: "Ask for Maria\nat the front desk",
-      dataUrl: "https://example.com/sheet",
+      links: ["https://example.com/sheet"],
     })
     expect(full.text).toMatch(/Event: .*Nov 18, 2026/)
     expect(full.text).toContain("Location: City Hall")
     expect(full.text).toMatch(/Needed by: .*Nov 23, 2026/)
-    expect(full.text).toContain("Data: https://example.com/sheet")
+    expect(full.text).toContain("Link: https://example.com/sheet")
     expect(full.text).toContain("Notes: Ask for Maria\nat the front desk")
     expect(full.html).toContain("Ask for Maria<br>at the front desk")
   })
 
-  it("links the data URL in HTML only when it passes parseDataUrl again", () => {
-    const good = visualRequestEmail({ ...base, dataUrl: "https://example.com/sheet" }).html
-    expect(good).toContain('<a href="https://example.com/sheet">https://example.com/sheet</a>')
+  it("shows no link row with no links", () => {
+    const { text, html } = visualRequestEmail({ ...base, links: [] })
+    expect(text).not.toMatch(/Links?:/)
+    expect(html).not.toMatch(/Links?:/)
+  })
 
+  it("shows one link inline, as an href in HTML", () => {
+    const { text, html } = visualRequestEmail({ ...base, links: ["https://example.com/sheet"] })
+    expect(text).toContain("Link: https://example.com/sheet")
+    expect(html).toContain('<strong>Link:</strong> <a href="https://example.com/sheet">https://example.com/sheet</a>')
+  })
+
+  it("lists several links one per line, each an href in HTML", () => {
+    const { text, html } = visualRequestEmail({
+      ...base,
+      links: ["https://example.com/a", "https://example.com/b", "https://example.com/c"],
+      notes: "Thanks",
+    })
+    expect(text).toContain("Links:\n- https://example.com/a\n- https://example.com/b\n- https://example.com/c\nNotes: Thanks")
+    expect(html).toContain(
+      '<strong>Links:</strong> <a href="https://example.com/a">https://example.com/a</a><br>' +
+        '<a href="https://example.com/b">https://example.com/b</a><br>' +
+        '<a href="https://example.com/c">https://example.com/c</a>'
+    )
+  })
+
+  it("falls back to the legacy dataUrl when links is empty", () => {
+    const { text, html } = visualRequestEmail({ ...base, links: [], dataUrl: "https://example.com/old" })
+    expect(text).toContain("Link: https://example.com/old")
+    expect(html).toContain('<a href="https://example.com/old">')
+    // links wins when it has any.
+    expect(visualRequestEmail({ ...base, links: ["https://example.com/new"], dataUrl: "https://example.com/old" }).text)
+      .not.toContain("example.com/old")
+  })
+
+  it("links each URL in HTML only when it passes parseDataUrl again", () => {
     // A value that could only get here by bypassing the schema is shown as text, never an href.
-    const bad = visualRequestEmail({ ...base, dataUrl: "javascript:alert(1)" })
+    const bad = visualRequestEmail({ ...base, links: ["https://example.com/ok", "javascript:alert(1)"] })
+    expect(bad.html).toContain('<a href="https://example.com/ok">')
     expect(bad.html).not.toContain("<a href=\"javascript")
     expect(bad.html).toContain("javascript:alert(1)")
-    expect(bad.text).toContain("Data: javascript:alert(1)")
+    expect(bad.text).toContain("- javascript:alert(1)")
+
+    const legacyBad = visualRequestEmail({ ...base, dataUrl: "javascript:alert(1)" })
+    expect(legacyBad.html).not.toContain("<a href=\"javascript")
+    expect(legacyBad.text).toContain("Link: javascript:alert(1)")
   })
 
   it("escapes HTML in user-supplied text", () => {
@@ -483,6 +521,26 @@ describe("requesterNoticeEmail", () => {
     const { subject, text } = email({ status: "DECLINED", declineReason: "Use file art", story: null, description: "Kotek portraits" })
     expect(subject).toBe("News Budget visual request declined (Photo): Kotek portraits")
     expect(text).not.toContain("/stories/")
+  })
+
+  it("shows no link row without links, one inline, several one per line", () => {
+    expect(email({}).text).not.toMatch(/Links?:/)
+    expect(email({ links: [] }).text).not.toMatch(/Links?:/)
+
+    const one = email({ links: ["https://example.com/sheet"] })
+    expect(one.text).toContain("You asked for: Portrait of the new superintendent\nLink: https://example.com/sheet")
+    expect(one.html).toContain('<strong>Link:</strong> <a href="https://example.com/sheet">')
+
+    const several = email({ status: "DECLINED", declineReason: "No one free", links: ["https://example.com/a", "https://example.com/b"] })
+    expect(several.text).toContain("Links:\n- https://example.com/a\n- https://example.com/b\nReason: No one free")
+    expect(several.html).toContain('<a href="https://example.com/a">https://example.com/a</a><br><a href="https://example.com/b">')
+  })
+
+  it("falls back to the legacy dataUrl, and never makes an unsafe link an href", () => {
+    expect(email({ dataUrl: "https://example.com/old" }).text).toContain("Link: https://example.com/old")
+    const bad = email({ links: ["javascript:alert(1)"] })
+    expect(bad.html).not.toContain('<a href="javascript')
+    expect(bad.text).toContain("Link: javascript:alert(1)")
   })
 
   it("escapes HTML in the reason and description", () => {

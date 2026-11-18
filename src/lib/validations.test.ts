@@ -150,6 +150,30 @@ describe("requestVisualSchema", () => {
     if (!r.success) expect(r.error.flatten().fieldErrors.dataUrl).toBeTruthy()
   })
 
+  it("takes a links list: normalized, blanks dropped, absent stays undefined", () => {
+    expect(requestVisualSchema.parse(base).links).toBeUndefined()
+    expect(requestVisualSchema.parse({ ...base, links: [" HTTPS://Example.com/a ", "", "https://example.com/b"] }).links)
+      .toEqual(["https://example.com/a", "https://example.com/b"])
+  })
+
+  it("rejects a bad link with a links field error naming its position", () => {
+    const r = requestVisualSchema.safeParse({ ...base, links: ["https://example.com/a", "javascript:alert(1)"] })
+    expect(r.success).toBe(false)
+    if (!r.success) expect(r.error.flatten().fieldErrors.links).toEqual(["Link 2: Link must start with https://"])
+  })
+
+  it("rejects more than five links", () => {
+    const six = Array.from({ length: 6 }, (_, i) => `https://example.com/${i}`)
+    const r = requestVisualSchema.safeParse({ ...base, links: six })
+    expect(r.success).toBe(false)
+    if (!r.success) expect(r.error.flatten().fieldErrors.links).toEqual(["A request can have up to 5 links"])
+  })
+
+  it("rejects links that aren't a list of strings", () => {
+    expect(requestVisualSchema.safeParse({ ...base, links: "https://example.com/a" }).success).toBe(false)
+    expect(requestVisualSchema.safeParse({ ...base, links: [42] }).success).toBe(false)
+  })
+
   it("only accepts status REQUESTED and ignores a personId", () => {
     expect(requestVisualSchema.safeParse({ ...base, status: "ASSIGNED" }).success).toBe(false)
     expect(requestVisualSchema.parse({ ...base, personId: "x" })).not.toHaveProperty("personId")
@@ -180,7 +204,13 @@ describe("updateVisualSchema", () => {
     expect(updateVisualSchema.parse({ notes: "hi" })).toEqual({ notes: "hi" })
   })
 
-  it("distinguishes clearing the link (null) from not sending it", () => {
+  it("takes links as a whole replacement list; [] clears it", () => {
+    expect(updateVisualSchema.parse({ links: [] })).toEqual({ links: [] })
+    expect(updateVisualSchema.parse({ links: ["https://example.com/a"] })).toEqual({ links: ["https://example.com/a"] })
+    expect(updateVisualSchema.parse({ notes: "x" })).not.toHaveProperty("links")
+  })
+
+  it("distinguishes clearing the legacy link (null) from not sending it", () => {
     expect(updateVisualSchema.parse({ dataUrl: "" })).toEqual({ dataUrl: null })
     expect(updateVisualSchema.parse({ dataUrl: null })).toEqual({ dataUrl: null })
   })

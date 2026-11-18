@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { Send, X } from "lucide-react"
+import { Plus, Send, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +11,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { apiPath } from "@/lib/api-path"
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning"
-import { parseDataUrl } from "@/lib/visual-requests"
+import { VISUAL_LINKS_MAX, parseVisualLinks, visualLinks } from "@/lib/visual-requests"
 import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
 
 export const UNLINKED_ACCOUNT_MESSAGE =
@@ -29,7 +29,15 @@ export interface EditableRequestFields {
   location: string | null
   deadline: string | null
   notes: string | null
+  /** Prefilled through visualLinks(): `links`, or the legacy `dataUrl` on an older request. */
+  links: string[]
   dataUrl: string | null
+}
+
+/** One row of the Links field; `key` keeps React rows stable as rows are removed. */
+interface LinkRow {
+  key: number
+  value: string
 }
 
 interface VisualRequestFormProps {
@@ -92,27 +100,53 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
   const [location, setLocation] = useState(initial?.location ?? "")
   const [deadline, setDeadline] = useState<string | null>(initial ? initial.deadline : (defaultDeadline ?? null))
   const [notes, setNotes] = useState(initial?.notes ?? "")
-  const [dataUrl, setDataUrl] = useState(initial?.dataUrl ?? "")
+  // Always at least one row, so the field never vanishes.
+  const [linkRows, setLinkRows] = useState<LinkRow[]>(() => {
+    const start = initial ? visualLinks(initial) : []
+    return (start.length > 0 ? start : [""]).map((value, key) => ({ key, value }))
+  })
+  const [nextLinkKey, setNextLinkKey] = useState(VISUAL_LINKS_MAX + 1)
   const [submitting, setSubmitting] = useState(false)
 
-  // Same checks the server runs (requestVisualSchema); the inline errors just save a round trip.
-  const link = parseDataUrl(dataUrl)
+  // Same checks the server runs (requestVisualSchema, via parseVisualLinks);
+  // the inline errors just save a round trip. Errors are keyed by row position.
+  const links = parseVisualLinks(linkRows.map((r) => r.value))
+  const linkErrors = new Map<number, string>()
+  if (!links.ok) for (const e of links.errors) if (e.index !== null) linkErrors.set(e.index, e.message)
+  const listError = !links.ok ? links.errors.find((e) => e.index === null)?.message : undefined
   const hasDescription = description.trim() !== ""
-  const canSubmit = sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting
+  const canSubmit = sessionStatus === "authenticated" && !unlinked && hasDescription && links.ok && !submitting
+
+  function setLink(index: number, value: string) {
+    setLinkRows((rows) => rows.map((r, i) => (i === index ? { ...r, value } : r)))
+  }
+  function addLink() {
+    if (linkRows.length >= VISUAL_LINKS_MAX) return
+    setLinkRows((rows) => [...rows, { key: nextLinkKey, value: "" }])
+    setNextLinkKey((k) => k + 1)
+  }
+  function removeLink(index: number) {
+    // Removing the only row empties it instead.
+    setLinkRows((rows) => (rows.length === 1 ? [{ ...rows[0], value: "" }] : rows.filter((_, i) => i !== index)))
+  }
 
   // Only the standalone page: the inline story form sits inside a page that
   // has its own guards, and a reload there loses little.
   const [saved, setSaved] = useState(false)
-  const dirty = [description, location, notes, dataUrl].some((v) => v.trim() !== "") || eventDateTime !== null || deadline !== null
+  const dirty =
+    [description, location, notes, ...linkRows.map((r) => r.value)].some((v) => v.trim() !== "") ||
+    eventDateTime !== null ||
+    deadline !== null
   useUnsavedChangesWarning(standalone && dirty && !saved, "Leave this page? Your visual request hasn't been filed yet.")
 
   async function handleSubmit() {
-    if (!canSubmit || !link.ok) return
+    if (!canSubmit || !links.ok) return
     setSubmitting(true)
     try {
       let res: Response
       if (editing) {
-        // Every field, with null clearing what was emptied.
+        // Every field, with null clearing what was emptied. `links` is the whole
+        // list ([] clears it); the server also clears the legacy dataUrl.
         const body = {
           type,
           priority,
@@ -121,7 +155,7 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
           location: location.trim() || null,
           deadline,
           notes: notes.trim() || null,
-          dataUrl: link.value,
+          links: links.value,
         }
         res = await fetch(apiPath(`/api/visuals/${editing.id}`), {
           method: "PATCH",
@@ -134,7 +168,7 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
         if (location.trim()) body.location = location.trim()
         if (deadline) body.deadline = deadline
         if (notes.trim()) body.notes = notes.trim()
-        if (link.value) body.dataUrl = link.value
+        if (links.value.length > 0) body.links = links.value
         res = await fetch(apiPath(standalone ? "/api/visuals" : `/api/stories/${storyId}/visuals`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -261,27 +295,59 @@ export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitt
         />
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="vr-data-url">Link to data (optional)</Label>
-        <Input
-          id="vr-data-url"
-          type="url"
-          inputMode="url"
-          className="h-8"
-          autoComplete="off"
-          placeholder="https://"
-          value={dataUrl}
-          onChange={(e) => setDataUrl(e.target.value)}
-          aria-invalid={!link.ok}
-        />
-        {link.ok ? (
-          <p className="text-xs text-muted-foreground">
-            SharePoint, OneDrive, or Google Sheets link. Make sure the visuals desk can open it.
-          </p>
+      <fieldset className="space-y-1.5" aria-describedby="vr-links-hint">
+        <legend className="text-sm font-medium leading-none">Links</legend>
+        <p id="vr-links-hint" className="text-xs text-muted-foreground">
+          Share links to data, files or references. Make sure the visuals desk can open them.
+        </p>
+        {linkRows.map((row, index) => {
+          const error = linkErrors.get(index)
+          const errorId = `vr-link-${row.key}-error`
+          return (
+            <div key={row.key} className="space-y-1">
+              <div className="flex items-center gap-1">
+                <Input
+                  type="url"
+                  inputMode="url"
+                  className="h-8"
+                  autoComplete="off"
+                  placeholder="https://"
+                  aria-label={`Link ${index + 1}`}
+                  value={row.value}
+                  onChange={(e) => setLink(index, e.target.value)}
+                  aria-invalid={error !== undefined}
+                  aria-describedby={error ? errorId : undefined}
+                />
+                {(linkRows.length > 1 || row.value !== "") && (
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => removeLink(index)}
+                    aria-label={`Remove link ${index + 1}`}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                )}
+              </div>
+              {error && (
+                <p id={errorId} className="text-xs text-destructive">
+                  {error}
+                </p>
+              )}
+            </div>
+          )
+        })}
+        {listError && <p className="text-xs text-destructive">{listError}</p>}
+        {linkRows.length < VISUAL_LINKS_MAX ? (
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={addLink}>
+            <Plus className="size-3" />
+            Add another
+          </Button>
         ) : (
-          <p className="text-xs text-destructive">{link.error}</p>
+          <p className="text-xs text-muted-foreground">Up to {VISUAL_LINKS_MAX} links.</p>
         )}
-      </div>
+      </fieldset>
 
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={handleSubmit} disabled={!canSubmit}>

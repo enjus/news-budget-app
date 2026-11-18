@@ -195,6 +195,8 @@ export interface VisualRequestDetail {
   /** Newsroom time encoded as UTC, like pub dates. */
   deadline: string | null;
   notes: string | null;
+  /** Read both through visualLinks(): `links`, falling back to the legacy `dataUrl`. */
+  links: string[];
   dataUrl: string | null;
   declineReason: string | null;
   personId: string | null;
@@ -214,7 +216,7 @@ export interface VisualRequestDetail {
   } | null;
 }
 
-/** One row of GET /api/visuals (the /requests dashboard). No notes or dataUrl: those load on the request page. */
+/** One row of GET /api/visuals (the /requests dashboard). No notes or links: those load on the request page. */
 export interface VisualRequestListItem {
   id: string;
   type: string;
