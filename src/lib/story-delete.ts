@@ -31,7 +31,7 @@ export async function settleVisualsForStoryDelete(
   const notices: DeletedStoryNotice[] = []
   for (const v of visuals) {
     if (v.story && STORY_DELETE_NOTICE_STATUSES.includes(v.status)) {
-      notices.push({ type: v.type, status: v.status, person: v.person, story: v.story })
+      notices.push({ id: v.id, type: v.type, status: v.status, person: v.person, story: v.story })
     }
   }
   const { deleteIds, unplaceIds } = partitionVisualsForStoryDelete(visuals)

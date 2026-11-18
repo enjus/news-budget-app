@@ -163,6 +163,8 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
 
 /** A visual whose assignee should hear that its story was deleted: ASSIGNED or IN_PROGRESS only. */
 export interface DeletedStoryNotice {
+  /** The visual's id: an IN_PROGRESS one survives as unplaced, and its notice links to its request page. */
+  id: string
   type: string
   status: string
   person: (NotifiablePerson & { name: string }) | null
@@ -172,26 +174,35 @@ export interface DeletedStoryNotice {
 /** Statuses whose assignee gets a notice. REQUESTED has no assignee; the rest are credits or over. */
 export const STORY_DELETE_NOTICE_STATUSES: readonly string[] = ["ASSIGNED", "IN_PROGRESS"]
 
+/** One visual's line in a notice; `href` is set when there's somewhere to go (the request page). */
+export interface NoticeLine {
+  text: string
+  href?: string
+}
+
 /** One recipient's notice: every line is one of their visuals on the deleted story. */
 export interface StoryDeletedGroup {
   email: string
   name: string
   story: { id: string; slug: string; budgetLine: string }
-  lines: string[]
+  lines: NoticeLine[]
 }
 
 /** How a deleted story's sender is described in the notice. */
 export const PURGE_ACTOR = "the nightly purge of stories shelved more than 90 days"
 
-function noticeLine(n: DeletedStoryNotice): string | null {
+function noticeLine(n: DeletedStoryNotice): NoticeLine | null {
   const label = typeLabel(n.type)
   switch (n.status) {
     case "ASSIGNED":
-      return `${label} (assigned): this assignment was removed with the story.`
+      return { text: `${label} (assigned): this assignment was removed with the story.` }
     case "IN_PROGRESS":
-      // Slice 3's dashboard doesn't exist yet, so don't point at it; update this
-      // line to link to /requests when it ships.
-      return `${label} (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.`
+      // The visual survives unplaced (storyId = null); its request page is
+      // where it gets attached to another story.
+      return {
+        text: `${label} (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:`,
+        href: `${APP_URL}/requests/${n.id}`,
+      }
     default:
       return null
   }
@@ -223,7 +234,8 @@ export function storyDeletedNotices(notices: DeletedStoryNotice[]): StoryDeleted
 
 /**
  * The notice for one recipient. `deletedBy` is the session user's name for a
- * manual delete, or PURGE_ACTOR for the cron. No link: the story is gone.
+ * manual delete, or PURGE_ACTOR for the cron. No link to the story (it's
+ * gone); an in-progress visual's line links to its request page.
  */
 export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): EmailContent {
   const subject = `News Budget story deleted: ${group.story.slug}`
@@ -233,14 +245,16 @@ export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): 
     `${lead}\n\n` +
     `${group.story.slug}: ${group.story.budgetLine}\n\n` +
     `Your visuals on it:\n` +
-    group.lines.map((l) => `- ${l}`).join("\n") +
+    group.lines.map((l) => `- ${l.text}${l.href ? ` ${l.href}` : ""}`).join("\n") +
     `\n\nDeleted by: ${deletedBy}`
 
   const html =
     `<p>${escapeHtml(lead)}</p>` +
     `<p><strong>${escapeHtml(group.story.slug)}:</strong> ${escapeHtml(group.story.budgetLine)}</p>` +
     `<p><strong>Your visuals on it:</strong></p>` +
-    `<ul>${group.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("")}</ul>` +
+    `<ul>${group.lines
+      .map((l) => `<li>${escapeHtml(l.text)}${l.href ? ` <a href="${escapeHtml(l.href)}">${escapeHtml(l.href)}</a>` : ""}</li>`)
+      .join("")}</ul>` +
     `<p><strong>Deleted by:</strong> ${escapeHtml(deletedBy)}</p>`
 
   return { subject, text, html }

@@ -7,6 +7,7 @@ import { useForm, Controller } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { toast } from "sonner"
 import { useUnsavedChangesWarning } from "@/lib/hooks/useUnsavedChangesWarning"
+import { VISUAL_REQUESTS_ENABLED } from "@/lib/features"
 import { X, Plus } from "lucide-react"
 import { UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -530,6 +531,13 @@ function StoryForm({ story, initialValues, onSuccess }, ref) {
               return true
             }}
           />
+          {/* Add Visual records a visual that's already arranged; it doesn't ask the
+              desk for anything. Requests need a saved story, so point there. */}
+          {VISUAL_REQUESTS_ENABLED && (
+            <p className="text-xs text-muted-foreground">
+              Need the desk to produce a visual? Save the story, then use Request a visual.
+            </p>
+          )}
         </div>
       ) : (
         <button

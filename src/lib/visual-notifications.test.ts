@@ -186,6 +186,7 @@ describe("storyDeletedNotices", () => {
   const staff = (name: string, email: string, isActive = true) => ({ name, email, isActive, isStaff: true })
   const contributor = { name: "Cy", email: "cy@x.com", isActive: true, isStaff: false }
   const notice = (over: Partial<DeletedStoryNotice>): DeletedStoryNotice => ({
+    id: "v1",
     type: "PHOTO",
     status: "ASSIGNED",
     person: staff("Ann", "ann@x.com"),
@@ -196,14 +197,17 @@ describe("storyDeletedNotices", () => {
   it("groups several visuals for one person into one notice with a line each", () => {
     const groups = storyDeletedNotices([
       notice({ type: "PHOTO", status: "ASSIGNED" }),
-      notice({ type: "GRAPHIC", status: "IN_PROGRESS" }),
+      notice({ id: "v2", type: "GRAPHIC", status: "IN_PROGRESS" }),
     ])
     expect(groups).toHaveLength(1)
     expect(groups[0].email).toBe("ann@x.com")
     expect(groups[0].name).toBe("Ann")
     expect(groups[0].lines).toEqual([
-      "Photo (assigned): this assignment was removed with the story.",
-      "Graphic (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.",
+      { text: "Photo (assigned): this assignment was removed with the story." },
+      {
+        text: "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:",
+        href: expect.stringMatching(/\/requests\/v2$/),
+      },
     ])
   })
 
@@ -246,8 +250,11 @@ describe("storyDeletedEmail", () => {
     name: "Ann",
     story: { id: "s1", slug: "COUNCIL", budgetLine: "Council votes on budget" },
     lines: [
-      "Photo (assigned): this assignment was removed with the story.",
-      "Graphic (in progress): your visual was kept but is no longer attached to a story. Contact the visuals desk if it needs a new home.",
+      { text: "Photo (assigned): this assignment was removed with the story." },
+      {
+        text: "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page:",
+        href: "https://news.example/requests/v2",
+      },
     ],
   }
 
@@ -256,11 +263,21 @@ describe("storyDeletedEmail", () => {
     expect(subject).toBe("News Budget story deleted: COUNCIL")
     expect(text).toContain("A story you have a visual assignment on was deleted from the News Budget.")
     expect(text).toContain("COUNCIL: Council votes on budget")
-    expect(text).toContain("- Photo (assigned): this assignment was removed with the story.")
-    expect(text).toContain("- Graphic (in progress): your visual was kept but is no longer attached to a story.")
+    expect(text).toContain("- Photo (assigned): this assignment was removed with the story.\n")
+    expect(text).toContain("- Graphic (in progress): your visual was kept and is now unplaced.")
     expect(html).toContain("<li>Photo (assigned): this assignment was removed with the story.</li>")
-    expect(html).toContain("<li>Graphic (in progress): your visual was kept")
-    expect(text).not.toContain("http")
+    expect(html).toContain("<li>Graphic (in progress): your visual was kept and is now unplaced.")
+  })
+
+  it("links an in-progress visual to its request page, and nothing else", () => {
+    const { text, html } = storyDeletedEmail(group, "Sam Okafor")
+    expect(text).toContain("from its request page: https://news.example/requests/v2\n")
+    expect(html).toContain(
+      'from its request page: <a href="https://news.example/requests/v2">https://news.example/requests/v2</a></li>'
+    )
+    // One link only: the assigned line has none, and there's no link to the deleted story.
+    expect(text.match(/https?:\/\//g)).toHaveLength(1)
+    expect(html).not.toContain("/stories/")
   })
 
   it("names who deleted it, a person or the purge", () => {
