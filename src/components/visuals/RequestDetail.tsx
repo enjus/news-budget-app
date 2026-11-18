@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { ArrowLeft, Ban, CheckCircle2, ExternalLink, Link2, Pencil, Play, Trash2, XCircle } from "lucide-react"
+import { ArrowLeft, Ban, CheckCircle2, ExternalLink, Hand, Link2, Pencil, Play, Trash2, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -39,6 +39,27 @@ import { UrgentBadge, VisualStatusBadge } from "./VisualStatusBadge"
 const TEXTAREA_CLASS =
   "w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
 
+const CONFIRM_COPY = {
+  cancel: {
+    title: "Cancel this request?",
+    body: "The desk stops working on it. This can't be undone.",
+    keep: "Keep request",
+    action: "Cancel request",
+  },
+  delete: {
+    title: "Delete this request?",
+    body: "It's removed for good, including from any story it's on.",
+    keep: "Keep it",
+    action: "Delete",
+  },
+  release: {
+    title: "Release this request?",
+    body: "You're taken off it and it goes back to the queue, unassigned, for someone else to pick up.",
+    keep: "Keep it",
+    action: "Release",
+  },
+} as const
+
 interface RequestDetailProps {
   request: VisualRequestDetail
   onUpdate: () => void
@@ -68,7 +89,7 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
   const [attachOpen, setAttachOpen] = useState(false)
   const [declineOpen, setDeclineOpen] = useState(false)
   const [declineReason, setDeclineReason] = useState("")
-  const [confirm, setConfirm] = useState<"cancel" | "delete" | null>(null)
+  const [confirm, setConfirm] = useState<"cancel" | "delete" | "release" | null>(null)
 
   const actor = session?.user ? { role: session.user.appRole, personId: session.user.personId ?? null } : null
   const buttons = new Set<VisualButton>(actor ? availableVisualActions(actor, request) : [])
@@ -184,6 +205,11 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
               />
             </div>
           )}
+          {buttons.has("claim") && actor?.personId && (
+            <Button size="sm" disabled={busy} onClick={() => patch({ personId: actor.personId }, "You claimed this request")}>
+              <Hand className="size-4" /> Claim
+            </Button>
+          )}
           {buttons.has("start") && (
             <Button size="sm" disabled={busy} onClick={() => patch({ status: "IN_PROGRESS" }, "Marked in progress")}>
               <Play className="size-4" /> Start
@@ -192,6 +218,11 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
           {buttons.has("deliver") && (
             <Button size="sm" disabled={busy} onClick={() => patch({ status: "DELIVERED" }, "Marked delivered")}>
               <CheckCircle2 className="size-4" /> Mark delivered
+            </Button>
+          )}
+          {buttons.has("release") && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm("release")}>
+              <Undo2 className="size-4" /> Release
             </Button>
           )}
           {buttons.has("edit") && (
@@ -320,19 +351,21 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirm === "delete" ? "Delete this request?" : "Cancel this request?"}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirm === "delete"
-                ? "It's removed for good, including from any story it's on."
-                : "The desk stops working on it. This can't be undone."}
-            </AlertDialogDescription>
+            <AlertDialogTitle>{CONFIRM_COPY[confirm ?? "cancel"].title}</AlertDialogTitle>
+            <AlertDialogDescription>{CONFIRM_COPY[confirm ?? "cancel"].body}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{confirm === "delete" ? "Keep it" : "Keep request"}</AlertDialogCancel>
+            <AlertDialogCancel>{CONFIRM_COPY[confirm ?? "cancel"].keep}</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => (confirm === "delete" ? handleDelete() : patch({ status: "CANCELED" }, "Request canceled"))}
+              onClick={() =>
+                confirm === "delete"
+                  ? handleDelete()
+                  : confirm === "release"
+                    ? patch({ status: "REQUESTED" }, "Released back to the queue")
+                    : patch({ status: "CANCELED" }, "Request canceled")
+              }
             >
-              {confirm === "delete" ? "Delete" : "Cancel request"}
+              {CONFIRM_COPY[confirm ?? "cancel"].action}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
