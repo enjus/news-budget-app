@@ -5,6 +5,16 @@ import { normalizeHandle, normalizePhone, SOCIAL_PLATFORM_LABELS, type SocialPla
 import { ROSTER_LANGUAGE_CODES } from "@/lib/languages";
 import { VISUAL_STATUSES, parseDataUrl } from "@/lib/visual-requests";
 
+// ─── Shared length limits ──────────────────────────────────────────────────────
+// Story/video notes double as a pitch's "Source material & contact" field, where
+// a whole forwarded email gets pasted, so the cap is generous. It's applied to
+// all three schemas alike: a pitch keeps its notes when sent to budget, and the
+// story PATCH must accept what the pitch was filed with.
+export const NOTES_MAX = 50_000;
+// The pitch itself is the short, scannable summary shown in the pool list,
+// search results and email subjects — and it's write-once.
+export const PITCH_TEXT_MAX = 500;
+
 // ─── Slug ──────────────────────────────────────────────────────────────────────
 // Uppercase letters, numbers, spaces, and a fixed punctuation allowlist.
 // No slash — slug values are never used as URL path segments (routing uses id),
@@ -400,7 +410,7 @@ export const createStorySchema = z.object({
   onlinePubDateTBD: z.boolean().default(true),
   printPubDate: z.string().datetime({ offset: true }).nullable().optional(),
   printPubDateTBD: z.boolean().default(true),
-  notes: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(NOTES_MAX).nullable().optional(),
   wordCount: z.number().int().min(0).nullable().optional(),
   notifyTeam: z.boolean().default(false),
   aiContributed: z.boolean().default(false),
@@ -428,7 +438,7 @@ export const updateStorySchemaBase = z.object({
   onlinePubDateTBD: z.boolean().optional(),
   printPubDate: z.string().datetime({ offset: true }).nullable().optional(),
   printPubDateTBD: z.boolean().optional(),
-  notes: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(NOTES_MAX).nullable().optional(),
   wordCount: z.number().int().min(0).nullable().optional(),
   notifyTeam: z.boolean().optional(),
   aiContributed: z.boolean().optional(),
@@ -444,8 +454,8 @@ export const updateStorySchemaBase = z.object({
 // ─── Pitch ────────────────────────────────────────────────────────────────────
 
 export const createPitchSchema = z.object({
-  text: z.string().trim().min(1, "Pitch text is required").max(500),
-  notes: z.string().max(5000).nullable().optional(),
+  text: z.string().trim().min(1, "Pitch text is required").max(PITCH_TEXT_MAX),
+  notes: z.string().max(NOTES_MAX).nullable().optional(),
   evergreen: z.boolean().default(false),
   expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
 });
@@ -666,7 +676,7 @@ export const createVideoSchema = z.object({
   storyId: z.string().cuid().nullable().optional(), // null = standalone
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
   onlinePubDateTBD: z.boolean().default(true),
-  notes: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(NOTES_MAX).nullable().optional(),
   notifyTeam: z.boolean().default(false),
   sortOrder: z.number().int().default(0),
   youtubeUrl: optionalUrl,
@@ -689,7 +699,7 @@ const updateVideoSchemaBase = z.object({
   storyId: z.string().cuid().nullable().optional(),
   onlinePubDate: z.string().datetime({ offset: true }).nullable().optional(),
   onlinePubDateTBD: z.boolean().optional(),
-  notes: z.string().max(5000).nullable().optional(),
+  notes: z.string().max(NOTES_MAX).nullable().optional(),
   notifyTeam: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
   youtubeUrl: optionalUrl,

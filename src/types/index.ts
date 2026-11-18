@@ -56,6 +56,8 @@ export type EnterpriseStoryItem = StoryListItem;
 // excluding notes and budgetLine — contact details have no business in every
 // browser's memory for every open pitch. Keep in sync with the select in
 // src/app/api/budget/pitches/route.ts.
+/** A pool row. `hasNotes` is computed server-side; the notes themselves are
+ *  never sent to the pool list (see /api/budget/pitches). */
 export type PitchListItem = Prisma.StoryGetPayload<{
   select: {
     id: true;
@@ -66,7 +68,7 @@ export type PitchListItem = Prisma.StoryGetPayload<{
     createdByUser: { select: { id: true; name: true } };
     assignments: { include: { person: { select: { id: true; name: true } } } };
   };
-}>;
+}> & { hasNotes: boolean };
 
 // ─── Video types ─────────────────────────────────────────────────────────────
 

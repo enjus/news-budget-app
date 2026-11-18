@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { addDays } from "date-fns"
-import { CalendarPlus, Infinity as InfinityIcon, Send, UserMinus, UserPlus } from "lucide-react"
+import { CalendarPlus, Infinity as InfinityIcon, Pencil, Plus, Send, UserMinus, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -25,13 +25,31 @@ import { PitchExpiryBadge } from "@/components/budget/PitchExpiryBadge"
 import { CommentSection } from "./CommentSection"
 import { DeleteDraftDialog } from "./DeleteDraftDialog"
 import { apiPath } from "@/lib/api-path"
+import { NOTES_MAX } from "@/lib/validations"
 import { displayName, formatTimestampPacific, hasAdminAccess, hasElevatedAccess } from "@/lib/utils"
 import type { StoryWithRelations } from "@/types/index"
 
 interface PitchDetailProps {
   story: StoryWithRelations
-  onUpdate: () => void
+  /** Refetch the story. May return the SWR revalidation promise, which
+   *  SourceMaterial awaits so a save doesn't flash the old text. */
+  onUpdate: () => void | Promise<unknown>
   readOnly?: boolean
+}
+
+/** PATCH a pitch's Story row with optimistic locking (`version`). Resolves
+ *  "conflict" on a 409 (someone else saved first); throws with the server's
+ *  message on any other failure. */
+async function patchPitch(id: string, body: Record<string, unknown>): Promise<"ok" | "conflict"> {
+  const res = await fetch(apiPath(`/api/stories/${id}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (res.ok) return "ok"
+  if (res.status === 409) return "conflict"
+  const json = await res.json().catch(() => ({}))
+  throw new Error(json?.error ?? "Failed to update")
 }
 
 /**
@@ -135,19 +153,10 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
   async function patchExpiry(expiresAt: string | null) {
     setWorking(true)
     try {
-      const res = await fetch(apiPath(`/api/stories/${story.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiresAt, version: story.version }),
-      })
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}))
-        if (res.status === 409) {
-          toast.error("This pitch was modified by another user. Reloading…")
-          onUpdate()
-          return
-        }
-        throw new Error(json?.error ?? "Failed to update")
+      if ((await patchPitch(story.id, { expiresAt, version: story.version })) === "conflict") {
+        toast.error("This pitch was modified by another user. Reloading…")
+        onUpdate()
+        return
       }
       toast.success(expiresAt ? "Expiry extended 7 days" : "Marked evergreen")
       onUpdate()
@@ -310,19 +319,14 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         </div>
       )}
 
-      {/* Contact & notes */}
-      {story.notes && (
-        <div className="rounded-lg border bg-muted/20 p-4 space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Contact &amp; notes
-          </p>
-          <p className="text-sm whitespace-pre-wrap">{story.notes}</p>
-          <p className="text-xs text-muted-foreground pt-1">
-            Visible to any signed-in staffer while this is a pitch. Sending it to budget also
-            emails this to everyone assigned.
-          </p>
-        </div>
-      )}
+      {/* Source material & contact */}
+      <SourceMaterial
+        storyId={story.id}
+        notes={story.notes}
+        version={story.version}
+        readOnly={readOnly}
+        onUpdate={onUpdate}
+      />
 
       <Separator />
 
@@ -333,6 +337,151 @@ export function PitchDetail({ story, onUpdate, readOnly }: PitchDetailProps) {
         team={story}
         readOnly={readOnly}
       />
+    </div>
+  )
+}
+
+/** Above this many characters the panel starts collapsed. */
+const SOURCE_COLLAPSE_AT = 1200
+
+/** The pitch's notes: often a whole pasted email, so long ones start
+ *  collapsed behind "Show all". Editable in place by anyone who can edit
+ *  stories (same PATCH and role floor as any story's notes). Hidden entirely
+ *  for read-only viewers when there are no notes. */
+function SourceMaterial({
+  storyId,
+  notes,
+  version,
+  readOnly,
+  onUpdate,
+}: {
+  storyId: string
+  notes: string | null
+  version: number
+  readOnly?: boolean
+  onUpdate: () => void | Promise<unknown>
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  const text = notes ?? ""
+  const hasNotes = text.trim().length > 0
+  const long = text.length > SOURCE_COLLAPSE_AT
+  const collapsed = long && !expanded
+
+  if (!hasNotes && readOnly) return null
+
+  function startEdit() {
+    setDraft(text)
+    setEditing(true)
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const value = draft.trim() ? draft : null
+      if ((await patchPitch(storyId, { notes: value, version })) === "conflict") {
+        // Keep the editor open with the draft so nothing typed is lost;
+        // the refreshed version lets the next Save go through.
+        toast.error("This pitch was changed by someone else. Check the latest version, then save again.")
+        onUpdate()
+        return
+      }
+      // Wait for the refetch before closing, so the panel doesn't briefly
+      // show the old text and look like the save didn't take.
+      await onUpdate()
+      toast.success("Source material saved")
+      setEditing(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!hasNotes && !editing) {
+    return (
+      <Button variant="outline" size="sm" className="gap-1" onClick={startEdit}>
+        <Plus className="size-4" />
+        Add source material
+      </Button>
+    )
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Source material &amp; contact
+        </p>
+        {!readOnly && !editing && (
+          <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={startEdit}>
+            <Pencil className="size-3" />
+            Edit
+          </Button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-2">
+          <textarea
+            aria-label="Source material and contact"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={12}
+            maxLength={NOTES_MAX}
+            autoFocus
+            placeholder="Tipster's name and number, the original email, links…"
+            className="max-h-[60vh] w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {draft.length > 0 && `${draft.length.toLocaleString()} characters`}
+            </span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled={saving} onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={saving || draft === text} onClick={save}>
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="relative">
+            <p
+              id="pitch-source-material"
+              className={`text-sm whitespace-pre-wrap break-words ${collapsed ? "max-h-56 overflow-hidden" : ""}`}
+            >
+              {text}
+            </p>
+            {collapsed && (
+              <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-background/90 to-transparent" />
+            )}
+          </div>
+          {long && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              aria-expanded={expanded}
+              aria-controls="pitch-source-material"
+              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {expanded ? "Show less" : `Show all (${text.length.toLocaleString()} characters)`}
+            </button>
+          )}
+        </>
+      )}
+
+      <p className="pt-1 text-xs text-muted-foreground">
+        Visible to any signed-in staffer while this is a pitch, and stays with the story once
+        it&apos;s sent to budget, where &ldquo;Save &amp; Notify Team&rdquo; emails it to the team
+        (shortened if long).
+      </p>
     </div>
   )
 }
