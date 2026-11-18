@@ -134,10 +134,50 @@ describe("visualRequestEmail", () => {
     expect(html).not.toContain("<b>bold</b>")
   })
 
-  it("links to the story page", () => {
+  it("links to the request page and, for a story request, the story", () => {
     const { text, html } = visualRequestEmail(base)
-    expect(text).toMatch(/View the story: \S+\/stories\/s1$/)
-    expect(html).toMatch(/<a href="[^"]+\/stories\/s1">View the story in the News Budget<\/a>/)
+    expect(text).toMatch(/View the request: \S+\/requests\/v1\nView the story: \S+\/stories\/s1$/)
+    expect(html).toMatch(/<a href="[^"]+\/requests\/v1">View the request in the News Budget<\/a>/)
+    expect(html).toMatch(/<a href="[^"]+\/stories\/s1">View the story<\/a>/)
+  })
+
+  describe("standalone request (no story)", () => {
+    const standalone: VisualRequestEmailInput = {
+      ...base,
+      description: "Gov. Tina Kotek is speaking in Portland, update our file photos",
+      story: null,
+    }
+
+    it("takes its subject from the description, cut at a word", () => {
+      expect(visualRequestEmail(standalone).subject).toBe(
+        "News Budget visual request (Photo): Gov. Tina Kotek is speaking in Portland, update our…"
+      )
+      expect(visualRequestEmail({ ...standalone, priority: "URGENT" }).subject).toMatch(
+        /^URGENT visual request \(Photo\): Gov\. Tina Kotek/
+      )
+      expect(visualRequestEmail({ ...standalone, description: "Kotek portraits" }).subject).toBe(
+        "News Budget visual request (Photo): Kotek portraits"
+      )
+    })
+
+    it("says it isn't on a story, and has no story line or story link", () => {
+      const { text, html } = visualRequestEmail(standalone)
+      expect(text).toContain("Ann Smith requested a photo in the News Budget. It isn't attached to a story yet.")
+      expect(text).not.toContain("SUPERINTENDENT")
+      expect(text).not.toContain("/stories/")
+      expect(html).not.toContain("/stories/")
+      expect(visualRequestEmail({ ...standalone, requestedBy: null }).text).toContain(
+        "A photo was requested in the News Budget. It isn't attached to a story yet."
+      )
+    })
+
+    it("still lists the details and links to the request page", () => {
+      const { text, html } = visualRequestEmail({ ...standalone, location: "Portland" })
+      expect(text).toContain("What's needed: Gov. Tina Kotek is speaking in Portland, update our file photos")
+      expect(text).toContain("Location: Portland")
+      expect(text).toMatch(/View the request: \S+\/requests\/v1$/)
+      expect(html).toMatch(/<a href="[^"]+\/requests\/v1">View the request in the News Budget<\/a><\/p>$/)
+    })
   })
 })
 

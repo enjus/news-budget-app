@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createVisualSchema, requestVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { CREATABLE_STATUSES } from "@/lib/visual-requests";
+import { CREATABLE_STATUSES, visualRequestCreateData } from "@/lib/visual-requests";
 import { checkWriteLimit, requireJSON } from "@/lib/api-helpers";
 import { notifyVisualDesk } from "@/lib/visual-notifications";
 
@@ -91,21 +91,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     let visual;
     if (result.data && "status" in result.data) {
       // REQUESTED: no assignee yet; requestedById comes from the session, never the body.
-      const d = result.data;
+      // Shared with POST /api/visuals (standalone) so the two can't drift.
+      // personId was checked non-null above.
       visual = await prisma.visual.create({
-        data: {
-          storyId,
-          status: "REQUESTED",
-          requestedById: session.user.personId,
-          type: d.type,
-          description: d.description ?? null,
-          priority: d.priority,
-          eventDateTime: d.eventDateTime ? new Date(d.eventDateTime) : null,
-          location: d.location ?? null,
-          deadline: d.deadline ? new Date(d.deadline) : null,
-          notes: d.notes ?? null,
-          dataUrl: d.dataUrl ?? null,
-        },
+        data: visualRequestCreateData(result.data, session.user.personId!, storyId),
         include: {
           person: true,
           // For the desk email only; the 201 body carrying them is harmless.
@@ -114,13 +103,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         },
       });
       // Fire-and-forget, like notifyStoryTeam: the request is saved whether or
-      // not the desk hears about it. Needs `story` non-null, which the 404
-      // check above guarantees.
-      if (visual.story) {
-        notifyVisualDesk({ ...visual, story: visual.story }).catch((error) =>
-          console.error("Visual request desk email failed:", error)
-        );
-      }
+      // not the desk hears about it.
+      notifyVisualDesk(visual).catch((error) =>
+        console.error("Visual request desk email failed:", error)
+      );
     } else {
       const d = result.data;
       if (d.personId) {

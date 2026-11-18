@@ -4,8 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
-import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
-import { canActOnVisual, canBeAssigned, canTransition, type VisualAction } from "@/lib/visual-requests";
+import { checkReadLimit, checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
+import {
+  canActOnVisual,
+  canBeAssigned,
+  canTransition,
+  isAttachableStatus,
+  isTerminalStatus,
+  VISUAL_STATUS_LABELS,
+  type VisualAction,
+  type VisualStatus,
+} from "@/lib/visual-requests";
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +31,65 @@ const ACTION_FOR_STATUS: Partial<Record<string, VisualAction>> = {
   DECLINED: "decline",
   CANCELED: "cancel",
 };
+
+// What a PATCH returns: the row as VisualSection expects it (person), plus the
+// requester and story the request page shows.
+const patchInclude = {
+  person: true,
+  requestedBy: { select: { id: true, name: true } },
+  story: { select: { id: true, slug: true, budgetLine: true } },
+} as const;
+
+/**
+ * One request, in full, for its page (/requests/[id]). Any signed-in user may
+ * read it. Unlike the dashboard list, this includes notes and dataUrl.
+ */
+export async function GET(_request: NextRequest, { params }: RouteContext) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+    }
+
+    const limited = checkReadLimit(session.user.id);
+    if (limited) return limited;
+
+    const { id } = await params;
+    const visual = await prisma.visual.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        storyId: true,
+        type: true,
+        status: true,
+        priority: true,
+        description: true,
+        eventDateTime: true,
+        location: true,
+        deadline: true,
+        notes: true,
+        dataUrl: true,
+        declineReason: true,
+        personId: true,
+        requestedById: true,
+        createdAt: true,
+        updatedAt: true,
+        person: { select: { id: true, name: true, isActive: true } },
+        requestedBy: { select: { id: true, name: true } },
+        story: {
+          select: { id: true, slug: true, budgetLine: true, onlinePubDate: true, onlinePubDateTBD: true, status: true },
+        },
+      },
+    });
+    if (!visual) {
+      return NextResponse.json({ error: "Visual not found" }, { status: 404 });
+    }
+    return NextResponse.json(visual);
+  } catch (error) {
+    console.error("GET /api/visuals/[id] error:", error);
+    return NextResponse.json({ error: "Failed to fetch visual" }, { status: 500 });
+  }
+}
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
@@ -40,7 +108,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const existing = await prisma.visual.findUnique({
       where: { id },
-      select: { id: true, status: true, personId: true, requestedById: true },
+      select: { id: true, status: true, personId: true, requestedById: true, storyId: true },
     });
     if (!existing) {
       return NextResponse.json({ error: "Visual not found" }, { status: 404 });
@@ -60,7 +128,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     if (isPlanned) {
       // A PLANNED credit has no lifecycle and none of the request fields.
-      const requestOnly = [...REQUEST_ONLY_FIELDS, "status", "declineReason"].filter(
+      const requestOnly = [...REQUEST_ONLY_FIELDS, "status", "declineReason", "storyId"].filter(
         (f) => (input as Record<string, unknown>)[f] !== undefined
       );
       if (requestOnly.length > 0) {
@@ -104,14 +172,39 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
 
-    // Permissions: every action the payload implies must be allowed.
-    const actor = { role: session.user.appRole, personId: session.user.personId ?? null };
-    const actions = new Set<VisualAction>();
+    // A finished request's details are locked (canActOnVisual's "update" rule
+    // says the same; this gives the clearer 409). Attaching isn't a detail edit:
+    // a DELIVERED request can still be placed on a story.
     const editsDetails = (
       ["type", "description", ...REQUEST_ONLY_FIELDS] as const
     ).some((f) => (input as Record<string, unknown>)[f] !== undefined);
+    if (!isPlanned && editsDetails && isTerminalStatus(existing.status)) {
+      const label = VISUAL_STATUS_LABELS[existing.status as VisualStatus].toLowerCase();
+      return NextResponse.json(
+        { error: `A ${label} request's details can't be changed` },
+        { status: 409 }
+      );
+    }
+
+    // Attach to a story, or move to another one. No detaching: the schema
+    // rejects null. Sending the story it's already on is a no-op.
+    const attaching = input.storyId !== undefined && input.storyId !== existing.storyId;
+    if (attaching) {
+      const statusAfter = transitioning ? nextStatus! : existing.status;
+      if (!isAttachableStatus(existing.status) || !isAttachableStatus(statusAfter)) {
+        return NextResponse.json(
+          { error: "A declined or canceled request can't be attached to a story" },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Permissions: every action the payload implies must be allowed.
+    const actor = { role: session.user.appRole, personId: session.user.personId ?? null };
+    const actions = new Set<VisualAction>();
     if (editsDetails) actions.add("update");
     if (assigning) actions.add("assign");
+    if (attaching) actions.add("attach");
     if (transitioning) {
       const action = ACTION_FOR_STATUS[nextStatus!];
       if (action) actions.add(action);
@@ -135,6 +228,19 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
     }
 
+    if (attaching) {
+      const story = await prisma.story.findUnique({
+        where: { id: input.storyId! },
+        select: { status: true },
+      });
+      if (!story) {
+        return NextResponse.json({ error: "Story not found" }, { status: 404 });
+      }
+      if (story.status === "SHELVED") {
+        return NextResponse.json({ error: "A request can't be attached to a shelved story" }, { status: 400 });
+      }
+    }
+
     // Build update data, including explicit null where the payload clears a field.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = {};
@@ -147,20 +253,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (input.dataUrl !== undefined) data.dataUrl = input.dataUrl;
     if (input.eventDateTime !== undefined) data.eventDateTime = input.eventDateTime ? new Date(input.eventDateTime) : null;
     if (input.deadline !== undefined) data.deadline = input.deadline ? new Date(input.deadline) : null;
+    if (attaching) data.storyId = input.storyId;
     if (transitioning) data.status = nextStatus;
     if (nextStatus === "DECLINED") data.declineReason = input.declineReason!.trim();
 
-    // Guard on the status and assignee we validated against, so two racing transitions
-    // or reassignments can't both win.
+    // Guard on the status, assignee and story we validated against, so two racing
+    // transitions, reassignments or attaches can't both win.
     const updated = await prisma.visual.updateMany({
-      where: { id, status: existing.status, personId: existing.personId },
+      where: { id, status: existing.status, personId: existing.personId, storyId: existing.storyId },
       data,
     });
     if (updated.count === 0) {
       return NextResponse.json({ error: "This visual was changed by someone else. Please reload." }, { status: 409 });
     }
 
-    const visual = await prisma.visual.findUnique({ where: { id }, include: { person: true } });
+    const visual = await prisma.visual.findUnique({ where: { id }, include: patchInclude });
     return NextResponse.json(visual);
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2025") {

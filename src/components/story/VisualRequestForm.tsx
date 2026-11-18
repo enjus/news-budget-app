@@ -19,12 +19,27 @@ export const UNLINKED_ACCOUNT_MESSAGE =
 const TEXTAREA_CLASS =
   "w-full rounded-md border bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
 
+/** The fields of a request that "Edit details" can change, as GET /api/visuals/[id] returns them. */
+export interface EditableRequestFields {
+  type: string
+  priority: string
+  description: string | null
+  eventDateTime: string | null
+  location: string | null
+  deadline: string | null
+  notes: string | null
+  dataUrl: string | null
+}
+
 interface VisualRequestFormProps {
-  storyId: string
+  /** The story to file the request on. Ignored when `editing`. */
+  storyId?: string
   /** No longer read: the description placeholder is a fixed example. Kept so callers needn't change. */
   budgetLine?: string
   /** Prefills the deadline: the story's online pub date (newsroom-time-as-UTC ISO), when it has one. */
   defaultDeadline?: string | null
+  /** Edit an existing request instead of filing one: PATCHes /api/visuals/[id] with every field. */
+  editing?: { id: string; initial: EditableRequestFields }
   onSubmitted: () => void
   onCancel: () => void
 }
@@ -49,50 +64,76 @@ function OptionalDateTime({ value, onChange }: { value: string | null; onChange:
  * account has to be linked to one. eventDateTime/deadline come from DateTimePicker
  * already in newsroom-time-as-UTC (the same values StoryForm sends for pub dates)
  * and are passed through untouched.
+ *
+ * With `editing`, the same form edits an existing request's details on its
+ * request page: prefilled, PATCHed, and no linked Person needed (the server's
+ * "update" rule decides who may edit).
  */
-export function VisualRequestForm({ storyId, defaultDeadline, onSubmitted, onCancel }: VisualRequestFormProps) {
+export function VisualRequestForm({ storyId, defaultDeadline, editing, onSubmitted, onCancel }: VisualRequestFormProps) {
   const { data: session, status: sessionStatus } = useSession()
-  const unlinked = sessionStatus === "authenticated" && !session?.user?.personId
+  const unlinked = !editing && sessionStatus === "authenticated" && !session?.user?.personId
+  const initial = editing?.initial
 
-  const [type, setType] = useState<VisualTypeValue>("PHOTO")
-  const [description, setDescription] = useState("")
-  const [priority, setPriority] = useState<"NORMAL" | "URGENT">("NORMAL")
-  const [eventDateTime, setEventDateTime] = useState<string | null>(null)
-  const [location, setLocation] = useState("")
-  const [deadline, setDeadline] = useState<string | null>(defaultDeadline ?? null)
-  const [notes, setNotes] = useState("")
-  const [dataUrl, setDataUrl] = useState("")
+  const [type, setType] = useState<VisualTypeValue>((initial?.type as VisualTypeValue) ?? "PHOTO")
+  const [description, setDescription] = useState(initial?.description ?? "")
+  const [priority, setPriority] = useState<"NORMAL" | "URGENT">(initial?.priority === "URGENT" ? "URGENT" : "NORMAL")
+  const [eventDateTime, setEventDateTime] = useState<string | null>(initial?.eventDateTime ?? null)
+  const [location, setLocation] = useState(initial?.location ?? "")
+  const [deadline, setDeadline] = useState<string | null>(initial ? initial.deadline : (defaultDeadline ?? null))
+  const [notes, setNotes] = useState(initial?.notes ?? "")
+  const [dataUrl, setDataUrl] = useState(initial?.dataUrl ?? "")
   const [submitting, setSubmitting] = useState(false)
 
   // Same checks the server runs (requestVisualSchema); the inline errors just save a round trip.
   const link = parseDataUrl(dataUrl)
   const hasDescription = description.trim() !== ""
-  const canSubmit = sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting
+  const canSubmit =
+    sessionStatus === "authenticated" && !unlinked && hasDescription && link.ok && !submitting &&
+    (editing !== undefined || storyId !== undefined)
 
   async function handleSubmit() {
     if (!canSubmit || !link.ok) return
     setSubmitting(true)
     try {
-      const body: Record<string, unknown> = { status: "REQUESTED", type, priority, description: description.trim() }
-      if (eventDateTime) body.eventDateTime = eventDateTime
-      if (location.trim()) body.location = location.trim()
-      if (deadline) body.deadline = deadline
-      if (notes.trim()) body.notes = notes.trim()
-      if (link.value) body.dataUrl = link.value
-
-      const res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      })
+      let res: Response
+      if (editing) {
+        // Every field, with null clearing what was emptied.
+        const body = {
+          type,
+          priority,
+          description: description.trim(),
+          eventDateTime,
+          location: location.trim() || null,
+          deadline,
+          notes: notes.trim() || null,
+          dataUrl: link.value,
+        }
+        res = await fetch(apiPath(`/api/visuals/${editing.id}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      } else {
+        const body: Record<string, unknown> = { status: "REQUESTED", type, priority, description: description.trim() }
+        if (eventDateTime) body.eventDateTime = eventDateTime
+        if (location.trim()) body.location = location.trim()
+        if (deadline) body.deadline = deadline
+        if (notes.trim()) body.notes = notes.trim()
+        if (link.value) body.dataUrl = link.value
+        res = await fetch(apiPath(`/api/stories/${storyId}/visuals`), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      }
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
-        throw new Error(json?.error ?? `Failed to file request (${res.status})`)
+        throw new Error(json?.error ?? `Failed to ${editing ? "save request" : "file request"} (${res.status})`)
       }
-      toast.success("Visual requested")
+      toast.success(editing ? "Request updated" : "Visual requested")
       onSubmitted()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to file request")
+      toast.error(err instanceof Error ? err.message : editing ? "Failed to save request" : "Failed to file request")
     } finally {
       setSubmitting(false)
     }
@@ -100,7 +141,7 @@ export function VisualRequestForm({ storyId, defaultDeadline, onSubmitted, onCan
 
   return (
     <div className="space-y-3 rounded-lg border border-dashed p-3">
-      <p className="text-sm font-medium">Request a visual</p>
+      <p className="text-sm font-medium">{editing ? "Edit request" : "Request a visual"}</p>
 
       {unlinked && (
         <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -219,8 +260,8 @@ export function VisualRequestForm({ storyId, defaultDeadline, onSubmitted, onCan
 
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={handleSubmit} disabled={!canSubmit}>
-          <Send className="size-4" />
-          {submitting ? "Requesting..." : "Request visual"}
+          {!editing && <Send className="size-4" />}
+          {editing ? (submitting ? "Saving..." : "Save changes") : submitting ? "Requesting..." : "Request visual"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={submitting}>
           Cancel
