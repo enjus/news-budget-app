@@ -57,6 +57,38 @@ interface NotifiableVideo {
   assignments: AssignedPerson[];
 }
 
+/** Longest notes excerpt included in a team-notification email. Notes can
+ *  hold a whole pasted email (up to NOTES_MAX), which shouldn't be blasted
+ *  in full to every assignee — the link has the rest. */
+export const NOTES_EMAIL_MAX = 3000;
+
+/** Trim notes for an email body, keeping line breaks. Returns the excerpt and
+ *  whether anything was cut. Cuts at the last line break or space before the
+ *  limit when there's one reasonably close, so a word isn't split. */
+export function notesForEmail(notes: string, max = NOTES_EMAIL_MAX): { text: string; truncated: boolean } {
+  const trimmed = notes.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= max) return { text: trimmed, truncated: false };
+  // Work in code points throughout, so the limit and the break search agree
+  // and an emoji at the boundary isn't split.
+  const head = chars.slice(0, max);
+  const breakAt = Math.max(head.lastIndexOf("\n"), head.lastIndexOf(" "));
+  const cut = (breakAt > max * 0.8 ? head.slice(0, breakAt) : head).join("");
+  return { text: cut.trimEnd() + "…", truncated: true };
+}
+
+function notesBlocks(notes: string | null | undefined): { text: string; html: string } {
+  if (!notes?.trim()) return { text: "", html: "" };
+  const { text, truncated } = notesForEmail(notes);
+  const more = truncated ? "(Notes shortened — see the full text in the News Budget.)" : "";
+  return {
+    text: `\n\nNotes: ${text}` + (more ? `\n${more}` : ""),
+    html:
+      `<p><strong>Notes:</strong> ${escapeHtml(text).replace(/\n/g, "<br>")}</p>` +
+      (more ? `<p><em>${more}</em></p>` : ""),
+  };
+}
+
 /**
  * Notify the people assigned to a story that it needs their attention.
  * Recipients = everyone assigned to the story (via StoryAssignment) plus
@@ -71,18 +103,16 @@ export async function notifyStoryTeam(story: NotifiableStory): Promise<void> {
   const link = `${APP_URL}/stories/${story.id}`;
   const subject = `News Budget story updated: ${story.slug}`;
 
-  const notesLine = story.notes ? `\n\nNotes: ${story.notes}` : "";
+  const notes = notesBlocks(story.notes);
   const text =
     `A story you're assigned to has been updated in the News Budget.\n\n` +
-    `${story.slug}: ${story.budgetLine}${notesLine}\n\n` +
+    `${story.slug}: ${story.budgetLine}${notes.text}\n\n` +
     `View it here: ${link}`;
 
   const html =
     `<p>A story you're assigned to has been updated in the News Budget.</p>` +
     `<p><strong>${escapeHtml(story.slug)}:</strong> ${escapeHtml(story.budgetLine)}</p>` +
-    (story.notes
-      ? `<p><strong>Notes:</strong> ${escapeHtml(story.notes).replace(/\n/g, "<br>")}</p>`
-      : "") +
+    notes.html +
     `<p><a href="${link}">View it in the News Budget</a></p>`;
 
   await sendEmail({ to: recipients, subject, text, html });
@@ -98,18 +128,16 @@ export async function notifyVideoTeam(video: NotifiableVideo): Promise<void> {
   const link = `${APP_URL}/videos/${video.id}`;
   const subject = `News Budget video updated: ${video.slug}`;
 
-  const notesLine = video.notes ? `\n\nNotes: ${video.notes}` : "";
+  const notes = notesBlocks(video.notes);
   const text =
     `A video you're assigned to has been updated in the News Budget.\n\n` +
-    `${video.slug}: ${video.budgetLine}${notesLine}\n\n` +
+    `${video.slug}: ${video.budgetLine}${notes.text}\n\n` +
     `View it here: ${link}`;
 
   const html =
     `<p>A video you're assigned to has been updated in the News Budget.</p>` +
     `<p><strong>${escapeHtml(video.slug)}:</strong> ${escapeHtml(video.budgetLine)}</p>` +
-    (video.notes
-      ? `<p><strong>Notes:</strong> ${escapeHtml(video.notes).replace(/\n/g, "<br>")}</p>`
-      : "") +
+    notes.html +
     `<p><a href="${link}">View it in the News Budget</a></p>`;
 
   await sendEmail({ to: recipients, subject, text, html });

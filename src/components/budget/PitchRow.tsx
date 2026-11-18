@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { useState } from "react"
 import { toast } from "sonner"
-import { Send, UserMinus } from "lucide-react"
+import { FileText, Send, UserMinus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PitchExpiryBadge } from "@/components/budget/PitchExpiryBadge"
 import { apiPath } from "@/lib/api-path"
@@ -68,6 +68,12 @@ export function PitchRow({ pitch, onUpdate }: { pitch: PitchListItem; onUpdate: 
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Pitched by {pitch.createdByUser?.name ?? "Unknown"}</span>
           {claimant && <span>· Claimed by {claimant.name}</span>}
+          {pitch.hasNotes && (
+            <span className="inline-flex items-center gap-1">
+              <FileText className="size-3" aria-hidden="true" />
+              More information provided
+            </span>
+          )}
           <PitchExpiryBadge expiresAt={pitch.expiresAt} />
         </div>
       </Link>
