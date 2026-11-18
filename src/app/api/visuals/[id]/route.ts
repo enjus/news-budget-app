@@ -13,6 +13,7 @@ import {
   isAttachableStatus,
   visualPatchGuard,
   isTerminalStatus,
+  linksFromInput,
   VISUAL_STATUS_LABELS,
   type VisualAction,
   type VisualStatus,
@@ -23,7 +24,7 @@ export const dynamic = 'force-dynamic'
 type RouteContext = { params: Promise<{ id: string }> };
 
 // Fields that only mean something on a request, not on a PLANNED credit.
-const REQUEST_ONLY_FIELDS = ["priority", "eventDateTime", "location", "deadline", "notes", "dataUrl"] as const;
+const REQUEST_ONLY_FIELDS = ["priority", "eventDateTime", "location", "deadline", "notes", "links", "dataUrl"] as const;
 
 // The lifecycle action a status change needs (ASSIGNED is covered by "assign";
 // REQUESTED can only be reached from ASSIGNED, which is a release).
@@ -46,7 +47,8 @@ const patchInclude = {
 
 /**
  * One request, in full, for its page (/requests/[id]). Any signed-in user may
- * read it. Unlike the dashboard list, this includes notes and dataUrl.
+ * read it. Unlike the dashboard list, this includes notes and links. Both
+ * `links` and the legacy `dataUrl` are returned; readers go through visualLinks().
  */
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
@@ -72,6 +74,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
         location: true,
         deadline: true,
         notes: true,
+        links: true,
         dataUrl: true,
         declineReason: true,
         personId: true,
@@ -264,7 +267,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (input.priority !== undefined) data.priority = input.priority;
     if (input.location !== undefined) data.location = input.location;
     if (input.notes !== undefined) data.notes = input.notes;
-    if (input.dataUrl !== undefined) data.dataUrl = input.dataUrl;
+    // `links` replaces the whole list. A legacy `dataUrl` is mapped into it. The
+    // old column is nulled whenever links are written: otherwise clearing links
+    // to [] would let visualLinks() fall back to it and the link would reappear.
+    const links = linksFromInput(input);
+    if (links !== undefined) {
+      data.links = links;
+      data.dataUrl = null;
+    }
     if (input.eventDateTime !== undefined) data.eventDateTime = input.eventDateTime ? new Date(input.eventDateTime) : null;
     if (input.deadline !== undefined) data.deadline = input.deadline ? new Date(input.deadline) : null;
     if (attaching) data.storyId = input.storyId;

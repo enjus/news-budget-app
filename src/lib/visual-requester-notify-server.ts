@@ -29,6 +29,8 @@ export async function notifyRequesterOfOutcome(
       status: true,
       description: true,
       declineReason: true,
+      links: true,
+      dataUrl: true,
       requestedById: true,
       requestedBy: { select: { email: true, isActive: true, isStaff: true } },
       person: { select: { name: true } },

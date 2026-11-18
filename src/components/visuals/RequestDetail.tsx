@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
-import { ArrowLeft, Ban, CheckCircle2, ExternalLink, Hand, Link2, Pencil, Play, Trash2, Undo2, XCircle } from "lucide-react"
+import { ArrowLeft, Ban, CheckCircle2, Hand, Link2, Pencil, Play, Trash2, Undo2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -30,7 +30,8 @@ import { PersonSelect } from "@/components/people/PersonSelect"
 import { VisualRequestForm } from "@/components/story/VisualRequestForm"
 import { apiPath } from "@/lib/api-path"
 import { formatPubDate, formatTimestampPacific } from "@/lib/utils"
-import { availableVisualActions, parseDataUrl, type VisualButton } from "@/lib/visual-requests"
+import { availableVisualActions, visualLinks, type VisualButton } from "@/lib/visual-requests"
+import { VisualLinkList } from "./VisualLinkList"
 import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
 import type { VisualRequestDetail } from "@/types/index"
 import { AttachStoryDialog } from "./AttachStoryDialog"
@@ -95,7 +96,8 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
   const buttons = new Set<VisualButton>(actor ? availableVisualActions(actor, request) : [])
 
   const typeLabel = VISUAL_TYPE_LABELS[request.type as VisualTypeValue] ?? request.type
-  const link = request.dataUrl ? parseDataUrl(request.dataUrl) : null
+  // `links`, or the legacy single dataUrl on an older request.
+  const links = visualLinks(request)
 
   /** PATCH the request; toasts the server's error and returns false on failure. */
   async function patch(body: Record<string, unknown>, success: string): Promise<boolean> {
@@ -286,21 +288,8 @@ export function RequestDetail({ request, onUpdate }: RequestDetailProps) {
         <Row label="Event">{request.eventDateTime && formatPubDate(request.eventDateTime, false)}</Row>
         <Row label="Location">{request.location}</Row>
         <Row label="Needed by">{request.deadline && formatPubDate(request.deadline, false)}</Row>
-        <Row label="Data">
-          {request.dataUrl &&
-            (link?.ok && link.value ? (
-              <a
-                href={link.value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-              >
-                {link.value} <ExternalLink className="size-3 shrink-0" />
-              </a>
-            ) : (
-              // Re-validated before rendering as an href; a value that fails is shown as text.
-              request.dataUrl
-            ))}
+        <Row label={links.length > 1 ? "Links" : "Link"}>
+          {links.length > 0 ? <VisualLinkList links={links} /> : null}
         </Row>
         <Row label="Notes">{request.notes && <span className="whitespace-pre-wrap">{request.notes}</span>}</Row>
         <Row label="Decline reason">{request.status === "DECLINED" ? request.declineReason : null}</Row>

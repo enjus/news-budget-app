@@ -352,9 +352,15 @@ model Visual {
   location      String?
   deadline      DateTime?
   notes         String?
-  // https link to the requester's data (SharePoint/OneDrive/Sheets) — never a file upload.
-  // Validated by parseDataUrl() in src/lib/visual-requests.ts.
+  // Legacy single "Link to data", superseded by `links`. Still read as a
+  // fallback (visualLinks() in src/lib/visual-requests.ts) but never written,
+  // except to null when `links` is saved. Kept so the deploy is an additive
+  // db push with no data copy; drop it in a later change once rows are moved.
   dataUrl       String?
+  // https links to data, files or references (SharePoint/OneDrive/Sheets),
+  // up to VISUAL_LINKS_MAX — never file uploads. Each validated by
+  // parseDataUrl(); read through visualLinks(), which falls back to dataUrl.
+  links         String[]  @default([])
   declineReason String?
   // archive + icalSequence are unused until later slices; here so they need no second db push.
   archived      Boolean   @default(false)

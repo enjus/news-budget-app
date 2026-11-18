@@ -22,7 +22,12 @@ import {
   visualRequestCreateData,
   partitionVisualsForStoryDelete,
   parseDataUrl,
+  parseVisualLinks,
+  visualLinks,
+  linkHref,
+  linksFromInput,
   DATA_URL_MAX_LENGTH,
+  VISUAL_LINKS_MAX,
   type VisualAction,
   type VisualActor,
   type VisualButton,
@@ -428,7 +433,7 @@ describe("visualRequestCreateData", () => {
     location: "Portland",
     deadline: null,
     notes: undefined,
-    dataUrl: "https://example.com/sheet",
+    links: ["https://example.com/sheet", "https://example.com/folder"],
   }
 
   it("files a standalone request with no story", () => {
@@ -443,8 +448,16 @@ describe("visualRequestCreateData", () => {
       location: "Portland",
       deadline: null,
       notes: null,
-      dataUrl: "https://example.com/sheet",
+      links: ["https://example.com/sheet", "https://example.com/folder"],
     })
+  })
+
+  it("writes links only, mapping a legacy dataUrl from an older client into them", () => {
+    const { links: _links, ...rest } = input
+    void _links
+    const data = visualRequestCreateData({ ...rest, dataUrl: "https://example.com/old" }, "p", null)
+    expect(data.links).toEqual(["https://example.com/old"])
+    expect(data).not.toHaveProperty("dataUrl")
   })
 
   it("files a story request with the story id, and never an assignee", () => {
@@ -453,7 +466,7 @@ describe("visualRequestCreateData", () => {
     expect(data).not.toHaveProperty("personId")
     expect(data.eventDateTime).toBeNull()
     expect(data.location).toBeNull()
-    expect(data.dataUrl).toBeNull()
+    expect(data.links).toEqual([])
   })
 
   it("keeps newsroom-time-as-UTC instants unchanged", () => {
@@ -569,5 +582,103 @@ describe("parseDataUrl", () => {
     for (const bad of ["not a url", "https://", "https://exa mple.com"]) {
       expect(parseDataUrl(bad).ok, bad).toBe(false)
     }
+  })
+})
+
+describe("parseVisualLinks", () => {
+  const errorsOf = (inputs: (string | null | undefined)[]) => {
+    const r = parseVisualLinks(inputs)
+    return r.ok ? [] : r.errors
+  }
+
+  it("accepts an empty list", () => {
+    expect(parseVisualLinks([])).toEqual({ ok: true, value: [] })
+  })
+
+  it("normalizes each link and keeps their order", () => {
+    expect(parseVisualLinks([" HTTPS://Example.com/b ", "https://example.com/a"])).toEqual({
+      ok: true,
+      value: ["https://example.com/b", "https://example.com/a"],
+    })
+  })
+
+  it("drops blank entries", () => {
+    expect(parseVisualLinks(["", "https://example.com/a", "   ", null, undefined])).toEqual({
+      ok: true,
+      value: ["https://example.com/a"],
+    })
+  })
+
+  it(`allows up to ${VISUAL_LINKS_MAX} links, blanks not counted`, () => {
+    const five = Array.from({ length: VISUAL_LINKS_MAX }, (_, i) => `https://example.com/${i}`)
+    expect(parseVisualLinks(five).ok).toBe(true)
+    expect(parseVisualLinks([...five, "", " "]).ok).toBe(true)
+
+    const errors = errorsOf([...five, "https://example.com/6"])
+    expect(errors).toEqual([{ index: null, message: `A request can have up to ${VISUAL_LINKS_MAX} links` }])
+  })
+
+  it("names a bad link by its position as typed, counting blanks", () => {
+    const errors = errorsOf(["https://example.com/a", "", "http://example.com/c"])
+    expect(errors).toEqual([{ index: 2, message: "Link 3: Link must start with https://" }])
+  })
+
+  it("reports every bad link, not just the first", () => {
+    const errors = errorsOf(["javascript:alert(1)", "https://example.com/ok", "https://user:pw@example.com/"])
+    expect(errors.map((e) => e.index)).toEqual([0, 2])
+    expect(errors[0].message).toMatch(/^Link 1: /)
+    expect(errors[1].message).toMatch(/^Link 3: .*username or password/)
+  })
+})
+
+describe("visualLinks", () => {
+  it("uses links when there are any, ignoring the legacy dataUrl", () => {
+    expect(visualLinks({ links: ["https://a.example/", "https://b.example/"], dataUrl: "https://old.example/" }))
+      .toEqual(["https://a.example/", "https://b.example/"])
+  })
+
+  it("falls back to the legacy dataUrl when links is empty or missing", () => {
+    expect(visualLinks({ links: [], dataUrl: "https://old.example/" })).toEqual(["https://old.example/"])
+    expect(visualLinks({ dataUrl: "https://old.example/" })).toEqual(["https://old.example/"])
+    expect(visualLinks({ links: null, dataUrl: "https://old.example/" })).toEqual(["https://old.example/"])
+  })
+
+  it("returns none when neither is set", () => {
+    expect(visualLinks({ links: [], dataUrl: null })).toEqual([])
+    expect(visualLinks({ links: [], dataUrl: "  " })).toEqual([])
+    expect(visualLinks({})).toEqual([])
+  })
+
+  it("returns a copy, not the stored array", () => {
+    const links = ["https://a.example/"]
+    const out = visualLinks({ links })
+    out.push("x")
+    expect(links).toHaveLength(1)
+  })
+})
+
+describe("linkHref", () => {
+  it("returns the normalized href for a safe link and null for anything else", () => {
+    expect(linkHref("https://example.com/a")).toBe("https://example.com/a")
+    expect(linkHref("javascript:alert(1)")).toBeNull()
+    expect(linkHref("http://example.com/")).toBeNull()
+    expect(linkHref("")).toBeNull()
+  })
+})
+
+describe("linksFromInput", () => {
+  it("uses links when sent, including [] to clear", () => {
+    expect(linksFromInput({ links: ["https://a.example/"] })).toEqual(["https://a.example/"])
+    expect(linksFromInput({ links: [] })).toEqual([])
+    expect(linksFromInput({ links: ["https://a.example/"], dataUrl: "https://old.example/" })).toEqual(["https://a.example/"])
+  })
+
+  it("maps a legacy dataUrl into a list, and a cleared one to []", () => {
+    expect(linksFromInput({ dataUrl: "https://old.example/" })).toEqual(["https://old.example/"])
+    expect(linksFromInput({ dataUrl: null })).toEqual([])
+  })
+
+  it("is undefined when neither was sent, so a PATCH leaves links alone", () => {
+    expect(linksFromInput({})).toBeUndefined()
   })
 })

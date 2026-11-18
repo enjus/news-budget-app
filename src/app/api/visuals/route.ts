@@ -12,7 +12,7 @@ import { notifyVisualDesk } from "@/lib/visual-desk-routing-server";
 export const dynamic = 'force-dynamic'
 
 // Explicit select, like the Pitches pool: notes can carry a source's contact
-// details and dataUrl is a link into someone's files, so both load only on the
+// details and links point into someone's files, so both load only on the
 // request page (GET /api/visuals/[id]), not in every dashboard row.
 const listSelect = {
   id: true,
