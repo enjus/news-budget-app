@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import path from "node:path"
-import { describe, it, expect } from "vitest"
+import { afterEach, describe, it, expect, vi } from "vitest"
 import { sectionForPath, isTabActive, navSections, sectionMetadata, sectionMatchPrefixes } from "./nav"
 
 describe("sectionForPath", () => {
@@ -34,13 +34,19 @@ describe("sectionForPath", () => {
   it("assigns /admin routes to Admin", () => {
     expect(sectionForPath("/admin/teams")).toBe("admin")
   })
+
+  it("assigns /requests routes to Requests", () => {
+    for (const p of ["/requests", "/requests/new", "/requests/abc"]) {
+      expect(sectionForPath(p)).toBe("requests")
+    }
+  })
 })
 
 describe("navSections", () => {
   const ctx = { appRole: "PRODUCER", personId: null, teamsLabel: "Team" }
 
   it("lists sections in top-bar order", () => {
-    expect(navSections(ctx).map((s) => s.id)).toEqual(["budget", "pitches", "schedule", "admin"])
+    expect(navSections(ctx).map((s) => s.id)).toEqual(["budget", "pitches", "requests", "schedule", "admin"])
   })
 
   it("hides role-gated Budget tabs for a producer without a linked person", () => {
@@ -76,6 +82,42 @@ describe("navSections", () => {
   it("shows Me for a viewer with a linked person even without create rights", () => {
     const budget = navSections({ ...ctx, appRole: "VIEWER", personId: "p1" }).find((s) => s.id === "budget")!
     expect(budget.tabs.map((t) => t.label)).toContain("Me")
+  })
+})
+
+// The Requests item depends on NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED, read once
+// when features.ts loads, so each case reloads nav.ts with the env stubbed.
+describe("Requests section", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.resetModules()
+  })
+
+  async function requestsFor(flag: string, appRole: string) {
+    vi.stubEnv("NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED", flag)
+    vi.resetModules()
+    const nav = await import("./nav")
+    return nav.navSections({ appRole, personId: null, teamsLabel: "Team" }).find((s) => s.id === "requests")!
+  }
+
+  it("is hidden for everyone while the flag is off", async () => {
+    for (const role of ["VIEWER", "PRODUCER", "SUPERVISOR", "ADMIN"]) {
+      expect((await requestsFor("false", role)).enabled, role).toBe(false)
+    }
+  })
+
+  it("shows in the top bar for content creators once the flag is on", async () => {
+    for (const role of ["PRODUCER", "SUPERVISOR", "MANAGING_PRODUCER", "LEADERSHIP", "ADMIN"]) {
+      const section = await requestsFor("true", role)
+      expect(section.enabled, role).toBe(true)
+      expect(section.inTopBar).toBe(true)
+      expect(section.href).toBe("/requests")
+      expect(section.tabs).toEqual([])
+    }
+  })
+
+  it("stays hidden for a viewer even with the flag on (the URL still works)", async () => {
+    expect((await requestsFor("true", "VIEWER")).enabled).toBe(false)
   })
 })
 
