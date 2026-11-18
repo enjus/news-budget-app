@@ -228,6 +228,96 @@ export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): 
   return { subject, text, html }
 }
 
+// ─── Requester notice (decline / delivery) ────────────────────────────────────
+
+/** The outcomes the requester hears about (slice 3, decision 2). Assignment and progress send nothing. */
+export const REQUESTER_NOTICE_STATUSES: readonly string[] = ["DECLINED", "DELIVERED"]
+
+/**
+ * Who to tell that a request was declined or delivered: the requester, through
+ * the usual notifiableEmail() rule (active staff with an email), unless they
+ * made the change themselves. `actorPersonId` is the session's personId (null
+ * for an unlinked account, which never matches).
+ */
+export function requesterNoticeRecipient(
+  visual: { requestedById: string | null; requestedBy: NotifiablePerson | null },
+  actorPersonId: string | null,
+): string | null {
+  if (!visual.requestedById || !visual.requestedBy) return null
+  if (actorPersonId !== null && visual.requestedById === actorPersonId) return null
+  return notifiableEmail(visual.requestedBy)
+}
+
+/** What the requester's decline/delivery email needs. */
+export interface RequesterNoticeInput {
+  id: string
+  type: string
+  status: string
+  description: string | null
+  declineReason: string | null
+  story: { id: string; slug: string; budgetLine: string } | null
+  /** The assignee: on delivery, who delivered it (the credit). */
+  person: { name: string } | null
+  /** Who made the change, for "declined by". */
+  actorName: string
+}
+
+/**
+ * The requester's email when their request is declined (with the reason) or
+ * delivered. Same shape as the desk email: subject names the story slug, or
+ * the description for a standalone request; links to the request page and, for
+ * a story request, the story. Returns null for any other status.
+ */
+export function requesterNoticeEmail(v: RequesterNoticeInput): EmailContent | null {
+  if (!REQUESTER_NOTICE_STATUSES.includes(v.status)) return null
+  const label = typeLabel(v.type)
+  const noun = label.toLowerCase()
+  const delivered = v.status === "DELIVERED"
+  const name = v.story ? v.story.slug : truncateAtWord(v.description || `${label} request`, STANDALONE_SUBJECT_MAX)
+  const subject = delivered
+    ? `News Budget visual delivered (${label}): ${name}`
+    : `News Budget visual request declined (${label}): ${name}`
+
+  const lead = delivered
+    ? v.person
+      ? `Your ${noun} request was delivered by ${v.person.name}.`
+      : `Your ${noun} request was marked delivered.`
+    : `Your ${noun} request was declined by ${v.actorName}.`
+
+  const requestLink = `${APP_URL}/requests/${v.id}`
+  const storyLink = v.story ? `${APP_URL}/stories/${v.story.id}` : null
+
+  const rows: Row[] = [
+    row("You asked for", v.description),
+    delivered ? null : row("Reason", v.declineReason),
+  ].filter((r): r is Row => r !== null)
+
+  const closing = delivered
+    ? v.story
+      ? null
+      : "It isn't attached to a story yet. Attach it to one from its request page."
+    : "If you still need it, talk to the visuals desk or file a new request."
+
+  const text =
+    `${lead}\n\n` +
+    (v.story ? `${v.story.slug}: ${v.story.budgetLine}\n\n` : "") +
+    rows.map((r) => `${r.label}: ${r.text}`).join("\n") +
+    (closing ? `\n\n${closing}` : "") +
+    `\n\nView the request: ${requestLink}` +
+    (storyLink ? `\nView the story: ${storyLink}` : "")
+
+  const html =
+    `<p>${escapeHtml(lead)}</p>` +
+    (v.story ? `<p><strong>${escapeHtml(v.story.slug)}:</strong> ${escapeHtml(v.story.budgetLine)}</p>` : "") +
+    rows.map((r) => `<p><strong>${escapeHtml(r.label)}:</strong> ${r.html}</p>`).join("") +
+    (closing ? `<p>${escapeHtml(closing)}</p>` : "") +
+    `<p><a href="${requestLink}">View the request in the News Budget</a>` +
+    (storyLink ? ` · <a href="${storyLink}">View the story</a>` : "") +
+    `</p>`
+
+  return { subject, text, html }
+}
+
 // ─── Senders ──────────────────────────────────────────────────────────────────
 
 /**

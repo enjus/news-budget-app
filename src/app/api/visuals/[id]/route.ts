@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateVisualSchema } from "@/lib/validations";
 import { canCreateContent } from "@/lib/utils";
+import { notifyRequesterOfOutcome } from "@/lib/visual-requester-notify-server";
 import { checkReadLimit, checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 import {
   canActOnVisual,
@@ -279,6 +280,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     });
     if (updated.count === 0) {
       return NextResponse.json({ error: "This visual was changed by someone else. Please reload." }, { status: 409 });
+    }
+
+    // Decline and delivery tell the requester (slice 3, decision 2), after the
+    // write commits. Fire-and-forget, like the other notifications: the change
+    // stands whether or not the email goes.
+    if (transitioning && (nextStatus === "DECLINED" || nextStatus === "DELIVERED")) {
+      notifyRequesterOfOutcome(id, {
+        personId: actor.personId,
+        name: session.user.name ?? session.user.email ?? "a newsroom user",
+      }).catch((error) => console.error("Visual request requester email failed:", error));
     }
 
     const visual = await prisma.visual.findUnique({ where: { id }, include: patchInclude });

@@ -48,6 +48,15 @@ Each list is comma-separated; whitespace is trimmed and duplicates dropped. The 
 
 Code: `src/lib/visual-desk-routing.ts` (`deskRecipients()`, `validateEmailList()`; pure and mail-free), `src/lib/visual-notifications.ts` (`visualRequestEmail()`), and `src/lib/visual-desk-routing-server.ts` (`notifyVisualDesk()`, which reads the table); specs in `docs/visual-requests-slice-2.md` and `docs/visual-requests-slice-3.md` §14.
 
+### Requester emails: declined and delivered
+
+When a request is **declined** or **delivered** (`PATCH /api/visuals/[id]`), its requester gets one email, fire-and-forget after the change is saved:
+
+- Declined: `News Budget visual request declined (Photo): {slug}`, with who declined it, the reason, and "talk to the visuals desk or file a new request".
+- Delivered: `News Budget visual delivered (Photo): {slug}`, with who delivered it. A standalone delivered request adds a nudge to attach it to a story.
+
+A standalone request's subject uses the start of its description, like the desk email. Both link to the request page and, for a story request, the story. The requester must pass `notifiableEmail()`, and nothing is sent when they made the change themselves. Nothing is sent on assign, claim, release, start, or cancel. Code: `requesterNoticeRecipient()` / `requesterNoticeEmail()` in `src/lib/visual-notifications.ts`, sent by `notifyRequesterOfOutcome()` in `src/lib/visual-requester-notify-server.ts`. To test locally, the requester needs `isStaff = true` (see below).
+
 ### Story-delete notices to visual assignees
 
 When a story is deleted — by hand (`DELETE /api/stories/[id]`) or by the nightly purge (`/api/cron/purge-shelved`) — each assignee of an ASSIGNED or IN_PROGRESS visual on it gets one email, subject `News Budget story deleted: {slug}`, listing their visuals: an ASSIGNED one was removed with the story; an IN_PROGRESS one was kept as an unplaced visual, and its line links to the request page where it can be attached to another story. Recipients follow the usual rule (active staff with an email, `notifiableEmail()`). The notices are read inside the delete transaction and sent only after it commits. The API route sends fire-and-forget; the cron awaits the sends and reports `notified` in its response, and still emails the assignees of already-deleted batches if a later batch fails.
@@ -63,6 +72,7 @@ Code: `notifyVisualAssigneesOfStoryDelete()` in `src/lib/visual-notifications.ts
 | `src/lib/visual-desk-routing.ts` | Desk recipient resolution and list validation (pure) |
 | `src/lib/visual-notifications.ts` | Email builders; `notifyVisualAssigneesOfStoryDelete()` — assignee notice when a story with assigned visuals is deleted |
 | `src/lib/visual-desk-routing-server.ts` | `notifyVisualDesk()` — desk email when a visual is requested, reading `/admin/visual-requests` routing first |
+| `src/lib/visual-requester-notify-server.ts` | `notifyRequesterOfOutcome()` — requester email when a request is declined or delivered |
 
 ## Local Testing
 

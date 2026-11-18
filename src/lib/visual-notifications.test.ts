@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest"
 import {
   PURGE_ACTOR,
+  requesterNoticeEmail,
+  requesterNoticeRecipient,
+  type RequesterNoticeInput,
   deskRecipients,
   deskRecipientSource,
   validateEmailList,
@@ -388,5 +391,104 @@ describe("storyDeletedEmail", () => {
       "Deleted by: the nightly purge of stories shelved more than 90 days"
     )
     expect(storyDeletedEmail(group, "<Sam>").html).toContain("<strong>Deleted by:</strong> &lt;Sam&gt;")
+  })
+})
+
+describe("requesterNoticeRecipient", () => {
+  const staff = { email: "ann@x.com", isActive: true, isStaff: true }
+
+  it("emails an active staff requester", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, "p-desk")).toBe("ann@x.com")
+  })
+
+  it("still emails when the actor's account isn't linked to a Person", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, null)).toBe("ann@x.com")
+  })
+
+  it("skips the requester when they made the change themselves", () => {
+    expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: staff }, "p-ann")).toBeNull()
+  })
+
+  it("follows notifiableEmail: no contributor, inactive staffer, or missing email", () => {
+    for (const person of [
+      { ...staff, isStaff: false },
+      { ...staff, isActive: false },
+      { ...staff, email: null },
+    ]) {
+      expect(requesterNoticeRecipient({ requestedById: "p-ann", requestedBy: person }, "p-desk")).toBeNull()
+    }
+  })
+
+  it("skips a request whose requester is gone", () => {
+    expect(requesterNoticeRecipient({ requestedById: null, requestedBy: null }, "p-desk")).toBeNull()
+  })
+})
+
+describe("requesterNoticeEmail", () => {
+  const base: RequesterNoticeInput = {
+    id: "v1",
+    type: "PHOTO",
+    status: "DELIVERED",
+    description: "Portrait of the new superintendent",
+    declineReason: null,
+    story: { id: "s1", slug: "SUPERINTENDENT", budgetLine: "New superintendent starts Monday" },
+    person: { name: "Beth Nakamura" },
+    actorName: "Sam Okafor",
+  }
+  const email = (over: Partial<RequesterNoticeInput>) => requesterNoticeEmail({ ...base, ...over })!
+
+  it("only covers declined and delivered", () => {
+    for (const status of ["PLANNED", "REQUESTED", "ASSIGNED", "IN_PROGRESS", "CANCELED"]) {
+      expect(requesterNoticeEmail({ ...base, status }), status).toBeNull()
+    }
+  })
+
+  it("delivered on a story: who delivered it, the story, both links", () => {
+    const { subject, text, html } = email({})
+    expect(subject).toBe("News Budget visual delivered (Photo): SUPERINTENDENT")
+    expect(text).toContain("Your photo request was delivered by Beth Nakamura.")
+    expect(text).toContain("SUPERINTENDENT: New superintendent starts Monday")
+    expect(text).toContain("You asked for: Portrait of the new superintendent")
+    expect(text).not.toContain("Reason:")
+    expect(text).not.toContain("isn't attached")
+    expect(text).toMatch(/View the request: \S+\/requests\/v1\nView the story: \S+\/stories\/s1$/)
+    expect(html).toMatch(/<a href="[^"]+\/requests\/v1">View the request in the News Budget<\/a>/)
+  })
+
+  it("delivered standalone: subject from the description, a nudge to attach it, request link only", () => {
+    const { subject, text, html } = email({
+      story: null,
+      description: "Gov. Tina Kotek is speaking in Portland, update our file photos",
+    })
+    expect(subject).toBe("News Budget visual delivered (Photo): Gov. Tina Kotek is speaking in Portland, update our…")
+    expect(text).toContain("It isn't attached to a story yet. Attach it to one from its request page.")
+    expect(text).toMatch(/View the request: \S+\/requests\/v1$/)
+    expect(html).not.toContain("/stories/")
+  })
+
+  it("delivered with no assignee on the row still reads sensibly", () => {
+    expect(email({ person: null }).text).toContain("Your photo request was marked delivered.")
+  })
+
+  it("declined: who declined it, the reason, what to do next", () => {
+    const { subject, text, html } = email({ status: "DECLINED", declineReason: "No photographer free that night", type: "GRAPHIC" })
+    expect(subject).toBe("News Budget visual request declined (Graphic): SUPERINTENDENT")
+    expect(text).toContain("Your graphic request was declined by Sam Okafor.")
+    expect(text).toContain("Reason: No photographer free that night")
+    expect(text).toContain("If you still need it, talk to the visuals desk or file a new request.")
+    expect(html).toContain("<strong>Reason:</strong> No photographer free that night")
+  })
+
+  it("declined standalone has no story line or story link", () => {
+    const { subject, text } = email({ status: "DECLINED", declineReason: "Use file art", story: null, description: "Kotek portraits" })
+    expect(subject).toBe("News Budget visual request declined (Photo): Kotek portraits")
+    expect(text).not.toContain("/stories/")
+  })
+
+  it("escapes HTML in the reason and description", () => {
+    const { html } = email({ status: "DECLINED", declineReason: "<b>no</b> & \"never\"", description: "<i>x</i>" })
+    expect(html).toContain("&lt;b&gt;no&lt;/b&gt; &amp; &quot;never&quot;")
+    expect(html).toContain("&lt;i&gt;x&lt;/i&gt;")
+    expect(html).not.toContain("<b>no</b>")
   })
 })

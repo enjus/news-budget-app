@@ -1,6 +1,6 @@
 # Visual requests — Slice 3 (dashboard, standalone requests, go-live)
 
-Source: issue #23; builds on [`visual-requests-slice-1.md`](visual-requests-slice-1.md) and [`visual-requests-slice-2.md`](visual-requests-slice-2.md). Scope set by Elliot's answers of Nov 16 (decision log: "Elliot's answers", "Standalone requests"). Status: approved Nov 17 (all section 10 defaults; self-claim added Nov 17). PR 3a merged; PR 3b in progress.
+Source: issue #23; builds on [`visual-requests-slice-1.md`](visual-requests-slice-1.md) and [`visual-requests-slice-2.md`](visual-requests-slice-2.md). Scope set by Elliot's answers of Nov 16 (decision log: "Elliot's answers", "Standalone requests"). Status: built. PR 3a merged and deployed; PR 3b (stages 4–8) in review, Nov 18. Go-live per section 13 after it deploys.
 
 ## Goal
 
@@ -177,7 +177,7 @@ The story route's call drops its `if (visual.story)` guard; both POST routes cal
 
 **IN_PROGRESS story-delete notice**: the line becomes "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page: <APP_URL>/requests/<id>". `DeletedStoryNotice` gains the visual `id`; notice lines become `{ text, href? }` so the HTML can render a real link. The ASSIGNED line is unchanged.
 
-**Requester emails**: see decision 2.
+**Requester emails** (decision 2, built in stage 8): on DECLINED, `News Budget visual request declined (Photo): SLUG` with who declined it and the reason; on DELIVERED, `News Budget visual delivered (Photo): SLUG` with who delivered it, plus a nudge to attach a standalone one. The description stands in for a standalone request's slug. Requester only, through `notifiableEmail()`, skipped when they made the change; fire-and-forget after the PATCH commits. Nothing on assign, claim, release, start or cancel.
 
 ## 6. New Story form hint
 
@@ -275,11 +275,11 @@ Work through this after PR 3b deploys, before turning the flag on in production.
 
 - [x] **Ryan's answer on self-claim**: "both", Nov 17. Desk editors assign anyone; anyone linked can claim an unassigned request and release it while ASSIGNED. Built in PR 3b, stage 6.
 - [x] Confirm with Ryan that release-then-claim is enough, or whether photographers need a direct handoff. **Confirmed Nov 18: release-then-claim is enough; no direct handoff.**
-- [ ] **Schema pushed** with PR 3b's deploy: `pg_dump` backup, then `npx prisma db push` (adds the `VisualDeskRouting` table; additive, no backfill). See section 15.
+- [ ] **Schema pushed** with PR 3b's deploy: `pg_dump` backup, then the deploy script (`bash ~/deploy-news-budget.sh` on or-newsutil2), which runs `npx prisma db push` and adds the `VisualDeskRouting` table (additive, no backfill). See section 15.
 - [ ] **Desk addresses set on the server:** `VISUAL_REQUEST_EMAILS_PHOTO`, `VISUAL_REQUEST_EMAILS_GRAPHIC`, and **confirm `VISUAL_REQUEST_EMAILS_VIDEO` is set** (`visualrequests@oregonian.com`). These stay the fallback when a type has no address list in the admin page. An empty list with no table row silently skips the desk email for that type.
 - [ ] **Desk routing page checked** at `/admin/visual-requests`: each type shows the addresses it will actually use, and Map shows that it follows Graphic unless given its own list.
 - [ ] `NEXT_PUBLIC_VISUAL_REQUESTS_ENABLED=true` in the server `.env`, then a **full rebuild**: the flag is baked into the client bundle, so a restart alone isn't enough.
-- [ ] Smoke test in production: file a story request and a standalone one, check both desk emails arrive, work one through to delivered, and confirm the Requests nav item shows for a producer and not for a viewer.
+- [ ] Smoke test in production. Before the flag: file a standalone request at `/requests/new`, check its desk email arrives, and work it through to delivered. After the rebuild: confirm the Requests nav item shows for a producer and not for a viewer, file a story request from a story page, and check its desk email.
 - [ ] **Heads-up note to the newsroom before the flag flips:** a few lines saying what's new (Request a visual on the story page, standalone requests from Requests, the dashboard), that Add Visual still just records a visual already arranged, and who to ask on the visuals desk.
 
 ## 14. Desk routing in the app (PR 3b, added Nov 17)
@@ -361,5 +361,5 @@ One card per type (Photo, Graphic, Map, Video), each with:
 ## 15. Deploy
 
 - **PR 3a:** no schema change. `git pull`, build, `chown`, restart, as usual.
-- **PR 3b:** one additive table. On the server: `pg_dump` backup, `git pull`, **`npx prisma db push`** (creates `VisualDeskRouting`; no existing data touched), build, `chown` to apache, restart. Vercel preview deploys apply it automatically through `vercel-build`; production does not.
+- **PR 3b:** one additive table. On or-newsutil2: `pg_dump` backup first, then the deploy script, `bash ~/deploy-news-budget.sh`, which runs **`npx prisma db push`**. The push creates `VisualDeskRouting` and touches no existing data. Vercel preview deploys apply it automatically through `vercel-build`; production does not.
 - The flag is turned on only after PR 3b is deployed and the checklist in section 13 is done.
