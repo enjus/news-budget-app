@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { toast } from "sonner"
 import { ExternalLink, Plus, Send, Trash2 } from "lucide-react"
@@ -22,10 +23,10 @@ import type { Person } from "@/types/index"
 import { apiPath } from "@/lib/api-path"
 import { VISUAL_TYPE_LABELS, type VisualTypeValue } from "@/lib/visual-types"
 import { VISUAL_REQUESTS_ENABLED } from "@/lib/features"
-import { VISUAL_STATUS_LABELS, isVisualStatus } from "@/lib/visual-statuses"
 import { canActOnVisual, parseDataUrl } from "@/lib/visual-requests"
 import { formatPubDate } from "@/lib/utils"
 import { VisualRequestForm } from "./VisualRequestForm"
+import { UrgentBadge, VisualStatusBadge } from "@/components/visuals/VisualStatusBadge"
 
 // Re-exported: StoryForm imports these from here.
 export { VISUAL_TYPE_LABELS, type VisualTypeValue }
@@ -133,18 +134,6 @@ interface VisualSectionProps {
   onlinePubDateTBD?: boolean
 }
 
-type StatusVariant = "default" | "secondary" | "destructive" | "outline"
-
-// PLANNED shows no badge (it looks as it always did); the rest of the lifecycle does.
-const STATUS_BADGE_VARIANT: Record<string, StatusVariant> = {
-  REQUESTED: "outline",
-  ASSIGNED: "secondary",
-  IN_PROGRESS: "secondary",
-  DELIVERED: "default",
-  DECLINED: "destructive",
-  CANCELED: "outline",
-}
-
 export function VisualSection({
   storyId,
   visuals,
@@ -229,14 +218,9 @@ export function VisualSection({
                     {VISUAL_TYPE_LABELS[visual.type as VisualTypeValue] ?? "Graphic"}
                   </Badge>
 
-                  {isRequest && (
-                    <Badge variant={STATUS_BADGE_VARIANT[visual.status] ?? "outline"} className="shrink-0">
-                      {isVisualStatus(visual.status) ? VISUAL_STATUS_LABELS[visual.status] : visual.status}
-                    </Badge>
-                  )}
-                  {isRequest && visual.priority === "URGENT" && (
-                    <Badge variant="destructive" className="shrink-0">Urgent</Badge>
-                  )}
+                  {/* PLANNED shows no badge (it looks as it always did); the rest of the lifecycle does. */}
+                  {isRequest && <VisualStatusBadge status={visual.status} className="shrink-0" />}
+                  {isRequest && visual.priority === "URGENT" && <UrgentBadge className="shrink-0" />}
 
                   {visual.description && (
                     <span className="flex-1 text-sm text-muted-foreground truncate">
@@ -259,6 +243,16 @@ export function VisualSection({
                     <PersonBadge person={visual.person as Person} />
                   ) : (
                     <span className="flex-1 text-xs text-muted-foreground italic">Unassigned</span>
+                  )}
+
+                  {/* Every lifecycle action lives on the request's own page. */}
+                  {isRequest && (
+                    <Link
+                      href={`/requests/${visual.id}`}
+                      className="shrink-0 text-xs text-primary underline-offset-4 hover:underline"
+                    >
+                      Open
+                    </Link>
                   )}
 
                   {!readOnly && canRemove(visual) && (

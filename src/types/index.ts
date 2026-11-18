@@ -176,3 +176,38 @@ export type TeamListItem = Prisma.TeamGetPayload<{
     _count: { select: { members: true } };
   };
 }>;
+
+// ─── Visual requests ──────────────────────────────────────────────────────────
+
+/** GET /api/visuals/[id]: one request in full, for /requests/[id]. Dates arrive as JSON strings. */
+export interface VisualRequestDetail {
+  id: string;
+  storyId: string | null;
+  type: string;
+  status: string;
+  priority: string;
+  description: string | null;
+  /** Newsroom time encoded as UTC, like pub dates. */
+  eventDateTime: string | null;
+  location: string | null;
+  /** Newsroom time encoded as UTC, like pub dates. */
+  deadline: string | null;
+  notes: string | null;
+  dataUrl: string | null;
+  declineReason: string | null;
+  personId: string | null;
+  requestedById: string | null;
+  /** Genuine instants. */
+  createdAt: string;
+  updatedAt: string;
+  person: { id: string; name: string; isActive: boolean } | null;
+  requestedBy: { id: string; name: string } | null;
+  story: {
+    id: string;
+    slug: string;
+    budgetLine: string;
+    onlinePubDate: string | null;
+    onlinePubDateTBD: boolean;
+    status: string;
+  } | null;
+}
