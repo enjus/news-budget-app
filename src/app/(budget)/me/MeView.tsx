@@ -25,7 +25,10 @@ import {
 import type { PersonContentItem } from "@/app/api/people/[id]/content/route"
 import { toast } from "sonner"
 import { apiPath } from "@/lib/api-path"
-import { VIDEOS_ENABLED } from "@/lib/features"
+import { VIDEOS_ENABLED, VISUAL_REQUESTS_ENABLED } from "@/lib/features"
+import { useVisualRequests } from "@/lib/hooks/useVisualRequests"
+import { DEFAULT_REQUEST_FILTERS, requestFiltersToQuery, type RequestFilters } from "@/lib/visual-request-list"
+import { ME_PAST_LIMIT } from "@/lib/me-sections"
 import { NewContentButtons } from "@/components/budget/NewContentButtons"
 
 export function MeView() {
@@ -61,7 +64,9 @@ export function MeView() {
 
       {canCreate && <MyPitchesSections />}
 
-      {myPersonId && <AssignedContentSection personId={myPersonId} />}
+      {myPersonId && VISUAL_REQUESTS_ENABLED && <OpenRequestsLine />}
+
+      {myPersonId && <AssignedStoriesSection personId={myPersonId} />}
 
       {!canCreate && !myPersonId && (
         <div className="rounded-lg border bg-card p-12 text-center">
@@ -320,7 +325,21 @@ function MyPitchesSections() {
   )
 }
 
-function AssignedContentSection({ personId }: { personId: string }) {
+/** "View full history" under a truncated Past list. */
+function FullHistoryLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+    >
+      View full history
+      <ArrowRight className="size-3" />
+    </Link>
+  )
+}
+
+/** Stories (and videos) the viewer is assigned to or credited on. */
+function AssignedStoriesSection({ personId }: { personId: string }) {
   const { data: session } = useSession()
   const canLinkToProfile = canViewPeople(session?.user?.appRole ?? "")
 
@@ -339,7 +358,7 @@ function AssignedContentSection({ personId }: { personId: string }) {
   if (isLoading) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Stories</h2>
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
         <Skeleton className="h-16 w-full rounded-lg" />
@@ -356,19 +375,24 @@ function AssignedContentSection({ personId }: { personId: string }) {
   if (items.length === 0) {
     return (
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
+        <h2 className="text-sm font-semibold text-foreground">My Assigned Stories</h2>
         <div className="rounded-lg border bg-card p-8 text-center">
-          <p className="text-sm text-muted-foreground">No content assigned to you.</p>
+          <p className="text-sm text-muted-foreground">No stories assigned to you.</p>
         </div>
       </div>
     )
   }
 
-  const { tbd, upcoming, past } = classifyContentItems(items, todayString())
+  const { tbd, upcoming, past: pastAll } = classifyContentItems(items, todayString())
+
+  // The API caps Past at ME_PAST_LIMIT too; slicing again keeps the list at
+  // the limit if that cap ever changes.
+  const past = pastAll.slice(0, ME_PAST_LIMIT)
+  const pastTruncated = !!data?.pastTruncated || pastAll.length > past.length
 
   return (
     <div className="space-y-4">
-      <h2 className="text-sm font-semibold text-foreground">My Assigned Content</h2>
+      <h2 className="text-sm font-semibold text-foreground">My Assigned Stories</h2>
 
       <CollapsibleSection title="TBD" count={tbd.length} open={openTbd} onToggle={() => setOpenTbd((v) => !v)}>
         {tbd.length === 0 ? (
@@ -402,7 +426,7 @@ function AssignedContentSection({ personId }: { personId: string }) {
       <CollapsibleSection
         title="Past"
         count={past.length}
-        truncated={data?.pastTruncated}
+        truncated={pastTruncated}
         open={openPast}
         onToggle={() => setOpenPast((v) => !v)}
       >
@@ -413,18 +437,34 @@ function AssignedContentSection({ personId }: { personId: string }) {
             {past.map((item) => (
               <ContentRow key={`${item.type}-${item.id}-${item.role}`} item={item} />
             ))}
-            {data?.pastTruncated && canLinkToProfile && (
-              <Link
-                href={`/people/${personId}`}
-                className="flex items-center gap-1 pt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                View full history
-                <ArrowRight className="size-3" />
-              </Link>
-            )}
+            {/* /people/[id] is elevated-only, so other roles get no link. */}
+            {pastTruncated && canLinkToProfile && <FullHistoryLink href={`/people/${personId}`} />}
           </div>
         )}
       </CollapsibleSection>
     </div>
+  )
+}
+
+/** Open requests assigned to the viewer: the dashboard's default "open" view, filtered to them. */
+const MY_OPEN_REQUEST_FILTERS: RequestFilters = { ...DEFAULT_REQUEST_FILTERS, assignee: "me" }
+
+/**
+ * One line pointing to the viewer's open visual requests on /requests, shown
+ * only while they have any. Requests aren't credits until delivered, so they
+ * never appear in My Assigned Stories; this keeps them findable from /me
+ * without a second list to order or hide.
+ */
+function OpenRequestsLine() {
+  const { requests } = useVisualRequests(MY_OPEN_REQUEST_FILTERS)
+  if (requests.length === 0) return null
+  return (
+    <Link
+      href={`/requests?${requestFiltersToQuery(MY_OPEN_REQUEST_FILTERS)}`}
+      className="flex items-center gap-1.5 rounded-lg border bg-card px-4 py-3 text-sm hover:bg-muted/50 transition-colors"
+    >
+      You have {requests.length} open visual request{requests.length === 1 ? "" : "s"}
+      <ArrowRight className="size-3.5" />
+    </Link>
   )
 }
