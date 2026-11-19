@@ -174,13 +174,13 @@ describe("visualRequestEmail", () => {
   }
 
   it("builds a normal subject with the type label and slug", () => {
-    expect(visualRequestEmail(base).subject).toBe("News Budget visual request (Photo): SUPERINTENDENT")
-    expect(visualRequestEmail({ ...base, type: "GRAPHIC" }).subject).toBe("News Budget visual request (Graphic): SUPERINTENDENT")
+    expect(visualRequestEmail(base).subject).toBe("Visuals Request (Photo): SUPERINTENDENT")
+    expect(visualRequestEmail({ ...base, type: "GRAPHIC" }).subject).toBe("Visuals Request (Graphic): SUPERINTENDENT")
   })
 
   it("flags an urgent request in the subject and adds a Priority line", () => {
     const { subject, text, html } = visualRequestEmail({ ...base, priority: "URGENT" })
-    expect(subject).toBe("URGENT visual request (Photo): SUPERINTENDENT")
+    expect(subject).toBe("Visuals Request URGENT (Photo): SUPERINTENDENT")
     expect(text).toContain("Priority: Urgent")
     expect(html).toContain("<strong>Priority:</strong> Urgent")
     expect(visualRequestEmail(base).text).not.toContain("Priority:")
@@ -293,13 +293,13 @@ describe("visualRequestEmail", () => {
 
     it("takes its subject from the description, cut at a word", () => {
       expect(visualRequestEmail(standalone).subject).toBe(
-        "News Budget visual request (Photo): Gov. Tina Kotek is speaking in Portland, update our…"
+        "Visuals Request (Photo): Gov. Tina Kotek is speaking in Portland, update our…"
       )
       expect(visualRequestEmail({ ...standalone, priority: "URGENT" }).subject).toMatch(
-        /^URGENT visual request \(Photo\): Gov\. Tina Kotek/
+        /^Visuals Request URGENT \(Photo\): Gov\. Tina Kotek/
       )
       expect(visualRequestEmail({ ...standalone, description: "Kotek portraits" }).subject).toBe(
-        "News Budget visual request (Photo): Kotek portraits"
+        "Visuals Request (Photo): Kotek portraits"
       )
     })
 
@@ -403,7 +403,7 @@ describe("storyDeletedEmail", () => {
 
   it("builds the subject and both wording variants in text and HTML", () => {
     const { subject, text, html } = storyDeletedEmail(group, "Sam Okafor")
-    expect(subject).toBe("News Budget story deleted: COUNCIL")
+    expect(subject).toBe("Visuals Request: story deleted: COUNCIL")
     expect(text).toContain("A story you have a visual assignment on was deleted from the News Budget.")
     expect(text).toContain("COUNCIL: Council votes on budget")
     expect(text).toContain("- Photo (assigned): this assignment was removed with the story.\n")
@@ -483,7 +483,7 @@ describe("requesterNoticeEmail", () => {
 
   it("delivered on a story: who delivered it, the story, both links", () => {
     const { subject, text, html } = email({})
-    expect(subject).toBe("News Budget visual delivered (Photo): SUPERINTENDENT")
+    expect(subject).toBe("Visuals Request delivered (Photo): SUPERINTENDENT")
     expect(text).toContain("Your photo request was delivered by Beth Nakamura.")
     expect(text).toContain("SUPERINTENDENT: New superintendent starts Monday")
     expect(text).toContain("You asked for: Portrait of the new superintendent")
@@ -498,7 +498,7 @@ describe("requesterNoticeEmail", () => {
       story: null,
       description: "Gov. Tina Kotek is speaking in Portland, update our file photos",
     })
-    expect(subject).toBe("News Budget visual delivered (Photo): Gov. Tina Kotek is speaking in Portland, update our…")
+    expect(subject).toBe("Visuals Request delivered (Photo): Gov. Tina Kotek is speaking in Portland, update our…")
     expect(text).toContain("It isn't attached to a story yet. Attach it to one from its request page.")
     expect(text).toMatch(/View the request: \S+\/requests\/v1$/)
     expect(html).not.toContain("/stories/")
@@ -510,7 +510,7 @@ describe("requesterNoticeEmail", () => {
 
   it("declined: who declined it, the reason, what to do next", () => {
     const { subject, text, html } = email({ status: "DECLINED", declineReason: "No photographer free that night", type: "GRAPHIC" })
-    expect(subject).toBe("News Budget visual request declined (Graphic): SUPERINTENDENT")
+    expect(subject).toBe("Visuals Request declined (Graphic): SUPERINTENDENT")
     expect(text).toContain("Your graphic request was declined by Sam Okafor.")
     expect(text).toContain("Reason: No photographer free that night")
     expect(text).toContain("If you still need it, talk to the visuals desk or file a new request.")
@@ -519,7 +519,7 @@ describe("requesterNoticeEmail", () => {
 
   it("declined standalone has no story line or story link", () => {
     const { subject, text } = email({ status: "DECLINED", declineReason: "Use file art", story: null, description: "Kotek portraits" })
-    expect(subject).toBe("News Budget visual request declined (Photo): Kotek portraits")
+    expect(subject).toBe("Visuals Request declined (Photo): Kotek portraits")
     expect(text).not.toContain("/stories/")
   })
 
@@ -548,5 +548,33 @@ describe("requesterNoticeEmail", () => {
     expect(html).toContain("&lt;b&gt;no&lt;/b&gt; &amp; &quot;never&quot;")
     expect(html).toContain("&lt;i&gt;x&lt;/i&gt;")
     expect(html).not.toContain("<b>no</b>")
+  })
+})
+
+// The visuals desk files these with inbox rules that match the start of the
+// subject (Ryan and Elliot, Nov 18). Every visual-request email must keep it.
+describe("visual-request subject prefix", () => {
+  const story = { id: "s1", slug: "SLUG", budgetLine: "Budget line" }
+  const request = {
+    id: "v1", type: "PHOTO", priority: "NORMAL", description: "Kotek portraits",
+    eventDateTime: null, location: null, deadline: null, notes: null, story, requestedBy: { name: "Ann" },
+  }
+  const notice = {
+    id: "v1", type: "PHOTO", status: "DELIVERED", description: "Kotek portraits", declineReason: "No",
+    story, person: { name: "Beth" }, actorName: "Sam",
+  }
+
+  it("starts every subject with \"Visuals Request\", urgent and standalone included", () => {
+    const subjects = [
+      visualRequestEmail(request).subject,
+      visualRequestEmail({ ...request, priority: "URGENT" }).subject,
+      visualRequestEmail({ ...request, story: null }).subject,
+      visualRequestEmail({ ...request, priority: "URGENT", story: null }).subject,
+      requesterNoticeEmail(notice)!.subject,
+      requesterNoticeEmail({ ...notice, status: "DECLINED" })!.subject,
+      requesterNoticeEmail({ ...notice, story: null })!.subject,
+      storyDeletedEmail({ email: "a@x.com", name: "A", story, lines: [{ text: "x" }] }, "Sam").subject,
+    ]
+    for (const subject of subjects) expect(subject, subject).toMatch(/^Visuals Request\b/)
   })
 })

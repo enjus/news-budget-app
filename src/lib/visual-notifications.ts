@@ -97,8 +97,8 @@ export function visualRequestEmail(v: VisualRequestEmailInput): EmailContent {
   const story = v.story
   const name = story ? story.slug : truncateAtWord(v.description || `${label} request`, STANDALONE_SUBJECT_MAX)
   const subject = urgent
-    ? `URGENT visual request (${label}): ${name}`
-    : `News Budget visual request (${label}): ${name}`
+    ? `Visuals Request URGENT (${label}): ${name}`
+    : `Visuals Request (${label}): ${name}`
 
   const noun = label.toLowerCase()
   const lead = story
@@ -220,7 +220,7 @@ export function storyDeletedNotices(notices: DeletedStoryNotice[]): StoryDeleted
  * gone); an in-progress visual's line links to its request page.
  */
 export function storyDeletedEmail(group: StoryDeletedGroup, deletedBy: string): EmailContent {
-  const subject = `News Budget story deleted: ${group.story.slug}`
+  const subject = `Visuals Request: story deleted: ${group.story.slug}`
   const lead = "A story you have a visual assignment on was deleted from the News Budget."
 
   const text =
@@ -292,8 +292,8 @@ export function requesterNoticeEmail(v: RequesterNoticeInput): EmailContent | nu
   const delivered = v.status === "DELIVERED"
   const name = v.story ? v.story.slug : truncateAtWord(v.description || `${label} request`, STANDALONE_SUBJECT_MAX)
   const subject = delivered
-    ? `News Budget visual delivered (${label}): ${name}`
-    : `News Budget visual request declined (${label}): ${name}`
+    ? `Visuals Request delivered (${label}): ${name}`
+    : `Visuals Request declined (${label}): ${name}`
 
   const lead = delivered
     ? v.person
