@@ -165,8 +165,8 @@ All in `src/lib/visual-notifications.ts`, pure builders updated with tests.
 
 | | With a story (unchanged except the link) | Standalone |
 |---|---|---|
-| Subject | `News Budget visual request (Photo): SLUG` | `News Budget visual request (Photo): <description, cut to 55 chars at a word>` |
-| Urgent subject | `URGENT visual request (Photo): SLUG` | `URGENT visual request (Photo): <description…>` |
+| Subject | `Visuals Request (Photo): SLUG` | `Visuals Request (Photo): <description, cut to 55 chars at a word>` |
+| Urgent subject | `Visuals Request URGENT (Photo): SLUG` | `Visuals Request URGENT (Photo): <description…>` |
 | Lead | `Ann Smith requested a photo for a story in the News Budget.` | `Ann Smith requested a photo in the News Budget. It isn't attached to a story yet.` |
 | Story line | `SLUG: budget line` | omitted |
 | Link | **Request page**, plus "Story: <story link>" | Request page |
@@ -177,7 +177,7 @@ The story route's call drops its `if (visual.story)` guard; both POST routes cal
 
 **IN_PROGRESS story-delete notice**: the line becomes "Graphic (in progress): your visual was kept and is now unplaced. Attach it to another story from its request page: <APP_URL>/requests/<id>". `DeletedStoryNotice` gains the visual `id`; notice lines become `{ text, href? }` so the HTML can render a real link. The ASSIGNED line is unchanged.
 
-**Requester emails** (decision 2, built in stage 8): on DECLINED, `News Budget visual request declined (Photo): SLUG` with who declined it and the reason; on DELIVERED, `News Budget visual delivered (Photo): SLUG` with who delivered it, plus a nudge to attach a standalone one. The description stands in for a standalone request's slug. Requester only, through `notifiableEmail()`, skipped when they made the change; fire-and-forget after the PATCH commits. Nothing on assign, claim, release, start or cancel.
+**Requester emails** (decision 2, built in stage 8): on DECLINED, `Visuals Request declined (Photo): SLUG` with who declined it and the reason; on DELIVERED, `Visuals Request delivered (Photo): SLUG` with who delivered it, plus a nudge to attach a standalone one. The description stands in for a standalone request's slug. Requester only, through `notifiableEmail()`, skipped when they made the change; fire-and-forget after the PATCH commits. Nothing on assign, claim, release, start or cancel.
 
 ## 6. New Story form hint
 
