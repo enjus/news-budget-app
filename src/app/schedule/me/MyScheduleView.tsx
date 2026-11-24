@@ -25,7 +25,7 @@ export function MyScheduleView() {
   const [monthStart, setMonthStart] = useState(currentMonthStart)
   const { start, end } = monthBounds(monthStart)
 
-  const { personId, days, isLoading, mutate } = useMySchedule(start, end)
+  const { personId, days, markers, isLoading, mutate } = useMySchedule(start, end)
   const dayByDate = useMemo(() => Object.fromEntries(days.map((d) => [d.date, d])), [days])
 
   // A single day click pre-fills both start/end to that date; a drag range
@@ -95,6 +95,7 @@ export function MyScheduleView() {
         <MonthCalendar
           monthStart={monthStart}
           days={days}
+          markers={markers}
           onDayClick={(date) => setPicker({ dates: [date] })}
           onRangeSelect={(dates) => setPicker({ dates })}
         />

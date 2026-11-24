@@ -36,6 +36,7 @@ export function MarkerBand({ weekDates, markers, columnTemplate }: MarkerBandPro
     endDate: new Date(m.endDate),
   }))
   const bands = resolveMarkerBands(weekDates, asDates)
+  const noteById = new Map(markers.map((m) => [m.id, m.note]))
   if (bands.length === 0) return null
 
   return (
@@ -45,7 +46,7 @@ export function MarkerBand({ weekDates, markers, columnTemplate }: MarkerBandPro
           <div
             className={`truncate rounded px-2 py-1 text-xs font-medium ${KIND_CLASSES[band.kind] ?? "bg-muted"}`}
             style={{ gridColumn: `${band.startCol + 1} / span ${band.span}` }}
-            title={band.label}
+            title={noteById.get(band.markerId) ? `${band.label} — ${noteById.get(band.markerId)}` : band.label}
           >
             {band.label}
           </div>
