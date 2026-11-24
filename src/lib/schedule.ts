@@ -98,12 +98,34 @@ export interface ResolveDayMarker {
   observed: boolean
 }
 
-export type ResolvedSegment =
+/**
+ * One ShiftAssignment, reduced to what resolveDay() needs. Routes map real
+ * rows into this shape the same way they do AvailabilityEntry. Shifts are
+ * the single source of truth for shift coverage: assigning one writes no
+ * Availability row, and resolveDay() reads them directly (step 2 below).
+ */
+export interface ShiftEntry {
+  /** "YYYY-MM-DD" */
+  date: string
+  shiftRole: string
+}
+
+/** What the standing pattern and holiday calendar alone say about a date —
+ *  the no-override, no-shift verdict. */
+export type BaselineSegment =
   | { status: "off"; reason: "regular" }
   | { status: "off"; reason: "holiday"; markerId: string; markerLabel: string }
+  | { status: "working"; source: "pattern" }
+
+export type ResolvedSegment =
+  | BaselineSegment
   | { status: "off"; reason: "availability"; source: AvailabilityEntry }
   | { status: "unavailable"; source: AvailabilityEntry }
-  | { status: "working"; source: "availability" | "pattern" }
+  | { status: "working"; source: "availability" }
+  /** Working because of a ShiftAssignment. `baseline` is what the day would
+   *  be without it, so a shift on a regular day off can still be flagged
+   *  (detectShiftConflict) and labeled without a second resolveDay() call. */
+  | { status: "working"; source: "shift"; shiftRoles: string[]; baseline: BaselineSegment }
 
 /**
  * A resolved day is either one verdict for the whole day (`split: false`),
@@ -127,14 +149,13 @@ function resolveExplicit(entry: AvailabilityEntry): ResolvedSegment {
   return { status: "working", source: "availability" }
 }
 
-/** Steps 2–4 of the resolution order: standing pattern, then holiday, then working.
- *  Never sees availability — callers fall back to this only where no explicit
- *  entry applies. */
+/** Steps 3–5 of the resolution order: standing pattern, then holiday, then
+ *  working. Never sees availability or shifts. */
 function resolveFromPattern(
   date: Date,
   workSchedule: ResolveDayWorkSchedule[],
   markers: ResolveDayMarker[]
-): ResolvedSegment {
+): BaselineSegment {
   // Base pattern — CRITICAL: getUTCDay(), never getDay(). A local-time read
   // shifts the weekday by one for anyone west of UTC.
   const weekday = date.getUTCDay()
@@ -156,6 +177,24 @@ function resolveFromPattern(
   return { status: "working", source: "pattern" }
 }
 
+/** Steps 2–5: a shift assigned on this date, else the standing pattern and
+ *  holiday calendar. Callers fall back to this only where no explicit
+ *  availability entry applies. */
+function resolveWithoutOverride(
+  date: Date,
+  workSchedule: ResolveDayWorkSchedule[],
+  markers: ResolveDayMarker[],
+  shifts: ShiftEntry[]
+): ResolvedSegment {
+  const baseline = resolveFromPattern(date, workSchedule, markers)
+  const dateStr = toDateString(date)
+  const shiftRoles = shifts.filter((s) => s.date === dateStr).map((s) => s.shiftRole)
+  if (shiftRoles.length > 0) {
+    return { status: "working", source: "shift", shiftRoles: Array.from(new Set(shiftRoles)), baseline }
+  }
+  return baseline
+}
+
 /**
  * Resolve whether a person is working on a given date.
  *
@@ -163,15 +202,21 @@ function resolveFromPattern(
  * 1. An explicit availability entry for this date wins outright.
  *    - A FULL_DAY entry resolves the whole day (`split: false`).
  *    - A MORNING and/or AFTERNOON entry resolves that half explicitly; the
- *      other half (if no entry covers it) falls back to steps 2–4 for that
+ *      other half (if no entry covers it) falls back to steps 2–5 for that
  *      same date. Result is `split: true` whenever any half entry exists,
  *      even if both halves end up at the same verdict — the point is that
  *      an explicit partial override exists, not just what it resolves to.
- * 2. Otherwise, the base pattern: a WorkSchedule override for this weekday,
+ * 2. Otherwise, a ShiftAssignment on this date → "working (shift)", with
+ *    the roles and the baseline it overrides. A shift beats the standing
+ *    pattern and holidays (covering a weekend or holiday is its point), but
+ *    not an explicit entry: someone who books OUT on a shift day reads as
+ *    out, and the shift shows as a conflict until it's reassigned on
+ *    /schedule/shifts.
+ * 3. Otherwise, the base pattern: a WorkSchedule override for this weekday,
  *    else the Mon–Fri default. If off → "off (regular)".
- * 3. If the base pattern says working AND an observed HOLIDAY marker covers
+ * 4. If the base pattern says working AND an observed HOLIDAY marker covers
  *    the date → "off (holiday)".
- * 4. Otherwise → "working".
+ * 5. Otherwise → "working".
  *
  * Holiday is checked *after* the standing pattern so labels come out right:
  * a Tuesday–Saturday person's Monday during a holiday week is "regularly
@@ -184,7 +229,8 @@ export function resolveDay(
   date: Date,
   availability: AvailabilityEntry[],
   workSchedule: ResolveDayWorkSchedule[],
-  markers: ResolveDayMarker[]
+  markers: ResolveDayMarker[],
+  shifts: ShiftEntry[] = []
 ): ResolvedDay {
   const dateStr = toDateString(date)
   const entriesForDate = availability.filter((a) => a.date === dateStr)
@@ -198,7 +244,7 @@ export function resolveDay(
   const afternoonEntry = entriesForDate.find((a) => a.segment === "AFTERNOON")
 
   if (morningEntry || afternoonEntry) {
-    const fallback = () => resolveFromPattern(date, workSchedule, markers)
+    const fallback = () => resolveWithoutOverride(date, workSchedule, markers, shifts)
     return {
       split: true,
       am: morningEntry ? resolveExplicit(morningEntry) : fallback(),
@@ -206,7 +252,7 @@ export function resolveDay(
     }
   }
 
-  return { split: false, ...resolveFromPattern(date, workSchedule, markers) }
+  return { split: false, ...resolveWithoutOverride(date, workSchedule, markers, shifts) }
 }
 
 // ─── Note extraction ────────────────────────────────────────────────────────
@@ -257,26 +303,30 @@ export function resolveNotes(resolved: ResolvedDay, rowsForDate: NoteRow[]): Res
 /** Baseline (no explicit availability) working/off verdict for a date,
  *  reduced to the same three-value vocabulary as Availability.status. Used
  *  by expandDateRange() (skipNonWorkingDays) and computeWeekDiff() (deciding
- *  whether a desired day matches "no override needed"). */
+ *  whether a desired day matches "no override needed"). A shift counts: a
+ *  shift Saturday is a working day, so an OUT range includes it (and the
+ *  conflict surfaces), and marking it "Working" needs no row. */
 function baselineStatus(
   date: Date,
   workSchedule: ResolveDayWorkSchedule[],
-  markers: ResolveDayMarker[]
+  markers: ResolveDayMarker[],
+  shifts: ShiftEntry[] = []
 ): "OUT" | "WORKING" | "UNAVAILABLE" {
-  const segment = resolveFromPattern(date, workSchedule, markers)
+  const segment = resolveWithoutOverride(date, workSchedule, markers, shifts)
   if (segment.status === "off") return "OUT"
   if (segment.status === "unavailable") return "UNAVAILABLE"
   return "WORKING"
 }
 
-/** Whether a date is a working day per the standing pattern and holiday
- *  calendar alone — no explicit Availability considered. */
+/** Whether a date is a working day per the standing pattern, holiday
+ *  calendar and shifts — no explicit Availability considered. */
 export function isBaseWorkingDay(
   date: Date,
   workSchedule: ResolveDayWorkSchedule[],
-  markers: ResolveDayMarker[]
+  markers: ResolveDayMarker[],
+  shifts: ShiftEntry[] = []
 ): boolean {
-  return baselineStatus(date, workSchedule, markers) === "WORKING"
+  return baselineStatus(date, workSchedule, markers, shifts) === "WORKING"
 }
 
 /**
@@ -294,13 +344,14 @@ export function expandDateRange(
     skipNonWorkingDays: boolean
     workSchedule: ResolveDayWorkSchedule[]
     markers: ResolveDayMarker[]
+    shifts?: ShiftEntry[]
   }
 ): string[] {
   const dates: string[] = []
   let cursor = new Date(`${startDate}T00:00:00.000Z`)
   const end = new Date(`${endDate}T00:00:00.000Z`)
   while (cursor.getTime() <= end.getTime()) {
-    if (!options.skipNonWorkingDays || isBaseWorkingDay(cursor, options.workSchedule, options.markers)) {
+    if (!options.skipNonWorkingDays || isBaseWorkingDay(cursor, options.workSchedule, options.markers, options.shifts)) {
       dates.push(toDateString(cursor))
     }
     cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
@@ -353,7 +404,8 @@ export function computeWeekDiff(
   desiredDays: WeekDiffDesiredDay[],
   existingRows: WeekDiffExistingRow[],
   workSchedule: ResolveDayWorkSchedule[],
-  markers: ResolveDayMarker[]
+  markers: ResolveDayMarker[],
+  shifts: ShiftEntry[] = []
 ): WeekDiffResult {
   const toUpsert: WeekDiffResult["toUpsert"] = []
   const toDelete: WeekDiffResult["toDelete"] = []
@@ -373,7 +425,7 @@ export function computeWeekDiff(
     }
 
     const nonRevertDays = desiredForDate as Extract<WeekDiffDesiredDay, { segment: string }>[]
-    const baseline = baselineStatus(new Date(`${date}T00:00:00.000Z`), workSchedule, markers)
+    const baseline = baselineStatus(new Date(`${date}T00:00:00.000Z`), workSchedule, markers, shifts)
 
     // A note of `undefined` means "not specified by this write" (e.g. the
     // week editor doesn't expose note editing) — preserve whatever note the
@@ -458,6 +510,30 @@ export function detectBlackoutOverlap(
     }
   }
   return warnings
+}
+
+export interface ShiftOverlapWarning {
+  kind: "SHIFT"
+  label: string
+  dates: string[]
+}
+
+/**
+ * Advisory-only: a write that marks someone OUT or UNAVAILABLE (whole day or
+ * either half) on dates they're assigned a shift. The write still succeeds —
+ * an explicit entry beats the shift in resolveDay() — but the shift stays
+ * assigned until an editor reassigns it on /schedule/shifts, so say so.
+ */
+export function detectShiftOverlap(
+  dates: string[],
+  statuses: string[],
+  shifts: ShiftEntry[]
+): ShiftOverlapWarning[] {
+  if (statuses.every((s) => s === "WORKING")) return []
+  const shiftDates = new Set(shifts.map((s) => s.date))
+  const overlapping = dates.filter((d) => shiftDates.has(d))
+  if (overlapping.length === 0) return []
+  return [{ kind: "SHIFT", label: "Assigned a shift — get it reassigned on the Shifts page", dates: overlapping }]
 }
 
 /** The nth (1-based) occurrence of `weekday` (0=Sun..6=Sat) in a UTC month. */
@@ -594,61 +670,47 @@ export function mergeShiftDays(derivedDays: ShiftDay[], assignedDates: string[])
   return merged.sort((a, b) => a.date.localeCompare(b.date))
 }
 
-/**
- * Whether a person's Availability rows for one date are exactly what a
- * plain "mark as working" write produces — either no rows at all, or rows
- * that are all WORKING with no note. Shared by POST /api/schedule/shifts
- * (safe to overwrite without clobbering something else) and DELETE
- * .../shifts/[id] (safe to revert on removal — an empty set isn't
- * revertible since there's nothing to undo, so callers that need "exists
- * and is plain" must additionally check rows.length > 0).
- */
-export function isPlainWorkingSet(rows: { status: string; note: string | null }[]): boolean {
-  return rows.every((r) => r.status === "WORKING" && !r.note)
+/** `{ shiftRoles }` for a date that has shifts, `{}` otherwise — spread into
+ *  each day of the schedule read APIs. Separate from the resolved verdict
+ *  because an explicit OUT beats the shift: the day reads "Out" and the UI
+ *  still needs to know a shift is assigned to flag the conflict. */
+export function shiftRolesOn(shifts: ShiftEntry[], dateStr: string): { shiftRoles?: string[] } {
+  const roles = Array.from(new Set(shifts.filter((s) => s.date === dateStr).map((s) => s.shiftRole)))
+  return roles.length > 0 ? { shiftRoles: roles } : {}
 }
 
-export type ShiftConflict = { kind: "out" } | { kind: "outsidePattern" }
+export type ShiftConflict = { kind: "out" }
 
 /**
- * The two conflict cases from issue #19 §6 that are worth flagging when
- * assigning a shift — built entirely on resolveDay()'s own output rather
- * than re-deriving anything:
- * - An explicit OUT day → {kind: "out"} (the assignee is booked off).
- * - The standing pattern says this weekday is off (not a holiday) →
- *   {kind: "outsidePattern"}. Naturally suppressed for someone whose
- *   WorkSchedule already includes this weekend day, since resolveDay()
- *   would then resolve the day as pattern-working (or holiday), never
- *   off/regular — no extra check needed here.
- * A holiday is context, not a conflict (that's the point of the shift day),
- * and plain "working"/"unavailable" aren't conflicts either — the third
- * case from §6 (holiday) needs no code, it's just the absence of a warning.
- * For a split day, either half being a conflict makes the whole day one.
+ * The conflict worth flagging on a shift assignee (issue #19 §6): an
+ * explicit OUT entry on the shift date, which beats the shift in
+ * resolveDay() — the person reads as out everywhere until the shift is
+ * reassigned. For a split day, either half being OUT makes it a conflict.
+ *
+ * §6's softer "outside the normal schedule" note (a Mon–Fri staffer on a
+ * Saturday) was dropped when shifts became the source of truth: it used to
+ * be hidden in practice by the "Working" row each assignment wrote, and
+ * without that row it would mark nearly every weekend shift, telling
+ * editors nothing. A holiday, plain "working" and "unavailable" were never
+ * conflicts.
  */
 export function detectShiftConflict(resolved: ResolvedDay): ShiftConflict | null {
   const segments = resolved.split ? [resolved.am, resolved.pm] : [resolved]
   if (segments.some((s) => s.status === "off" && s.reason === "availability")) return { kind: "out" }
-  if (segments.some((s) => s.status === "off" && s.reason === "regular")) return { kind: "outsidePattern" }
   return null
 }
 
 export interface ShiftConflictInfo {
-  severity: "warning" | "note"
+  severity: "warning"
   message: string
 }
 
 /** Turns a ShiftConflict into the human sentence shown next to an assignee —
  *  shared by GET /api/schedule/shifts and GET /api/schedule/day so the two
  *  routes that both surface shift conflicts don't drift on the wording. */
-export function describeShiftConflict(
-  conflict: ShiftConflict | null,
-  personName: string,
-  weekdayLabel: string
-): ShiftConflictInfo | null {
+export function describeShiftConflict(conflict: ShiftConflict | null, personName: string): ShiftConflictInfo | null {
   if (!conflict) return null
-  const name = displayName(personName)
-  return conflict.kind === "out"
-    ? { severity: "warning", message: `${name} is out that day.` }
-    : { severity: "note", message: `${weekdayLabel} is outside ${name}'s normal schedule.` }
+  return { severity: "warning", message: `${displayName(personName)} is out that day.` }
 }
 
 /**

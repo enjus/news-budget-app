@@ -1,16 +1,15 @@
 // Shared batched loader for /api/schedule/day, /api/schedule/week, and
 // /api/schedule/export — all three need the same shape (roster + the whole
-// roster's Availability/WorkSchedule rows for a window + markers covering
-// it) grouped by personId before calling resolveDay() in memory. Extracted
+// roster's Availability/WorkSchedule/ShiftAssignment rows for a window +
+// markers covering it) grouped by personId before calling resolveDay() in memory. Extracted
 // after code review flagged the fetch-and-group logic as copy-pasted
 // near-verbatim across the three routes, which had already drifted (day
 // fetched all marker kinds, week/export filtered) — one place to fix a
 // query or grouping bug instead of three.
 
-import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { ROSTER_WHERE, dateOnly } from "@/lib/utils"
-import { SCHEDULE_START_DATE, isPlainWorkingSet } from "@/lib/schedule"
+import { ROSTER_WHERE, dateOnly, toDateString } from "@/lib/utils"
+import { SCHEDULE_START_DATE, type ShiftEntry } from "@/lib/schedule"
 
 export interface RosterMember {
   id: string
@@ -32,6 +31,8 @@ export type AvailabilityRow = {
 
 export type WorkScheduleRow = { personId: string; weekday: number; segment: string }
 
+export type ShiftRow = { personId: string; date: Date; shiftRole: string }
+
 export type MarkerRow = {
   id: string
   kind: string
@@ -47,6 +48,9 @@ export interface ScheduleWindowData {
   teams: { id: string; name: string }[]
   availabilityByPerson: Map<string, AvailabilityRow[]>
   workScheduleByPerson: Map<string, WorkScheduleRow[]>
+  /** Shift assignments in the window — the source of truth for shift
+   *  coverage; resolveDay() reads them via toShiftEntries(). */
+  shiftsByPerson: Map<string, ShiftRow[]>
   markers: MarkerRow[]
 }
 
@@ -63,7 +67,7 @@ function groupByPerson<T extends { personId: string }>(rows: T[]): Map<string, T
 /**
  * Roster (isStaff && isActive) + their Availability rows in [startDate,
  * endDate] + the whole WorkSchedule table + CalendarMarkers overlapping the
- * window, in 4 queries regardless of roster size or window length — never
+ * window + ShiftAssignments in the window, in 5 queries regardless of roster size or window length — never
  * one round trip per person. `markerKinds` narrows the marker query (omit
  * for all kinds, matching /api/schedule/day's original "return everything
  * for the band" behavior).
@@ -78,7 +82,7 @@ export async function loadScheduleWindow(
   // blackouts aren't anyone's availability.
   const floor = dateOnly(SCHEDULE_START_DATE)
   const availabilityStart = startDate < floor ? floor : startDate
-  const [roster, availabilityRows, workSchedule, markers] = await Promise.all([
+  const [roster, availabilityRows, workSchedule, markers, shiftRows] = await Promise.all([
     prisma.person.findMany({
       where: ROSTER_WHERE,
       select: {
@@ -103,6 +107,10 @@ export async function loadScheduleWindow(
       },
       select: { id: true, kind: true, label: true, startDate: true, endDate: true, observed: true, note: true },
     }),
+    prisma.shiftAssignment.findMany({
+      where: { date: { gte: availabilityStart, lte: endDate } },
+      select: { personId: true, date: true, shiftRole: true },
+    }),
   ])
 
   const teams = new Map<string, { id: string; name: string }>()
@@ -124,30 +132,12 @@ export async function loadScheduleWindow(
     teams: Array.from(teams.values()).sort((a, b) => a.name.localeCompare(b.name)),
     availabilityByPerson: groupByPerson(availabilityRows),
     workScheduleByPerson: groupByPerson(workSchedule),
+    shiftsByPerson: groupByPerson(shiftRows),
     markers,
   }
 }
 
-const DAY_SEGMENTS = { in: ["FULL_DAY", "MORNING", "AFTERNOON"] }
-
-/**
- * After a shift is removed: if the person has no other shift that day and
- * their Availability rows for it are exactly the plain "Working" set a shift
- * assignment writes (writeWorkingRow), delete them, so the day falls back to
- * their normal pattern. A real override (a note, OUT, a half day) is left
- * alone. Returns whether rows were removed. Used by DELETE
- * /api/schedule/shifts/[id] and by PATCH /api/people/[id] when someone
- * leaves staff.
- */
-export async function revertShiftWorkingRow(
-  tx: Prisma.TransactionClient,
-  personId: string,
-  date: Date
-): Promise<boolean> {
-  const otherShifts = await tx.shiftAssignment.count({ where: { personId, date } })
-  if (otherShifts > 0) return false
-  const rows = await tx.availability.findMany({ where: { personId, date, segment: DAY_SEGMENTS } })
-  if (rows.length === 0 || !isPlainWorkingSet(rows)) return false
-  await tx.availability.deleteMany({ where: { personId, date, segment: DAY_SEGMENTS } })
-  return true
+/** Map ShiftAssignment rows into resolveDay()'s ShiftEntry shape. */
+export function toShiftEntries(rows: { date: Date; shiftRole: string }[]): ShiftEntry[] {
+  return rows.map((r) => ({ date: toDateString(r.date), shiftRole: r.shiftRole }))
 }

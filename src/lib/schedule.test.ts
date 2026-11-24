@@ -6,13 +6,14 @@ import {
   detectShiftConflict,
   describeShiftConflict,
   mergeShiftDays,
-  isPlainWorkingSet,
   isBeforeScheduleStart,
   clampToScheduleStart,
   expandDateRange,
+  computeWeekDiff,
   SCHEDULE_START_DATE,
   type ResolveDayMarker,
   type ResolveDayWorkSchedule,
+  type ShiftEntry,
 } from "./schedule"
 import { dateOnly } from "./utils"
 
@@ -250,10 +251,21 @@ describe("detectShiftConflict", () => {
     expect(detectShiftConflict(resolved)).toEqual({ kind: "out" })
   })
 
-  it("flags a plain weekend day (no standing weekend pattern) as 'outsidePattern'", () => {
-    // 2026-09-05 is a Saturday with no WorkSchedule override -> off/regular.
-    const resolved = resolveDay(dateOnly("2026-09-05"), [], [], [])
-    expect(detectShiftConflict(resolved)).toEqual({ kind: "outsidePattern" })
+  it("has no conflict for a Mon-Fri person's Saturday shift (the shift itself is the schedule)", () => {
+    // 2026-09-05 is a Saturday with no WorkSchedule override; the shift makes it working.
+    const resolved = resolveDay(dateOnly("2026-09-05"), [], [], [], [{ date: "2026-09-05", shiftRole: "EDITOR" }])
+    expect(detectShiftConflict(resolved)).toBeNull()
+  })
+
+  it("flags an explicit OUT on a shift day as 'out' (OUT beats the shift)", () => {
+    const resolved = resolveDay(
+      dateOnly("2026-09-05"),
+      [{ date: "2026-09-05", segment: "FULL_DAY", status: "OUT" }],
+      [],
+      [],
+      [{ date: "2026-09-05", shiftRole: "EDITOR" }]
+    )
+    expect(detectShiftConflict(resolved)).toEqual({ kind: "out" })
   })
 
   it("has no conflict for a Tuesday-Saturday person's standing Saturday shift", () => {
@@ -281,51 +293,14 @@ describe("detectShiftConflict", () => {
 
 describe("describeShiftConflict", () => {
   it("returns null for no conflict", () => {
-    expect(describeShiftConflict(null, "Chen", "Saturday")).toBeNull()
+    expect(describeShiftConflict(null, "Chen")).toBeNull()
   })
 
   it("describes an 'out' conflict as a warning naming the person", () => {
-    expect(describeShiftConflict({ kind: "out" }, "Chen", "Saturday")).toEqual({
+    expect(describeShiftConflict({ kind: "out" }, "Chen")).toEqual({
       severity: "warning",
       message: "Chen is out that day.",
     })
-  })
-
-  it("describes an 'outsidePattern' conflict as a note naming the weekday and person", () => {
-    expect(describeShiftConflict({ kind: "outsidePattern" }, "Chen", "Saturday")).toEqual({
-      severity: "note",
-      message: "Saturday is outside Chen's normal schedule.",
-    })
-  })
-})
-
-describe("isPlainWorkingSet", () => {
-  it("is true for an empty set", () => {
-    expect(isPlainWorkingSet([])).toBe(true)
-  })
-
-  it("is true for one or more note-free WORKING rows", () => {
-    expect(isPlainWorkingSet([{ status: "WORKING", note: null }])).toBe(true)
-    expect(
-      isPlainWorkingSet([
-        { status: "WORKING", note: null },
-        { status: "WORKING", note: null },
-      ])
-    ).toBe(true)
-  })
-
-  it("is false when any row isn't WORKING", () => {
-    expect(isPlainWorkingSet([{ status: "OUT", note: null }])).toBe(false)
-    expect(
-      isPlainWorkingSet([
-        { status: "WORKING", note: null },
-        { status: "UNAVAILABLE", note: null },
-      ])
-    ).toBe(false)
-  })
-
-  it("is false when any row carries a note, even if WORKING", () => {
-    expect(isPlainWorkingSet([{ status: "WORKING", note: "swapped with Rivera" }])).toBe(false)
   })
 })
 
@@ -415,5 +390,70 @@ describe("schedule start floor (issue #85)", () => {
     expect(week).toHaveLength(7)
     expect(week.filter(isBeforeScheduleStart)).toEqual(["2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31"])
     expect(week.filter((d) => !isBeforeScheduleStart(d))).toEqual(["2027-01-01", "2027-01-02", "2027-01-03"])
+  })
+})
+
+describe("resolveDay — shifts", () => {
+  // 2026-09-05 is a Saturday.
+  const SAT = "2026-09-05"
+  const shift = (date: string, shiftRole = "EDITOR"): ShiftEntry => ({ date, shiftRole })
+
+  it("a shift makes a regular day off a working day, keeping the baseline", () => {
+    expect(resolveDay(dateOnly(SAT), [], [], [], [shift(SAT)])).toEqual({
+      split: false,
+      status: "working",
+      source: "shift",
+      shiftRoles: ["EDITOR"],
+      baseline: { status: "off", reason: "regular" },
+    })
+  })
+
+  it("a shift beats an observed holiday", () => {
+    const resolved = resolveDay(dateOnly("2026-11-26"), [], [], [holidayMarker()], [shift("2026-11-26", "GA_REPORTER")])
+    expect(resolved).toMatchObject({ status: "working", source: "shift", shiftRoles: ["GA_REPORTER"] })
+    expect(resolved.split === false && resolved.status === "working" && resolved.source === "shift" && resolved.baseline.status).toBe("off")
+  })
+
+  it("lists each role once, even with two shifts the same day", () => {
+    const resolved = resolveDay(dateOnly(SAT), [], [], [], [shift(SAT, "EDITOR"), shift(SAT, "GA_REPORTER"), shift(SAT, "EDITOR")])
+    expect(resolved).toMatchObject({ shiftRoles: ["EDITOR", "GA_REPORTER"] })
+  })
+
+  it("ignores shifts on other dates", () => {
+    expect(resolveDay(dateOnly(SAT), [], [], [], [shift("2026-09-06")])).toEqual({ split: false, status: "off", reason: "regular" })
+  })
+
+  it("an explicit FULL_DAY entry beats the shift", () => {
+    const out = resolveDay(dateOnly(SAT), [{ date: SAT, segment: "FULL_DAY", status: "OUT" }], [], [], [shift(SAT)])
+    expect(out).toMatchObject({ split: false, status: "off", reason: "availability" })
+    const unavailable = resolveDay(dateOnly(SAT), [{ date: SAT, segment: "FULL_DAY", status: "UNAVAILABLE" }], [], [], [shift(SAT)])
+    expect(unavailable).toMatchObject({ split: false, status: "unavailable" })
+  })
+
+  it("on a split day, the half without an entry falls back to the shift", () => {
+    const resolved = resolveDay(dateOnly(SAT), [{ date: SAT, segment: "MORNING", status: "OUT" }], [], [], [shift(SAT)])
+    expect(resolved).toMatchObject({
+      split: true,
+      am: { status: "off", reason: "availability" },
+      pm: { status: "working", source: "shift", shiftRoles: ["EDITOR"] },
+    })
+  })
+})
+
+describe("shift-aware write helpers", () => {
+  const SAT = "2026-09-05"
+  const shifts: ShiftEntry[] = [{ date: SAT, shiftRole: "EDITOR" }]
+
+  it("expandDateRange keeps a shift Saturday when skipping non-working days", () => {
+    const opts = { skipNonWorkingDays: true, workSchedule: [], markers: [] }
+    expect(expandDateRange("2026-09-04", "2026-09-06", opts)).toEqual(["2026-09-04"])
+    expect(expandDateRange("2026-09-04", "2026-09-06", { ...opts, shifts })).toEqual(["2026-09-04", SAT])
+  })
+
+  it("computeWeekDiff writes no row for 'Working' on a shift day, and an OUT row for 'Out'", () => {
+    const working = computeWeekDiff([{ date: SAT, segment: "FULL_DAY", status: "WORKING" }], [], [], [], shifts)
+    expect(working).toEqual({ toUpsert: [], toDelete: [] })
+    const out = computeWeekDiff([{ date: SAT, segment: "FULL_DAY", status: "OUT" }], [], [], [], shifts)
+    expect(out.toUpsert).toEqual([{ date: SAT, segment: "FULL_DAY", status: "OUT", note: null }])
   })
 })

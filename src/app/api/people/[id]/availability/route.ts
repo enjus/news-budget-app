@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dateOnly, toDateString } from "@/lib/utils";
-import { isBeforeScheduleStart, resolveDay, resolveNotes, type AvailabilityEntry, type ResolvedDay } from "@/lib/schedule";
+import { isBeforeScheduleStart, resolveDay, resolveNotes, shiftRolesOn, type AvailabilityEntry, type ResolvedDay } from "@/lib/schedule";
+import { toShiftEntries } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    const [availabilityRows, workSchedule, markers] = await Promise.all([
+    const [availabilityRows, workSchedule, markers, shiftRows] = await Promise.all([
       prisma.availability.findMany({
         where: { personId: id, date: { gte: startDate, lte: endDate } },
         select: { date: true, segment: true, status: true, note: true },
@@ -49,7 +50,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         where: { kind: "HOLIDAY", observed: true, startDate: { lte: endDate }, endDate: { gte: startDate } },
         select: { id: true, kind: true, label: true, startDate: true, endDate: true, observed: true },
       }),
+      prisma.shiftAssignment.findMany({
+        where: { personId: id, date: { gte: startDate, lte: endDate } },
+        select: { date: true, shiftRole: true },
+      }),
     ]);
+    const shifts = toShiftEntries(shiftRows);
 
     const availability: AvailabilityEntry[] = availabilityRows.map((row) => ({
       date: toDateString(row.date),
@@ -64,7 +70,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     // made the "Update availability" picker on /schedule/me appear to forget
     // a note on reopen (it does save; this endpoint just never returned it
     // back).
-    const days: Array<({ date: string } & ResolvedDay & ReturnType<typeof resolveNotes>) | { date: string; untracked: true }> = [];
+    const days: Array<
+      ({ date: string } & ResolvedDay & ReturnType<typeof resolveNotes> & ReturnType<typeof shiftRolesOn>) | { date: string; untracked: true }
+    > = [];
     let cursor = new Date(startDate);
     while (cursor.getTime() <= endDate.getTime()) {
       const dateStr = toDateString(cursor);
@@ -74,9 +82,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
         continue;
       }
-      const resolved = resolveDay(cursor, availability, workSchedule, markers);
+      const resolved = resolveDay(cursor, availability, workSchedule, markers, shifts);
       const rowsForDate = availabilityRows.filter((r) => toDateString(r.date) === dateStr);
-      days.push({ date: dateStr, ...resolved, ...resolveNotes(resolved, rowsForDate) });
+      days.push({ date: dateStr, ...resolved, ...resolveNotes(resolved, rowsForDate), ...shiftRolesOn(shifts, dateStr) });
       cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
     }
 

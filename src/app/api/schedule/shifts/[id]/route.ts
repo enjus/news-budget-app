@@ -4,7 +4,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateShiftAssignmentSchema } from "@/lib/validations";
 import { canEditSchedule } from "@/lib/utils";
-import { revertShiftWorkingRow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -53,24 +52,9 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   }
 }
 
-// Removes one shift assignment, and — when it's safe to assume the
-// Availability WORKING row alongside it exists solely because of this
-// assignment — reverts that row too, so the day falls back to the
-// person's standing pattern/holiday baseline instead of silently staying
-// "working" after the shift that justified it is gone. "Safe" means both:
-//   (1) the row is still the exact plain, note-free WORKING row a shift
-//       assignment would have written (same test POST uses to decide
-//       whether it's safe to overwrite) — anything else means someone
-//       hand-edited it for a different reason since, and reverting it out
-//       from under them would silently discard that edit; and
-//   (2) no other ShiftAssignment for the same person on the same date
-//       still exists (a person can hold two roles the same day) — removing
-//       one shouldn't undo the working status the other still justifies.
-// A stale plain-WORKING row can still linger if two of a person's same-day
-// assignments are removed concurrently (each transaction can see the other
-// still present and skip the revert) — an accepted, narrow race; the
-// fallback is exactly today's baseline behavior (row untouched), not data
-// loss.
+// Removes one shift assignment. Nothing else to undo: assigning a shift
+// writes no Availability row, so the day simply falls back to whatever
+// resolveDay() says without it.
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
@@ -83,14 +67,9 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
 
-    const availabilityReverted = await prisma.$transaction(async (tx) => {
-      const deleted = await tx.shiftAssignment.delete({ where: { id } });
-      // The deleted row is gone within this transaction, so the helper's
-      // "other shift that day" count only sees the person's other shifts.
-      return revertShiftWorkingRow(tx, deleted.personId, deleted.date);
-    });
+    await prisma.shiftAssignment.delete({ where: { id } });
 
-    return NextResponse.json({ success: true, availabilityReverted });
+    return NextResponse.json({ success: true });
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2025") {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });

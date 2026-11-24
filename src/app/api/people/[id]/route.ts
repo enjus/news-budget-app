@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { updatePersonSchema } from "@/lib/validations";
 import type { Prisma } from "@prisma/client";
 import { canManageRoster, dateOnly, todayString } from "@/lib/utils";
-import { revertShiftWorkingRow } from "@/lib/schedule-queries";
 import { planPersonPatch } from "@/lib/person-patch";
 import { checkWriteLimit, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -15,23 +14,13 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * Deletes a person's shifts from tomorrow on — today's and earlier stay as
- * the record of who covered them — and reverts each one's auto-written
- * "Working" row (revertShiftWorkingRow, shared with DELETE
- * /api/schedule/shifts/[id]). Every upcoming shift of theirs goes, so no
- * other same-day shift remains.
+ * the record of who covered them. Shifts write no Availability rows, so
+ * there's nothing else to revert.
  */
 async function removeUpcomingShifts(tx: Prisma.TransactionClient, personId: string) {
   const tomorrow = dateOnly(todayString());
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  const shifts = await tx.shiftAssignment.findMany({
-    where: { personId, date: { gte: tomorrow } },
-    select: { date: true },
-  });
-  if (shifts.length === 0) return;
   await tx.shiftAssignment.deleteMany({ where: { personId, date: { gte: tomorrow } } });
-
-  const dates = [...new Map(shifts.map((s) => [s.date.getTime(), s.date])).values()];
-  for (const date of dates) await revertShiftWorkingRow(tx, personId, date);
 }
 
 /** A rule check that failed inside PATCH's transaction — rolls it back and

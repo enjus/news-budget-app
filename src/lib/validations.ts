@@ -302,16 +302,14 @@ export const putWeekAvailabilitySchema = z.object({
 export const ShiftRoleEnum = z.enum(["GA_REPORTER", "EDITOR", "SOCIAL_VIDEO_PRODUCER", "VISUAL_JOURNALIST"]);
 
 // POST /api/schedule/shifts — assigns one person to one role slot on one
-// shift day. writeWorkingRow defaults true: the common case for keying in a
-// season is "this person is now working this day" (issue #19 §6), and the
-// route writes the matching Availability FULL_DAY/WORKING row alongside the
-// ShiftAssignment when set.
+// date. It writes no Availability row (shifts are read directly by
+// resolveDay()); an older client's `writeWorkingRow` is stripped by Zod and
+// ignored.
 export const createShiftAssignmentSchema = z.object({
   date: scheduleDateString,
   shiftRole: ShiftRoleEnum,
   personId: z.string().cuid(),
   note: z.string().max(500).nullable().optional(),
-  writeWorkingRow: z.boolean().default(true),
 });
 
 // PATCH /api/schedule/shifts/[id] — date/shiftRole/personId are the row's

@@ -41,11 +41,7 @@ function ShiftSection({ shifts }: { shifts: DayShiftAssignment[] }) {
             <div className="flex items-center gap-1.5 min-w-0">
               {s.conflict && (
                 <span title={s.conflict.message}>
-                  {s.conflict.severity === "warning" ? (
-                    <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
-                  ) : (
-                    <Info className="size-3.5 shrink-0 text-amber-500" />
-                  )}
+                  <AlertTriangle className="size-3.5 shrink-0 text-red-500" aria-label={s.conflict.message} />
                 </span>
               )}
               <span className="text-sm font-medium truncate">{displayName(s.name)}</span>

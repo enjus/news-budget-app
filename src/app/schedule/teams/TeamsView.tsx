@@ -155,6 +155,7 @@ function DayCell({
         note={day?.note}
         amNote={day?.amNote}
         pmNote={day?.pmNote}
+        shiftRoles={day?.shiftRoles}
         size="sm"
         className="flex-1 min-w-0"
       />

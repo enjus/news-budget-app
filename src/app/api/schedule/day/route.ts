@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { dateOnly, weekdayName } from "@/lib/utils";
-import { isBeforeScheduleStart, resolveDay, resolveNotes, detectShiftConflict, describeShiftConflict, type AvailabilityEntry } from "@/lib/schedule";
+import { dateOnly } from "@/lib/utils";
+import { isBeforeScheduleStart, resolveDay, resolveNotes, detectShiftConflict, describeShiftConflict, type AvailabilityEntry, type ShiftEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
@@ -40,11 +40,15 @@ export async function GET(request: NextRequest) {
         }),
       ]);
     const holidayMarkers = markers.filter((m) => m.kind === "HOLIDAY");
+    // Every assignment that date, not only the roster's (a past assignee
+    // may have left staff) — the same rows the shift list below uses.
+    const shiftsFor = (personId: string): ShiftEntry[] =>
+      shiftAssignments.filter((a) => a.personId === personId).map((a) => ({ date, shiftRole: a.shiftRole }));
 
     const people = roster.map((person) => {
       const rows = availabilityByPerson.get(person.id) ?? [];
       const entries: AvailabilityEntry[] = rows.map((r) => ({ date, segment: r.segment, status: r.status }));
-      const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(person.id) ?? [], holidayMarkers);
+      const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(person.id) ?? [], holidayMarkers, shiftsFor(person.id));
 
       return {
         id: person.id,
@@ -58,18 +62,17 @@ export async function GET(request: NextRequest) {
     // Any shift assigned on this date, filled roles only (issue #19 §5
     // extension — an unfilled slot is a /schedule/shifts concern, not
     // something the absence board needs to surface).
-    const weekdayLabel = weekdayName(date);
     const shifts = shiftAssignments.map((a) => {
       const rows = availabilityByPerson.get(a.personId) ?? [];
       const entries: AvailabilityEntry[] = rows.map((r) => ({ date, segment: r.segment, status: r.status }));
-      const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(a.personId) ?? [], holidayMarkers);
+      const resolved = resolveDay(dateObj, entries, workScheduleByPerson.get(a.personId) ?? [], holidayMarkers, shiftsFor(a.personId));
       return {
         id: a.id,
         shiftRole: a.shiftRole,
         personId: a.personId,
         name: a.person.name,
         note: a.note,
-        conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name, weekdayLabel),
+        conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name),
       };
     });
 
