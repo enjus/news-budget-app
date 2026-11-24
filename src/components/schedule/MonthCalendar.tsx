@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { toDateString } from "@/lib/utils"
-import { isBeforeScheduleStart, SCHEDULE_START_DATE } from "@/lib/schedule"
+import { isBeforeScheduleStart, monthBandMarkers, SCHEDULE_START_DATE } from "@/lib/schedule"
 import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import type { CalendarMarker } from "@prisma/client"
@@ -18,10 +18,9 @@ interface MonthCalendarProps {
   /** A drag across two or more days in the same week row. Dates are always
    *  in chronological order regardless of drag direction. */
   onRangeSelect: (dates: string[]) => void
-  /** Calendar markers overlapping the month. PTO blackouts, notes and
-   *  unobserved holidays are banded above each week row they touch; observed
-   *  holidays are skipped, since resolveDay() already shows them in the
-   *  affected day cells. */
+  /** Calendar markers overlapping the month, banded above each week row
+   *  they touch. Observed holidays are banded only where a day cell doesn't
+   *  already show them (see monthBandMarkers()). */
   markers?: CalendarMarker[]
 }
 
@@ -34,14 +33,14 @@ interface DragState {
 }
 
 /** Generic month grid, taking resolved days as a prop so it isn't hardwired
- *  to the "me" view — Phase 3's team/absence views reuse it. Observed
- *  holidays aren't banded here: resolveDay() already bakes their effect into
- *  each affected day (status "off", reason "holiday"), and AvailabilityChip
- *  surfaces that inline via the day's own markerLabel. Every other marker
- *  (PTO blackouts, calendar notes, unobserved holidays) has no effect on a
- *  day's verdict, so it gets a MarkerBand above each week row it touches,
- *  clipped to the month (and to the schedule start) so it never runs over
- *  blank padding or "See spreadsheet" cells.
+ *  to the "me" view — Phase 3's team/absence views reuse it. Markers get
+ *  a MarkerBand above each week row they touch, clipped to the month (and
+ *  to the schedule start) so a band never runs over blank padding or "See
+ *  spreadsheet" cells. An observed holiday is usually skipped, since
+ *  resolveDay() bakes it into each affected day (status "off", reason
+ *  "holiday") and AvailabilityChip shows its label; it's banded only when
+ *  some covered day doesn't show it (a regular day off, or an explicit
+ *  availability entry), which monthBandMarkers() decides.
  *  Weeks are Monday–Sunday, matching the app's standard week (mondayOf(),
  *  the team schedule grid) — not JS's native Sunday-first getUTCDay().
  *
@@ -70,20 +69,14 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
   const weeks: (string | null)[][] = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
 
-  // Clip each banded marker to the visible, tracked part of the month, so a
-  // band's columns land only on real day cells. Each week row then gets its
-  // full seven calendar dates (padding included) for MarkerBand's column math.
-  const monthEnd = toDateString(new Date(Date.UTC(year, month, 0)))
-  const visibleFrom = monthStart > SCHEDULE_START_DATE ? monthStart : SCHEDULE_START_DATE
-  const bandMarkers = markers.flatMap((m) => {
-    if (m.kind === "HOLIDAY" && m.observed) return []
-    const start = toDateString(new Date(m.startDate))
-    const end = toDateString(new Date(m.endDate))
-    const from = start > visibleFrom ? start : visibleFrom
-    const to = end < monthEnd ? end : monthEnd
-    if (from > to) return []
-    return [{ ...m, startDate: new Date(`${from}T00:00:00.000Z`), endDate: new Date(`${to}T00:00:00.000Z`) }]
-  })
+  // The visible, tracked part of the month. Each week row gets its full
+  // seven calendar dates (padding included) for MarkerBand's column math,
+  // and visibleRange clips bands back to real day cells.
+  const visibleRange = {
+    from: monthStart > SCHEDULE_START_DATE ? monthStart : SCHEDULE_START_DATE,
+    to: toDateString(new Date(Date.UTC(year, month, 0))),
+  }
+  const bandMarkers = monthBandMarkers(markers, dayByDate, visibleRange.from, visibleRange.to)
   const rowDates = (weekIdx: number) =>
     Array.from({ length: 7 }, (_, col) =>
       toDateString(new Date(Date.UTC(year, month - 1, 1 - startWeekday + weekIdx * 7 + col)))
@@ -134,7 +127,7 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
             drag && drag.weekIdx === weekIdx ? [Math.min(drag.startCol, drag.endCol), Math.max(drag.startCol, drag.endCol)] : null
           return (
             <div key={weekIdx}>
-              {bandMarkers.length > 0 && <MarkerBand weekDates={rowDates(weekIdx)} markers={bandMarkers} />}
+              {bandMarkers.length > 0 && <MarkerBand weekDates={rowDates(weekIdx)} markers={bandMarkers} visibleRange={visibleRange} />}
               <div className="grid grid-cols-7 gap-1">
                 {week.map((date, col) =>
                   date && isBeforeScheduleStart(date) ? (
