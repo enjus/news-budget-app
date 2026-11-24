@@ -539,19 +539,18 @@ export function TeamsView({
           personId={rangePicker.personId}
           date={rangePicker.dates[0]}
           initialEndDate={rangePicker.dates[rangePicker.dates.length - 1]}
-          // Only meaningful for a single-day selection — PresetPicker's own
-          // "Revert to default" gate already requires startDate === endDate,
-          // so a multi-day drag range just never sees this. Without it, a
-          // single-cell click on the team grid never passed the already-
-          // resolved day back to the picker, so its revert button (which
-          // needs to know there's something to revert to baseline) could
-          // never appear here even though /schedule/me's picker has always
-          // had it.
+          // Pre-fills the form from the clicked cell; only meaningful for a
+          // single-day selection.
           initialDay={
             rangePicker.dates.length === 1
               ? people.find((p) => p.id === rangePicker.personId)?.days.find((d) => d.date === rangePicker.dates[0])
               : undefined
           }
+          // The person's loaded days, so "Clear" can count what it clears
+          // across a dragged range and list shift days in it.
+          knownDays={Object.fromEntries(
+            (people.find((p) => p.id === rangePicker.personId)?.days ?? []).map((d) => [d.date, d])
+          )}
           onSaved={() => {
             onSaved()
             setRangePicker(null)

@@ -107,11 +107,10 @@ export function MyScheduleView() {
           personId={personId}
           date={picker.dates[0]}
           initialEndDate={picker.dates[picker.dates.length - 1]}
-          // Only meaningful for a single-day selection, matching
-          // /schedule/teams' rangePicker — a multi-day drag just never sees
-          // this since PresetPicker's revert button requires startDate ===
-          // endDate.
+          // Pre-fills the form from the clicked day; only meaningful for a
+          // single-day selection, matching /schedule/teams' rangePicker.
           initialDay={picker.dates.length === 1 ? dayByDate[picker.dates[0]] : undefined}
+          knownDays={dayByDate}
           onSaved={() => mutate()}
         />
       )}

@@ -275,6 +275,20 @@ export const updateAvailabilitySchema = z.object({
   note: z.string().max(500).nullable().optional(),
 });
 
+// POST /api/schedule/availability/clear — deletes a person's explicit
+// availability entries (whole and half day) across a range, so each day
+// falls back to its shift, standing pattern or holiday. Shifts are never
+// touched; they're changed only on /schedule/shifts. Same 180-day cap as
+// the range write, enforced in the route.
+export const clearAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  startDate: scheduleDateString,
+  endDate: scheduleDateString,
+}).refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+});
+
 // One day's desired resolved value, for the one-off week editor's diff. A
 // `revert` row means "delete whatever override exists for this date and let
 // it fall back to the standing pattern/holiday baseline" — used instead of

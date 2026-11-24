@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, segmentToStatus, type PresetId, type PresetRow } from "./availabilityPresets"
+import { AVAILABILITY_PRESETS, presetRows, presetForResolvedDay, segmentToStatus, summarizeClear, type PresetId, type PresetRow } from "./availabilityPresets"
+import { shiftLabel } from "./AvailabilityChip"
 import { apiPath } from "@/lib/api-path"
 import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, isBeforeScheduleStart } from "@/lib/schedule"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
@@ -30,7 +32,15 @@ interface PresetPickerProps {
    *  hadn't saved on reopen, even though it had. Only meaningful for a
    *  single day; omit for a range picker with no one "current" state. */
   initialDay?: MyScheduleDay
+  /** The resolved days the opening view already has loaded, by date. Lets
+   *  "Clear" say how many days it will clear (and hide when there's
+   *  nothing to clear), and lists shift days in the selection. */
+  knownDays?: Record<string, MyScheduleDay | undefined>
   onSaved: () => void
+}
+
+function shortDate(date: string): string {
+  return new Date(`${date}T00:00:00.000Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })
 }
 
 async function postAvailability(personId: string, startDate: string, endDate: string, rows: PresetRow[], note: string, skipNonWorkingDays: boolean) {
@@ -53,7 +63,7 @@ async function postAvailability(personId: string, startDate: string, endDate: st
   return res.json() as Promise<{ entries: unknown[]; warnings: { label: string; dates: string[] }[] }>
 }
 
-export function PresetPicker({ open, onOpenChange, personId, date, initialEndDate, initialDay, onSaved }: PresetPickerProps) {
+export function PresetPicker({ open, onOpenChange, personId, date, initialEndDate, initialDay, knownDays, onSaved }: PresetPickerProps) {
   const [preset, setPreset] = useState<PresetId>(() => {
     const p = presetForResolvedDay(initialDay)
     return p === "BASELINE" ? "OUT" : p
@@ -108,30 +118,42 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
     }
   }
 
-  // Reverts this single date back to whatever resolveDay() would already
-  // produce with no override (the standing pattern, or a holiday) — the
-  // same "revert" mechanism the week editor uses (computeWeekDiff), reused
-  // here so undoing an accidental single-day override doesn't require
-  // opening the week editor to find it.
-  const canRevert = !isRange && startDate === date && !!initialDay && presetForResolvedDay(initialDay) !== "BASELINE"
+  // "Clear" deletes every explicit entry in the selected range, so each day
+  // falls back to its shift, standing pattern or holiday. Shifts can't be
+  // cleared here — they change only on /schedule/shifts — so shift days in
+  // the selection get a notice instead. When the whole range is loaded, the
+  // button states the count and hides if there's nothing to clear; past
+  // what the view loaded, it shows a plain "Clear".
+  const clearSummary = useMemo(() => summarizeClear(startDate, endDate, knownDays ?? {}), [startDate, endDate, knownDays])
+  const clearCount = clearSummary.overrideDates.length
+  const showClear = !clearSummary.complete || clearCount > 0
+  const clearLabel = clearSummary.complete && isRange ? `Clear ${clearCount} ${clearCount === 1 ? "day" : "days"}` : "Clear"
 
-  async function handleRevert() {
+  async function handleClear() {
+    if (isBeforeScheduleStart(startDate) || isBeforeScheduleStart(endDate)) {
+      toast.error(`The schedule starts ${SCHEDULE_START_LABEL} — earlier dates live in the spreadsheet.`)
+      return
+    }
     setSaving(true)
     try {
-      const res = await fetch(apiPath("/api/schedule/availability/week"), {
-        method: "PUT",
+      const res = await fetch(apiPath("/api/schedule/availability/clear"), {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personId, days: [{ date: startDate, revert: true }] }),
+        body: JSON.stringify({ personId, startDate, endDate }),
       })
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error ?? "Failed to revert")
+        throw new Error(err.error ?? "Failed to clear")
       }
-      toast.success("Reverted to default")
+      const result = (await res.json()) as { cleared: number; shiftDates: string[] }
+      toast.success(result.cleared > 0 ? "Cleared" : "Nothing to clear")
+      if (result.shiftDates.length > 0) {
+        toast.info(`Shifts stay as assigned (${result.shiftDates.map(shortDate).join(", ")}) — change them on the Shifts page.`)
+      }
       onSaved()
       onOpenChange(false)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to revert")
+      toast.error(err instanceof Error ? err.message : "Failed to clear")
     } finally {
       setSaving(false)
     }
@@ -215,20 +237,38 @@ export function PresetPicker({ open, onOpenChange, personId, date, initialEndDat
             </div>
           )}
 
+          {clearSummary.shiftDates.length > 0 && (
+            <div className="rounded-md border border-teal-300 bg-teal-50 px-3 py-2 text-sm text-teal-900 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-100">
+              <p>
+                {clearSummary.shiftDates
+                  .map((d) => `${shiftLabel(knownDays?.[d]?.shiftRoles ?? [])} ${shortDate(d)}`)
+                  .join(" · ")}
+              </p>
+              <p className="mt-1 text-xs">
+                Shifts are changed only on the{" "}
+                <Link href={`/schedule/shifts?start=${clearSummary.shiftDates[0]}`} className="font-medium underline underline-offset-2">
+                  Shifts page
+                </Link>
+                . Marking out here keeps the shift assigned and flags it there for reassignment.
+              </p>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="pp-note">Note</Label>
             <Input id="pp-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
           </div>
 
           <div className="flex items-center justify-between gap-2 pt-2">
-            {canRevert ? (
+            {showClear ? (
               <Button
                 variant="ghost"
                 className="text-muted-foreground hover:text-foreground"
-                onClick={handleRevert}
+                onClick={handleClear}
                 disabled={saving}
+                title="Remove the entries in these dates, so each day goes back to its shift, regular schedule or holiday. Shifts aren't changed."
               >
-                Revert to default
+                {clearLabel}
               </Button>
             ) : (
               <span />
