@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { toDateString } from "@/lib/utils"
 import { isBeforeScheduleStart, monthBandMarkers, SCHEDULE_START_DATE } from "@/lib/schedule"
 import { AvailabilityChip } from "@/components/schedule/AvailabilityChip"
 import { MarkerBand } from "@/components/schedule/MarkerBand"
 import type { CalendarMarker } from "@prisma/client"
 import type { MyScheduleDay } from "@/lib/hooks/useMySchedule"
+import { useDragRange, onKeyboardActivate } from "@/lib/hooks/useDragRange"
 
 interface MonthCalendarProps {
   /** First-of-month date, YYYY-MM-DD. */
@@ -26,12 +26,6 @@ interface MonthCalendarProps {
 
 const WEEKDAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
-interface DragState {
-  weekIdx: number
-  startCol: number
-  endCol: number
-}
-
 /** Generic month grid, taking resolved days as a prop so it isn't hardwired
  *  to the "me" view — Phase 3's team/absence views reuse it. Markers get
  *  a MarkerBand above each week row they touch, clipped to the month (and
@@ -44,8 +38,8 @@ interface DragState {
  *  Weeks are Monday–Sunday, matching the app's standard week (mondayOf(),
  *  the team schedule grid) — not JS's native Sunday-first getUTCDay().
  *
- *  Drag-to-select mirrors /schedule/teams' TeamsView (same mousedown/
- *  mouseenter/window-mouseup pattern), scoped to one week row at a time —
+ *  Drag-to-select shares useDragRange with /schedule/teams' TeamsView,
+ *  scoped to one week row at a time —
  *  a month grid wraps every 7 days, so there's no single flat strip to drag
  *  across the way TeamsView has; continuing a drag across the row wrap
  *  isn't supported; PresetPicker's own start/end date inputs cover that
@@ -82,35 +76,15 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
       toDateString(new Date(Date.UTC(year, month - 1, 1 - startWeekday + weekIdx * 7 + col)))
     )
 
-  const [drag, setDrag] = useState<DragState | null>(null)
-
-  // A single window `mouseup` listener while dragging catches a release
-  // outside the grid entirely — per-cell mouseup would miss that.
-  useEffect(() => {
-    if (!drag) return
-    function onUp() {
-      setDrag((d) => {
-        if (d) {
-          const lo = Math.min(d.startCol, d.endCol)
-          const hi = Math.max(d.startCol, d.endCol)
-          const dates = weeks[d.weekIdx].slice(lo, hi + 1).filter((date): date is string => date !== null)
-          if (dates.length === 1) onDayClick(dates[0])
-          else if (dates.length > 1) onRangeSelect(dates)
-        }
-        return null
-      })
-    }
-    window.addEventListener("mouseup", onUp)
-    return () => window.removeEventListener("mouseup", onUp)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- weeks is derived fresh each render from stable props
-  }, [drag])
-
-  function handleMouseDown(weekIdx: number, col: number) {
-    setDrag({ weekIdx, startCol: col, endCol: col })
-  }
-  function handleMouseEnter(weekIdx: number, col: number) {
-    setDrag((d) => (d && d.weekIdx === weekIdx ? { ...d, endCol: col } : d))
-  }
+  // Drag state, the window mouseup and stuck-drag handling live in
+  // useDragRange (shared with the team grid); rows are week indexes here.
+  const { begin, extend, selectedIn } = useDragRange<number>(({ key: weekIdx, start, end }) => {
+    const dates = weeks[weekIdx]
+      .slice(Math.min(start, end), Math.max(start, end) + 1)
+      .filter((date): date is string => date !== null)
+    if (dates.length === 1) onDayClick(dates[0])
+    else if (dates.length > 1) onRangeSelect(dates)
+  })
 
   return (
     <div className="space-y-1">
@@ -123,8 +97,7 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
       </div>
       <div className="space-y-2">
         {weeks.map((week, weekIdx) => {
-          const selectedRange =
-            drag && drag.weekIdx === weekIdx ? [Math.min(drag.startCol, drag.endCol), Math.max(drag.startCol, drag.endCol)] : null
+          const selectedRange = selectedIn(weekIdx)
           return (
             <div key={weekIdx}>
               {bandMarkers.length > 0 && <MarkerBand weekDates={rowDates(weekIdx)} markers={bandMarkers} visibleRange={visibleRange} />}
@@ -143,8 +116,9 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
                     <button
                       key={date}
                       type="button"
-                      onMouseDown={() => handleMouseDown(weekIdx, col)}
-                      onMouseEnter={() => handleMouseEnter(weekIdx, col)}
+                      onMouseDown={(e) => begin(weekIdx, col, e)}
+                      onMouseEnter={(e) => extend(weekIdx, col, e)}
+                      onClick={onKeyboardActivate(() => onDayClick(date))}
                       className={`flex flex-col rounded-md border p-1.5 text-left text-xs h-16 overflow-hidden hover:ring-2 hover:ring-ring transition-shadow ${
                         selectedRange !== null && col >= selectedRange[0] && col <= selectedRange[1] ? "ring-2 ring-ring" : ""
                       }`}
