@@ -47,8 +47,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         select: { weekday: true, segment: true },
       }),
       prisma.calendarMarker.findMany({
-        where: { kind: "HOLIDAY", observed: true, startDate: { lte: endDate }, endDate: { gte: startDate } },
-        select: { id: true, kind: true, label: true, startDate: true, endDate: true, observed: true },
+        // Every kind, not just holidays: /schedule/me bands PTO blackouts and
+        // calendar notes across its month grid. resolveDay() only acts on
+        // observed holidays (findObservedHoliday() filters), so the extra
+        // kinds don't change any day's verdict.
+        where: { startDate: { lte: endDate }, endDate: { gte: startDate } },
+        select: { id: true, kind: true, label: true, note: true, startDate: true, endDate: true, observed: true },
+        orderBy: [{ startDate: "asc" }, { kind: "asc" }],
       }),
       prisma.shiftAssignment.findMany({
         where: { personId: id, date: { gte: startDate, lte: endDate } },

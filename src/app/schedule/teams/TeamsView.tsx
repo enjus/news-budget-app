@@ -16,6 +16,7 @@ import { SCHEDULE_START_DATE, SCHEDULE_START_LABEL, clampToScheduleStart, isBefo
 import { FloorDateInput } from "@/components/schedule/FloorDateInput"
 import type { WeekSchedulePerson } from "@/lib/hooks/useWeekSchedule"
 import type { CalendarMarker } from "@prisma/client"
+import { useDragRange, onKeyboardActivate, type DragRange } from "@/lib/hooks/useDragRange"
 
 export type TeamsViewMode = "week" | "day" | "month"
 
@@ -112,22 +113,19 @@ function roleRankIn(person: WeekSchedulePerson, teamId: string): number {
   return teamRoleRank(person.teamRoles.find((tr) => tr.teamId === teamId)?.role ?? "MEMBER")
 }
 
-interface DragState {
-  personId: string
-  startIdx: number
-  endIdx: number
-}
-
 function DayCell({
   day,
   selected,
   onMouseDown,
   onMouseEnter,
+  onKeyboardOpen,
 }: {
   day: WeekSchedulePerson["days"][number] | undefined
   selected: boolean
-  onMouseDown: () => void
-  onMouseEnter: () => void
+  onMouseDown: (event: React.MouseEvent) => void
+  onMouseEnter: (event: React.MouseEvent) => void
+  /** Enter/Space on the cell — opens the single-day picker. */
+  onKeyboardOpen: () => void
 }) {
   // Issue #85: dates before the cutover live in the spreadsheet. Judged per
   // cell — the boundary week is half 2026, half 2027.
@@ -147,6 +145,7 @@ function DayCell({
       type="button"
       onMouseDown={onMouseDown}
       onMouseEnter={onMouseEnter}
+      onClick={onKeyboardActivate(onKeyboardOpen)}
       className={`flex rounded border border-border/60 min-h-9 overflow-hidden ${selected ? "ring-2 ring-ring" : ""}`}
     >
       <AvailabilityChip
@@ -167,26 +166,24 @@ function PersonRow({
   person,
   columns,
   gridTemplate,
-  drag,
+  selectedRange,
   onCellMouseDown,
   onCellMouseEnter,
+  onCellKeyboardOpen,
   onEditWeek,
 }: {
   person: WeekSchedulePerson
   columns: number[]
   gridTemplate: string
-  drag: DragState | null
-  onCellMouseDown: (personId: string, idx: number) => void
-  onCellMouseEnter: (personId: string, idx: number) => void
+  /** This row's dragged cells as [low, high], or null. */
+  selectedRange: [number, number] | null
+  onCellMouseDown: (personId: string, idx: number, event: React.MouseEvent) => void
+  onCellMouseEnter: (personId: string, idx: number, event: React.MouseEvent) => void
+  onCellKeyboardOpen: (personId: string, idx: number) => void
   /** Omitted in Month view — WeekEditor edits one 7-day week, so there's no
    *  single week for the row's button to open. */
   onEditWeek?: (personId: string) => void
 }) {
-  const selectedRange =
-    drag && drag.personId === person.id
-      ? [Math.min(drag.startIdx, drag.endIdx), Math.max(drag.startIdx, drag.endIdx)]
-      : null
-
   return (
     <div className="flex items-stretch">
       <div className="sticky left-0 z-10 bg-background pr-2 w-40 shrink-0 flex items-center justify-between gap-1 text-sm">
@@ -209,8 +206,9 @@ function PersonRow({
             key={idx}
             day={person.days[idx]}
             selected={selectedRange !== null && idx >= selectedRange[0] && idx <= selectedRange[1]}
-            onMouseDown={() => onCellMouseDown(person.id, idx)}
-            onMouseEnter={() => onCellMouseEnter(person.id, idx)}
+            onMouseDown={(e) => onCellMouseDown(person.id, idx, e)}
+            onMouseEnter={(e) => onCellMouseEnter(person.id, idx, e)}
+            onKeyboardOpen={() => onCellKeyboardOpen(person.id, idx)}
           />
         ))}
       </div>
@@ -242,7 +240,6 @@ export function TeamsView({
 
   const [dayIndex, setDayIndex] = useState(0)
   const [showExceptionsOnly, setShowExceptionsOnly] = useState(false)
-  const [drag, setDrag] = useState<DragState | null>(null)
   const [rangePicker, setRangePicker] = useState<{ personId: string; dates: string[] } | null>(null)
   const [editingWeekFor, setEditingWeekFor] = useState<string | null>(null)
 
@@ -274,31 +271,23 @@ export function TeamsView({
   // floor that makes Month scroll sideways instead of squeezing cells.
   const monthMinWidth = `${10.5 + columns.length * (MONTH_COL_REM + 0.25) - 0.25}rem`
 
-  // A single window `mouseup` listener while dragging catches a release
-  // outside the grid entirely — per-cell mouseup would miss that.
-  useEffect(() => {
-    if (!drag) return
-    function onUp() {
-      setDrag((d) => {
-        if (d) {
-          const lo = Math.min(d.startIdx, d.endIdx)
-          const hi = Math.max(d.startIdx, d.endIdx)
-          const dates = weekDates.slice(lo, hi + 1).filter((date) => !isBeforeScheduleStart(date))
-          if (dates.length > 0) setRangePicker({ personId: d.personId, dates })
-        }
-        return null
-      })
-    }
-    window.addEventListener("mouseup", onUp)
-    return () => window.removeEventListener("mouseup", onUp)
-  }, [drag, weekDates])
-
-  function handleCellMouseDown(personId: string, idx: number) {
-    if (isBeforeScheduleStart(weekDates[idx])) return
-    setDrag({ personId, startIdx: idx, endIdx: idx })
+  // Drag state, the window mouseup and stuck-drag handling live in
+  // useDragRange (shared with MonthCalendar); rows are people here.
+  function openPicker({ key: personId, start, end }: DragRange<string>) {
+    const dates = weekDates.slice(Math.min(start, end), Math.max(start, end) + 1).filter((date) => !isBeforeScheduleStart(date))
+    if (dates.length > 0) setRangePicker({ personId, dates })
   }
-  function handleCellMouseEnter(personId: string, idx: number) {
-    setDrag((d) => (d && d.personId === personId ? { ...d, endIdx: idx } : d))
+  const { begin, extend, selectedIn } = useDragRange<string>(openPicker)
+
+  function handleCellMouseDown(personId: string, idx: number, event: React.MouseEvent) {
+    if (isBeforeScheduleStart(weekDates[idx])) return
+    begin(personId, idx, event)
+  }
+  function handleCellMouseEnter(personId: string, idx: number, event: React.MouseEvent) {
+    extend(personId, idx, event)
+  }
+  function handleCellKeyboardOpen(personId: string, idx: number) {
+    openPicker({ key: personId, start: idx, end: idx })
   }
 
   const filteredPeople = showExceptionsOnly
@@ -491,9 +480,10 @@ export function TeamsView({
                       person={p}
                       columns={columns}
                       gridTemplate={gridTemplate}
-                      drag={drag}
+                      selectedRange={selectedIn(p.id)}
                       onCellMouseDown={handleCellMouseDown}
                       onCellMouseEnter={handleCellMouseEnter}
+                      onCellKeyboardOpen={handleCellKeyboardOpen}
                       onEditWeek={isMonth ? undefined : setEditingWeekFor}
                     />
                   ))}
@@ -515,9 +505,10 @@ export function TeamsView({
                     person={p}
                     columns={columns}
                     gridTemplate={gridTemplate}
-                    drag={drag}
+                    selectedRange={selectedIn(p.id)}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
+                    onCellKeyboardOpen={handleCellKeyboardOpen}
                     onEditWeek={isMonth ? undefined : setEditingWeekFor}
                   />
                 ))}
