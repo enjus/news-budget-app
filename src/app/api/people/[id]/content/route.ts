@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dedupeVisualCredits, placedVisuals, todayString } from "@/lib/utils";
 import { CREDITED_STATUSES } from "@/lib/visual-statuses";
+import { ME_PAST_LIMIT } from "@/lib/me-sections";
 
 export const dynamic = 'force-dynamic'
 
@@ -19,9 +20,10 @@ export interface PersonContentItem {
   role: string;
 }
 
-// Safety cap on past items, across stories + visual credits + videos combined.
-// Only applied when the caller opts in via `?cap=1` (see GET below).
-const PAST_CAP = 10;
+// Past items returned in capped mode, across stories + visual credits + videos
+// combined. Only applied when the caller opts in via `?cap=1` (see GET below);
+// /me is the only caller, and shows this many before "View full history".
+const PAST_CAP = ME_PAST_LIMIT;
 
 // Safety cap on TBD/upcoming items (matches /api/budget/daily, /api/budget/agenda,
 // /api/budget/enterprise, /api/budget/edition, and /api/teams/[id]/content).
