@@ -51,8 +51,8 @@ notifyVisualDesk(visual).catch((error) => console.error("Visual request desk ema
 
 **Subject**
 
-- Normal: `News Budget visual request (Photo): <slug>`
-- Urgent: `URGENT visual request (Photo): <slug>`
+- Normal: `Visuals Request (Photo): <slug>`
+- Urgent: `Visuals Request URGENT (Photo): <slug>`
 
 Type label from `VISUAL_TYPE_LABELS` (`src/lib/visual-types.ts`). Slug is the story slug, matching `News Budget story updated: <slug>`.
 
@@ -93,7 +93,7 @@ Notes on fields:
 
 Reading inside the transaction and sending **after commit** matters: if the transaction rolls back, nothing is sent, and the email never says "deleted" about a story that still exists.
 
-**Email** (one per assignee; subject `News Budget story deleted: <slug>`):
+**Email** (one per assignee; subject `Visuals Request: story deleted: <slug>`):
 
 ```
 A story you have a visual assignment on was deleted from the News Budget.
