@@ -274,19 +274,19 @@ export function TeamsView({
   const monthMinWidth = `${10.5 + columns.length * (MONTH_COL_REM + 0.25) - 0.25}rem`
 
   // A single window `mouseup` listener while dragging catches a release
-  // outside the grid entirely — per-cell mouseup would miss that.
+  // outside the grid entirely — per-cell mouseup would miss that. The effect
+  // re-subscribes on every drag change, so `drag` here is current; the picker
+  // is opened from the handler, not inside a setDrag() updater (updaters run
+  // during render, twice in Strict Mode — see MonthCalendar).
   useEffect(() => {
     if (!drag) return
+    const current = drag
     function onUp() {
-      setDrag((d) => {
-        if (d) {
-          const lo = Math.min(d.startIdx, d.endIdx)
-          const hi = Math.max(d.startIdx, d.endIdx)
-          const dates = weekDates.slice(lo, hi + 1).filter((date) => !isBeforeScheduleStart(date))
-          if (dates.length > 0) setRangePicker({ personId: d.personId, dates })
-        }
-        return null
-      })
+      setDrag(null)
+      const lo = Math.min(current.startIdx, current.endIdx)
+      const hi = Math.max(current.startIdx, current.endIdx)
+      const dates = weekDates.slice(lo, hi + 1).filter((date) => !isBeforeScheduleStart(date))
+      if (dates.length > 0) setRangePicker({ personId: current.personId, dates })
     }
     window.addEventListener("mouseup", onUp)
     return () => window.removeEventListener("mouseup", onUp)

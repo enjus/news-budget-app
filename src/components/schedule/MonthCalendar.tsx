@@ -67,20 +67,22 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect }: M
   const [drag, setDrag] = useState<DragState | null>(null)
 
   // A single window `mouseup` listener while dragging catches a release
-  // outside the grid entirely — per-cell mouseup would miss that.
+  // outside the grid entirely — per-cell mouseup would miss that. The effect
+  // re-subscribes on every drag change, so `drag` here is current. The
+  // callbacks run from the event handler, never inside a setDrag() updater:
+  // updaters run during render (twice in Strict Mode), and setting the
+  // parent's state from one is the "Cannot update a component while
+  // rendering a different component" error.
   useEffect(() => {
     if (!drag) return
+    const current = drag
     function onUp() {
-      setDrag((d) => {
-        if (d) {
-          const lo = Math.min(d.startCol, d.endCol)
-          const hi = Math.max(d.startCol, d.endCol)
-          const dates = weeks[d.weekIdx].slice(lo, hi + 1).filter((date): date is string => date !== null)
-          if (dates.length === 1) onDayClick(dates[0])
-          else if (dates.length > 1) onRangeSelect(dates)
-        }
-        return null
-      })
+      setDrag(null)
+      const lo = Math.min(current.startCol, current.endCol)
+      const hi = Math.max(current.startCol, current.endCol)
+      const dates = weeks[current.weekIdx].slice(lo, hi + 1).filter((date): date is string => date !== null)
+      if (dates.length === 1) onDayClick(dates[0])
+      else if (dates.length > 1) onRangeSelect(dates)
     }
     window.addEventListener("mouseup", onUp)
     return () => window.removeEventListener("mouseup", onUp)
