@@ -130,6 +130,7 @@ export function MonthCalendar({ monthStart, days, onDayClick, onRangeSelect, mar
                           note={dayByDate[date]?.note}
                           amNote={dayByDate[date]?.amNote}
                           pmNote={dayByDate[date]?.pmNote}
+                          shiftRoles={dayByDate[date]?.shiftRoles}
                           size="sm"
                         />
                       </div>

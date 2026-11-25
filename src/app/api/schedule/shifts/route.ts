@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftAssignmentSchema } from "@/lib/validations";
-import { canEditSchedule, dateOnly, toDateString, weekdayName, SHIFT_ROLES } from "@/lib/utils";
-import { clampToScheduleStart, resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, isPlainWorkingSet, type AvailabilityEntry } from "@/lib/schedule";
+import { canEditSchedule, dateOnly, toDateString, SHIFT_ROLES } from "@/lib/utils";
+import { clampToScheduleStart, resolveDay, detectShiftConflict, describeShiftConflict, shiftDaysInWindow, mergeShiftDays, type AvailabilityEntry } from "@/lib/schedule";
 import { loadScheduleWindow } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
@@ -69,7 +69,6 @@ export async function GET(request: NextRequest) {
 
     const days = shiftDays.map((day) => {
       const forDate = assignmentsByDate.get(day.date) ?? [];
-      const weekdayLabel = weekdayName(day.date);
       const roles: Record<string, unknown[]> = {};
       for (const role of SHIFT_ROLES) {
         roles[role] = forDate
@@ -82,13 +81,14 @@ export async function GET(request: NextRequest) {
               status: r.status,
             }));
             const personWorkSchedule = workScheduleByPerson.get(a.personId) ?? [];
-            const resolved = resolveDay(dateOnly(day.date), entries, personWorkSchedule, markers);
+            const shifts = forDate.filter((f) => f.personId === a.personId).map((f) => ({ date: day.date, shiftRole: f.shiftRole }));
+            const resolved = resolveDay(dateOnly(day.date), entries, personWorkSchedule, markers, shifts);
             return {
               id: a.id,
               personId: a.personId,
               name: a.person.name,
               note: a.note,
-              conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name, weekdayLabel),
+              conflict: describeShiftConflict(detectShiftConflict(resolved), a.person.name),
             };
           });
       }
@@ -107,10 +107,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: assign one person to one role slot on one date. Optionally writes
-// the matching Availability FULL_DAY/WORKING row (issue #19 §6) so the
-// person shows as working everywhere else, using the same delete-then-create
-// shape POST /api/schedule/availability uses, scoped to one date/person.
+// POST: assign one person to one role slot on one date. Writes only the
+// ShiftAssignment: shifts are the source of truth for shift coverage, and
+// every schedule view reads them through resolveDay() — there's no matching
+// Availability row to keep in step.
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { date, shiftRole, personId, note, writeWorkingRow } = result.data;
+    const { date, shiftRole, personId, note } = result.data;
 
     const person = await prisma.person.findUnique({ where: { id: personId }, select: { id: true, isStaff: true } });
     if (!person) {
@@ -146,46 +146,12 @@ export async function POST(request: NextRequest) {
 
     const dateObj = dateOnly(date);
 
-    const { assignment, workingRowSkipped } = await prisma.$transaction(async (tx) => {
-      const created = await tx.shiftAssignment.create({
-        data: { date: dateObj, shiftRole, personId, note: note ?? null, createdByUserId: session.user.id },
-        include: { person: { select: { id: true, name: true } } },
-      });
-
-      let skipped = false;
-      if (writeWorkingRow) {
-        // Don't silently clobber an existing OUT/UNAVAILABLE entry (or one
-        // carrying a note) — that's the exact "lost notes, silent no-op" bug
-        // class already fixed once on this branch for the availability
-        // write path. Only overwrite when the existing rows are themselves
-        // already a plain, note-free WORKING day (or there's nothing there).
-        const existing = await tx.availability.findMany({
-          where: { personId, date: dateObj, segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] } },
-        });
-        const conflicts = !isPlainWorkingSet(existing);
-        if (conflicts) {
-          skipped = true;
-        } else {
-          await tx.availability.deleteMany({
-            where: { personId, date: dateObj, segment: { in: ["FULL_DAY", "MORNING", "AFTERNOON"] } },
-          });
-          await tx.availability.create({
-            data: {
-              personId,
-              date: dateObj,
-              segment: "FULL_DAY",
-              status: "WORKING",
-              createdByUserId: session.user.id,
-              updatedByUserId: session.user.id,
-            },
-          });
-        }
-      }
-
-      return { assignment: created, workingRowSkipped: skipped };
+    const assignment = await prisma.shiftAssignment.create({
+      data: { date: dateObj, shiftRole, personId, note: note ?? null, createdByUserId: session.user.id },
+      include: { person: { select: { id: true, name: true } } },
     });
 
-    return NextResponse.json({ ...assignment, workingRowSkipped }, { status: 201 });
+    return NextResponse.json(assignment, { status: 201 });
   } catch (error: unknown) {
     if (prismaErrorCode(error) === "P2002") {
       return NextResponse.json({ error: "Already assigned to this shift" }, { status: 409 });

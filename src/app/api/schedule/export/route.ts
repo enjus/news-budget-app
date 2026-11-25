@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dateOnly, displayName, toDateString } from "@/lib/utils";
-import { clampToScheduleStart, isBeforeScheduleStart, SCHEDULE_START_LABEL, resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
-import { loadScheduleWindow, type AvailabilityRow } from "@/lib/schedule-queries";
+import { dateOnly, displayName, toDateString, SHIFT_ROLE_LABELS } from "@/lib/utils";
+import { clampToScheduleStart, isBeforeScheduleStart, SCHEDULE_START_LABEL, resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, shiftRolesOn, type AvailabilityEntry, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule";
+import { loadScheduleWindow, toShiftEntries, type AvailabilityRow } from "@/lib/schedule-queries";
 import { toCsvRow } from "@/lib/csv";
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +18,12 @@ function segmentLabel(segment: ResolvedSegment): string {
   if (segment.status === "off" && segment.reason === "availability") return "Out";
   if (segment.status === "unavailable") return "Unavailable";
   if (segment.status === "working" && segment.source === "availability") return "Working (override)";
+  if (segment.status === "working" && segment.source === "shift") return `Working (shift: ${roleList(segment.shiftRoles)})`;
   return "Working";
+}
+
+function roleList(roles: string[]): string {
+  return roles.map((r) => SHIFT_ROLE_LABELS[r] ?? r).join(", ");
 }
 
 function statusLabel(resolved: ResolvedDay): string {
@@ -80,7 +85,7 @@ export async function GET(request: NextRequest) {
     // here — skipNonWorkingDays only matters for a write).
     const dates = expandDateRange(exportStart, end, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
 
-    const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
+    const { roster, teams, availabilityByPerson, workScheduleByPerson, shiftsByPerson, markers } = await loadScheduleWindow(
       startDate,
       endDate,
       ["HOLIDAY", "BLACKOUT"]
@@ -89,7 +94,7 @@ export async function GET(request: NextRequest) {
     const holidayMarkers = markers.filter((m) => m.kind === "HOLIDAY");
     const blackoutMarkers = markers.filter((m) => m.kind === "BLACKOUT");
 
-    const rows: string[] = [toCsvRow(["Person", "Teams", "Date", "Status", "Note", "In blackout"])];
+    const rows: string[] = [toCsvRow(["Person", "Teams", "Date", "Status", "Note", "In blackout", "Shift"])];
 
     for (const person of roster) {
       const teamNames = person.teamIds.map((id) => teamNameById.get(id) ?? id).join("; ");
@@ -100,9 +105,10 @@ export async function GET(request: NextRequest) {
         status: r.status,
       }));
       const personWorkSchedule = workScheduleByPerson.get(person.id) ?? [];
+      const shifts = toShiftEntries(shiftsByPerson.get(person.id) ?? []);
 
       for (const date of dates) {
-        const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers);
+        const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers, shifts);
         const inBlackout = detectBlackoutOverlap([date], blackoutMarkers).length > 0;
         const rowsForDate = rawRows.filter((r) => toDateString(r.date) === date);
 
@@ -114,6 +120,9 @@ export async function GET(request: NextRequest) {
             statusLabel(resolved),
             noteFor(resolved, rowsForDate),
             inBlackout ? "Y" : "N",
+            // Its own column (not only in Status) so a shift the person is
+            // out for still shows: an explicit OUT beats the shift.
+            roleList(shiftRolesOn(shifts, date).shiftRoles ?? []),
           ])
         );
       }

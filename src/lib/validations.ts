@@ -275,6 +275,20 @@ export const updateAvailabilitySchema = z.object({
   note: z.string().max(500).nullable().optional(),
 });
 
+// POST /api/schedule/availability/clear — deletes a person's explicit
+// availability entries (whole and half day) across a range, so each day
+// falls back to its shift, standing pattern or holiday. Shifts are never
+// touched; they're changed only on /schedule/shifts. Same 180-day cap as
+// the range write, enforced in the route.
+export const clearAvailabilitySchema = z.object({
+  personId: z.string().cuid(),
+  startDate: scheduleDateString,
+  endDate: scheduleDateString,
+}).refine((data) => data.endDate >= data.startDate, {
+  message: "End date must be on or after start date",
+  path: ["endDate"],
+});
+
 // One day's desired resolved value, for the one-off week editor's diff. A
 // `revert` row means "delete whatever override exists for this date and let
 // it fall back to the standing pattern/holiday baseline" — used instead of
@@ -302,16 +316,14 @@ export const putWeekAvailabilitySchema = z.object({
 export const ShiftRoleEnum = z.enum(["GA_REPORTER", "EDITOR", "SOCIAL_VIDEO_PRODUCER", "VISUAL_JOURNALIST"]);
 
 // POST /api/schedule/shifts — assigns one person to one role slot on one
-// shift day. writeWorkingRow defaults true: the common case for keying in a
-// season is "this person is now working this day" (issue #19 §6), and the
-// route writes the matching Availability FULL_DAY/WORKING row alongside the
-// ShiftAssignment when set.
+// date. It writes no Availability row (shifts are read directly by
+// resolveDay()); an older client's `writeWorkingRow` is stripped by Zod and
+// ignored.
 export const createShiftAssignmentSchema = z.object({
   date: scheduleDateString,
   shiftRole: ShiftRoleEnum,
   personId: z.string().cuid(),
   note: z.string().max(500).nullable().optional(),
-  writeWorkingRow: z.boolean().default(true),
 });
 
 // PATCH /api/schedule/shifts/[id] — date/shiftRole/personId are the row's

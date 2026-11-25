@@ -8,10 +8,9 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Plus, X, AlertTriangle, Info, Pencil, Check } from "lucide-react"
+import { Plus, X, AlertTriangle, Pencil, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -32,7 +31,6 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
   const [open, setOpen] = useState(false)
   const [personId, setPersonId] = useState<string | null>(null)
   const [note, setNote] = useState("")
-  const [writeWorkingRow, setWriteWorkingRow] = useState(true)
   const [saving, setSaving] = useState(false)
 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
@@ -45,7 +43,6 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
   function reset() {
     setPersonId(null)
     setNote("")
-    setWriteWorkingRow(true)
   }
 
   async function handleAssign() {
@@ -55,18 +52,13 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
       const res = await fetch(apiPath("/api/schedule/shifts"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, shiftRole, personId, note: note || null, writeWorkingRow }),
+        body: JSON.stringify({ date, shiftRole, personId, note: note || null }),
       })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error ?? "Failed to assign shift")
       }
-      const created = await res.json()
-      if (writeWorkingRow && created.workingRowSkipped) {
-        toast.warning("Assigned — left their existing availability entry for that day unchanged (it wasn't a plain working day).")
-      } else {
-        toast.success("Assigned")
-      }
+      toast.success("Assigned")
       onSaved()
       reset()
       setOpen(false)
@@ -84,15 +76,7 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
         const err = await res.json()
         throw new Error(err.error ?? "Failed to remove assignment")
       }
-      const result = await res.json()
-      // TODO: once schedule views support deep-linking to a specific
-      // person/date, link the warning toast straight there instead of
-      // just naming "check accuracy".
-      if (result.availabilityReverted) {
-        toast.success("Removed from shift. Schedule reverted to default.")
-      } else {
-        toast.warning("Removed from shift. Schedule unchanged — check accuracy.")
-      }
+      toast.success("Removed from shift")
       onSaved()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove assignment")
@@ -172,16 +156,6 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
                     className="text-base"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id={`working-${date}-${shiftRole}`}
-                    checked={writeWorkingRow}
-                    onCheckedChange={(checked) => setWriteWorkingRow(checked === true)}
-                  />
-                  <Label htmlFor={`working-${date}-${shiftRole}`} className="font-normal text-xs">
-                    Also mark as working
-                  </Label>
-                </div>
                 <Button size="sm" className="w-full" onClick={handleAssign} disabled={saving}>
                   {saving ? "Saving..." : "Assign"}
                 </Button>
@@ -234,11 +208,7 @@ export function ShiftRoleSlot({ date, shiftRole, roleLabel, assignments, roster,
                   <span className="flex items-center gap-1 min-w-0">
                     {a.conflict && (
                       <span title={a.conflict.message}>
-                        {a.conflict.severity === "warning" ? (
-                          <AlertTriangle className="size-3.5 shrink-0 text-red-500" />
-                        ) : (
-                          <Info className="size-3.5 shrink-0 text-amber-500" />
-                        )}
+                        <AlertTriangle className="size-3.5 shrink-0 text-red-500" aria-label={a.conflict.message} />
                       </span>
                     )}
                     <span className="truncate">{displayName(a.name)}</span>

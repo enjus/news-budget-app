@@ -7,6 +7,9 @@ export type WeekScheduleDay = ResolvedDay & {
   note: string | null
   amNote?: string | null
   pmNote?: string | null
+  /** Shift roles assigned this date, if any — sent even when an explicit
+   *  OUT beats the shift, so the chip can flag the conflict. */
+  shiftRoles?: string[]
   inBlackout: boolean
   /** Before the schedule start date (issue #85) — the server sends only
    *  `date` and this flag; every other field is absent. Render a neutral

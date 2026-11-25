@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { addDays, dateOnly, toDateString } from "@/lib/utils";
-import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, isBeforeScheduleStart, type AvailabilityEntry } from "@/lib/schedule";
-import { loadScheduleWindow } from "@/lib/schedule-queries";
+import { resolveDay, resolveNotes, detectBlackoutOverlap, expandDateRange, isBeforeScheduleStart, shiftRolesOn, type AvailabilityEntry } from "@/lib/schedule";
+import { loadScheduleWindow, toShiftEntries } from "@/lib/schedule-queries";
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const weekDates = expandDateRange(start, windowEnd, { skipNonWorkingDays: false, workSchedule: [], markers: [] });
     const endDate = dateOnly(weekDates[weekDates.length - 1]);
 
-    const { roster, teams, availabilityByPerson, workScheduleByPerson, markers } = await loadScheduleWindow(
+    const { roster, teams, availabilityByPerson, workScheduleByPerson, shiftsByPerson, markers } = await loadScheduleWindow(
       startDate,
       endDate,
       ["HOLIDAY", "BLACKOUT", "NOTE"]
@@ -65,15 +65,16 @@ export async function GET(request: NextRequest) {
         status: r.status,
       }));
       const personWorkSchedule = workScheduleByPerson.get(person.id) ?? [];
+      const shifts = toShiftEntries(shiftsByPerson.get(person.id) ?? []);
 
       const days = weekDates.map((date) => {
         // Issue #85: pre-cutover dates live in the spreadsheet — never resolve
         // them (the standing pattern would show everyone as working).
         if (isBeforeScheduleStart(date)) return { date, untracked: true as const };
-        const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers);
+        const resolved = resolveDay(dateOnly(date), entries, personWorkSchedule, holidayMarkers, shifts);
         const inBlackout = detectBlackoutOverlap([date], blackoutMarkers).length > 0;
         const rowsForDate = rows.filter((r) => toDateString(r.date) === date);
-        return { date, ...resolved, ...resolveNotes(resolved, rowsForDate), inBlackout };
+        return { date, ...resolved, ...resolveNotes(resolved, rowsForDate), inBlackout, ...shiftRolesOn(shifts, date) };
       });
 
       return {

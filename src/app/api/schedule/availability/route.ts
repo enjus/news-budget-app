@@ -4,7 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createAvailabilitySchema } from "@/lib/validations";
 import { canEditSchedule, dateOnly } from "@/lib/utils";
-import { expandDateRange, detectBlackoutOverlap } from "@/lib/schedule";
+import { expandDateRange, detectBlackoutOverlap, detectShiftOverlap } from "@/lib/schedule";
+import { toShiftEntries } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Person not found" }, { status: 404 });
     }
 
-    const [workSchedule, markers] = await Promise.all([
+    const [workSchedule, markers, shiftRows] = await Promise.all([
       prisma.workSchedule.findMany({
         where: { personId },
         select: { weekday: true, segment: true },
@@ -60,12 +61,20 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, kind: true, label: true, startDate: true, endDate: true, observed: true },
       }),
+      prisma.shiftAssignment.findMany({
+        where: { personId, date: { gte: startBound, lte: endBound } },
+        select: { date: true, shiftRole: true },
+      }),
     ]);
+    const shifts = toShiftEntries(shiftRows);
 
+    // A shift day counts as a working day, so "skip non-working days" keeps
+    // it: booking a week OUT across a shift Saturday records the conflict.
     const dates = expandDateRange(startDate, endDate, {
       skipNonWorkingDays,
       workSchedule,
       markers: markers.filter((m) => m.kind === "HOLIDAY"),
+      shifts,
     });
 
     if (dates.length === 0) {
@@ -111,7 +120,10 @@ export async function POST(request: NextRequest) {
     });
 
     const blackoutMarkers = markers.filter((m) => m.kind === "BLACKOUT");
-    const warnings = detectBlackoutOverlap(dates, blackoutMarkers);
+    const warnings = [
+      ...detectBlackoutOverlap(dates, blackoutMarkers),
+      ...detectShiftOverlap(dates, rows.map((r) => r.status), shifts),
+    ];
 
     return NextResponse.json({ entries, warnings }, { status: 201 });
   } catch (error: unknown) {

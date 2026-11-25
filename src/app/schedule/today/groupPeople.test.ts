@@ -27,16 +27,23 @@ describe("groupPeople", () => {
     expect(allListed.some((p) => p.id === "working")).toBe(false)
   })
 
-  it("on a holiday, only lists explicit WORKING/UNAVAILABLE overrides — never off/regular or off/holiday", () => {
+  it("on a holiday, only lists shifts and explicit WORKING/UNAVAILABLE overrides — never off/regular or off/holiday", () => {
     const people = [
-      person("shift-worker", { split: false, status: "working", source: "availability" }),
+      person("override-worker", { split: false, status: "working", source: "availability" }),
+      person("shift-worker", {
+        split: false,
+        status: "working",
+        source: "shift",
+        shiftRoles: ["EDITOR"],
+        baseline: { status: "off", reason: "holiday", markerId: "h1", markerLabel: "Thanksgiving" },
+      }),
       person("off-site", { split: false, status: "unavailable", source: { date: "2026-11-26", segment: "FULL_DAY", status: "UNAVAILABLE" } }),
       person("normal-holiday-off", { split: false, status: "off", reason: "holiday", markerId: "h1", markerLabel: "Thanksgiving" }),
       person("standing-day-off", { split: false, status: "off", reason: "regular" }),
     ]
 
     const grouped = groupPeople(people, true)
-    expect(grouped.workingOnHoliday.map((p) => p.id).sort()).toEqual(["off-site", "shift-worker"])
+    expect(grouped.workingOnHoliday.map((p) => p.id).sort()).toEqual(["off-site", "override-worker", "shift-worker"])
     expect(grouped.out).toEqual([])
     expect(grouped.regularlyOff).toEqual([])
   })

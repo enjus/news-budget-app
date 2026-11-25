@@ -8,6 +8,9 @@ export type MyScheduleDay = ResolvedDay & {
   note: string | null
   amNote?: string | null
   pmNote?: string | null
+  /** Shift roles assigned this date, if any — sent even when an explicit
+   *  OUT beats the shift, so the chip can flag the conflict. */
+  shiftRoles?: string[]
   /** Before the schedule start date (issue #85): the server sends only `date`
    *  and this flag — every resolved field is absent. */
   untracked?: boolean

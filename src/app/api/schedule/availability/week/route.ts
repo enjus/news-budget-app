@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { putWeekAvailabilitySchema } from "@/lib/validations";
 import { canEditSchedule, dateOnly, toDateString } from "@/lib/utils";
 import { computeWeekDiff, resolveDay, type AvailabilityEntry } from "@/lib/schedule";
+import { toShiftEntries } from "@/lib/schedule-queries";
 import { checkWriteLimit, requireJSON, prismaErrorCode } from "@/lib/api-helpers";
 
 export const dynamic = 'force-dynamic'
@@ -52,7 +53,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const finalDays = await prisma.$transaction(async (tx) => {
-      const [existingRows, workSchedule, markers] = await Promise.all([
+      const [existingRows, workSchedule, markers, shiftRows] = await Promise.all([
         tx.availability.findMany({
           where: { personId, date: { gte: rangeStart, lte: rangeEnd } },
           select: { id: true, date: true, segment: true, status: true, note: true },
@@ -62,7 +63,12 @@ export async function PUT(request: NextRequest) {
           where: { kind: "HOLIDAY", observed: true, startDate: { lte: rangeEnd }, endDate: { gte: rangeStart } },
           select: { id: true, kind: true, label: true, startDate: true, endDate: true, observed: true },
         }),
+        tx.shiftAssignment.findMany({
+          where: { personId, date: { gte: rangeStart, lte: rangeEnd } },
+          select: { date: true, shiftRole: true },
+        }),
       ]);
+      const shifts = toShiftEntries(shiftRows);
 
       const existingByKey = existingRows.map((r) => ({
         id: r.id,
@@ -72,7 +78,7 @@ export async function PUT(request: NextRequest) {
         note: r.note,
       }));
 
-      const diff = computeWeekDiff(days, existingByKey, workSchedule, markers);
+      const diff = computeWeekDiff(days, existingByKey, workSchedule, markers, shifts);
 
       if (diff.toDelete.length > 0) {
         await tx.availability.deleteMany({ where: { id: { in: diff.toDelete.map((d) => d.id) } } });
@@ -103,7 +109,7 @@ export async function PUT(request: NextRequest) {
         status: r.status,
       }));
 
-      return dates.map((date) => ({ date, ...resolveDay(dateOnly(date), availability, workSchedule, markers) }));
+      return dates.map((date) => ({ date, ...resolveDay(dateOnly(date), availability, workSchedule, markers, shifts) }));
     });
 
     return NextResponse.json({ days: finalDays });

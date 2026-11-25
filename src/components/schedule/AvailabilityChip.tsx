@@ -3,9 +3,17 @@
 // /schedule/teams (Phase 3) don't grow a second and third copy of the same
 // verdict-to-appearance logic (issue #19 Phase 2 progress note).
 
-import type { ResolvedDay, ResolvedSegment } from "@/lib/schedule"
+import { detectShiftConflict, type ResolvedDay, type ResolvedSegment } from "@/lib/schedule"
+import { SHIFT_ROLE_LABELS } from "@/lib/utils"
 
 export type ResolvedDayLike = ResolvedDay | undefined
+
+const SHIFT_CLASSES = "bg-teal-100 text-teal-900 dark:bg-teal-950/50 dark:text-teal-200"
+
+/** "Editor shift", "Editor + GA Reporter shift". */
+export function shiftLabel(roles: string[]): string {
+  return `${roles.map((r) => SHIFT_ROLE_LABELS[r] ?? r).join(" + ")} shift`
+}
 
 export function resolvedDayClasses(day: ResolvedDayLike): string {
   if (!day) return "bg-transparent"
@@ -14,6 +22,7 @@ export function resolvedDayClasses(day: ResolvedDayLike): string {
   if (day.status === "off" && day.reason === "holiday") return "bg-violet-100 dark:bg-violet-950/40"
   if (day.status === "off" && day.reason === "availability") return "bg-rose-100 dark:bg-rose-950/40"
   if (day.status === "unavailable") return "bg-amber-100 dark:bg-amber-950/40"
+  if (day.status === "working" && day.source === "shift") return SHIFT_CLASSES
   return "bg-transparent"
 }
 
@@ -25,6 +34,7 @@ export function resolvedDayLabel(day: ResolvedDayLike): string {
   if (day.status === "off" && day.reason === "availability") return "Out"
   if (day.status === "unavailable") return "Unavailable"
   if (day.status === "working" && day.source === "availability") return "Working"
+  if (day.status === "working" && day.source === "shift") return shiftLabel(day.shiftRoles)
   return ""
 }
 
@@ -38,6 +48,7 @@ export function resolvedSegmentLabel(segment: ResolvedSegment): string {
   if (segment.status === "off" && segment.reason === "holiday") return segment.markerLabel
   if (segment.status === "off" && segment.reason === "availability") return "Out"
   if (segment.status === "unavailable") return "Unavailable"
+  if (segment.status === "working" && segment.source === "shift") return "Shift"
   return "Working"
 }
 
@@ -49,6 +60,7 @@ export function resolvedSegmentClasses(segment: ResolvedSegment): string {
   if (segment.status === "off" && segment.reason === "holiday") return "bg-violet-100 dark:bg-violet-950/40"
   if (segment.status === "off" && segment.reason === "availability") return "bg-rose-100 dark:bg-rose-950/40"
   if (segment.status === "unavailable") return "bg-amber-100 dark:bg-amber-950/40"
+  if (segment.status === "working" && segment.source === "shift") return SHIFT_CLASSES
   return "bg-transparent"
 }
 
@@ -68,6 +80,11 @@ interface AvailabilityChipProps {
    *  since a split day's two halves can each carry their own. */
   amNote?: string | null
   pmNote?: string | null
+  /** Shift roles assigned this date (from the API's `shiftRoles`). Only
+   *  needed for the conflict dot: when an explicit OUT/UNAVAILABLE entry
+   *  beats the shift, `day` no longer says "shift", but the assignment still
+   *  stands until it's reassigned on /schedule/shifts. */
+  shiftRoles?: string[]
   /** "sm" for compact grid cells (team grid), "md" for month-calendar cells. */
   size?: "sm" | "md"
   className?: string
@@ -81,8 +98,18 @@ interface AvailabilityChipProps {
  *  and labeled — which half is worked and which isn't is exactly the
  *  information a split day exists to carry, so collapsing it to a single
  *  "Split" chip (the original behavior) lost the one thing worth showing. */
-export function AvailabilityChip({ day, inBlackout, note, amNote, pmNote, size = "md", className }: AvailabilityChipProps) {
+export function AvailabilityChip({ day, inBlackout, note, amNote, pmNote, shiftRoles, size = "md", className }: AvailabilityChipProps) {
   const textSize = size === "sm" ? "text-[10px]" : "text-xs"
+  // Same rule /schedule/shifts flags with: an explicit OUT beat the shift.
+  const shiftConflict = shiftRoles && shiftRoles.length > 0 && day && detectShiftConflict(day) !== null
+  const conflictDot = shiftConflict ? (
+    <span
+      className="ml-0.5 shrink-0 text-red-600 dark:text-red-400"
+      title={`Assigned the ${shiftLabel(shiftRoles)} but marked out — reassign it on the Shifts page`}
+    >
+      ●
+    </span>
+  ) : null
 
   // flex-1/items-center below let the chip stretch to fill a flex parent
   // (the team grid's bordered cells) instead of sitting as a small inset
@@ -111,6 +138,7 @@ export function AvailabilityChip({ day, inBlackout, note, amNote, pmNote, size =
             ●
           </span>
         )}
+        {conflictDot && <span className="px-0.5">{conflictDot}</span>}
       </div>
     )
   }
@@ -132,6 +160,7 @@ export function AvailabilityChip({ day, inBlackout, note, amNote, pmNote, size =
           ●
         </span>
       )}
+      {conflictDot}
     </div>
   )
 }

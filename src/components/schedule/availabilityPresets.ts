@@ -68,3 +68,40 @@ export function presetForResolvedDay(day: MyScheduleDay | undefined): PresetId |
   if (day.status === "unavailable") return "UNAVAILABLE"
   return "BASELINE"
 }
+
+export interface ClearSummary {
+  /** Dates in range with an explicit entry Clear would delete. */
+  overrideDates: string[]
+  /** Dates in range with a shift — Clear leaves these alone. */
+  shiftDates: string[]
+  /** Whether every date in range was in `knownDays`. When false, the counts
+   *  cover only the loaded part (the picker's date inputs can be widened
+   *  past what the view fetched), so the UI shouldn't state a number. */
+  complete: boolean
+}
+
+/** What "Clear" would do over [start, end], from the days a view already
+ *  has loaded. Any explicit entry resolves with source "availability"
+ *  (whole day or either half), which presetForResolvedDay() reports as a
+ *  non-BASELINE preset; untracked (pre-cutover) days are skipped. */
+export function summarizeClear(
+  start: string,
+  end: string,
+  knownDays: Record<string, MyScheduleDay | undefined>
+): ClearSummary {
+  const summary: ClearSummary = { overrideDates: [], shiftDates: [], complete: true }
+  if (!start || !end || end < start) return { ...summary, complete: false }
+  let cursor = new Date(`${start}T00:00:00.000Z`)
+  const last = new Date(`${end}T00:00:00.000Z`)
+  while (cursor.getTime() <= last.getTime()) {
+    const date = cursor.toISOString().slice(0, 10)
+    const day = knownDays[date]
+    if (!day) summary.complete = false
+    else if (!day.untracked) {
+      if (presetForResolvedDay(day) !== "BASELINE") summary.overrideDates.push(date)
+      if (day.shiftRoles && day.shiftRoles.length > 0) summary.shiftDates.push(date)
+    }
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+  }
+  return summary
+}
