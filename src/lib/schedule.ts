@@ -6,7 +6,7 @@
 // given day goes through it, so its precedence order and date-arithmetic
 // have to be right once, here, rather than reimplemented per-view.
 
-import { toDateString, displayName, todayString } from "./utils"
+import { toDateString, displayName, todayString, dateOnly } from "./utils"
 
 /** First date the app tracks (issue #85). Anything earlier lives only in the
  *  PTO spreadsheet, so it must never resolve to a status here — the standing
@@ -530,6 +530,51 @@ export function resolveMarkerBands(
   return markers
     .map((m) => bandSpan(m, weekDates))
     .filter((s): s is MarkerBandSpan => s !== null)
+}
+
+/** Whether a resolved day already names this holiday in its own cell (a
+ *  whole-day "holiday" verdict, or either half of a split day). */
+function showsHolidayInline(day: ResolvedDay | undefined, markerId: string): boolean {
+  if (!day) return false
+  if (day.split) {
+    return [day.am, day.pm].some((s) => s.status === "off" && s.reason === "holiday" && s.markerId === markerId)
+  }
+  return day.status === "off" && day.reason === "holiday" && day.markerId === markerId
+}
+
+/**
+ * Which markers a month grid (/schedule/me) should band, out of those
+ * returned for the month. `from`/`to` bound the visible, tracked part of the
+ * month; a marker entirely outside it is dropped.
+ *
+ * An observed holiday is dropped only when every visible day it covers
+ * already shows it inline (resolveDay() reason "holiday"). It doesn't when
+ * the person's standing pattern has them off that day, or an explicit
+ * availability entry overrides it; then the band is the only place the
+ * holiday's name appears. Every other kind (blackout, note, unobserved
+ * holiday) never affects a day's verdict, so it's always banded.
+ */
+export function monthBandMarkers<M extends { id: string; kind: string; observed: boolean; startDate: Date | string; endDate: Date | string }>(
+  markers: M[],
+  dayByDate: Record<string, ResolvedDay | undefined>,
+  from: string,
+  to: string
+): M[] {
+  return markers.filter((m) => {
+    const start = markerDateStr(m.startDate)
+    const end = markerDateStr(m.endDate)
+    const visibleStart = start > from ? start : from
+    const visibleEnd = end < to ? end : to
+    if (visibleStart > visibleEnd) return false
+    if (m.kind !== "HOLIDAY" || !m.observed) return true
+
+    let cursor = dateOnly(visibleStart)
+    while (toDateString(cursor) <= visibleEnd) {
+      if (!showsHolidayInline(dayByDate[toDateString(cursor)], m.id)) return true
+      cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)
+    }
+    return false
+  })
 }
 
 // ─── Shifts (Phase 4) ───────────────────────────────────────────────────────

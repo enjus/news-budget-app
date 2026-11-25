@@ -10,9 +10,11 @@ import {
   isBeforeScheduleStart,
   clampToScheduleStart,
   expandDateRange,
+  monthBandMarkers,
   SCHEDULE_START_DATE,
   type ResolveDayMarker,
   type ResolveDayWorkSchedule,
+  type ResolvedDay,
 } from "./schedule"
 import { dateOnly } from "./utils"
 
@@ -415,5 +417,76 @@ describe("schedule start floor (issue #85)", () => {
     expect(week).toHaveLength(7)
     expect(week.filter(isBeforeScheduleStart)).toEqual(["2026-12-28", "2026-12-29", "2026-12-30", "2026-12-31"])
     expect(week.filter((d) => !isBeforeScheduleStart(d))).toEqual(["2027-01-01", "2027-01-02", "2027-01-03"])
+  })
+})
+
+describe("monthBandMarkers", () => {
+  const marker = (id: string, kind: string, start: string, end: string, observed = true) => ({
+    id,
+    kind,
+    label: id,
+    observed,
+    startDate: dateOnly(start),
+    endDate: dateOnly(end),
+  })
+  const holidayOff = (markerId: string): ResolvedDay => ({ split: false, status: "off", reason: "holiday", markerId, markerLabel: markerId })
+  const regularOff: ResolvedDay = { split: false, status: "off", reason: "regular" }
+  const FROM = "2027-01-01"
+  const TO = "2027-01-31"
+
+  it("always bands blackouts, notes and unobserved holidays", () => {
+    const markers = [
+      marker("b", "BLACKOUT", "2027-01-11", "2027-01-22"),
+      marker("n", "NOTE", "2027-01-06", "2027-01-06"),
+      marker("u", "HOLIDAY", "2027-01-29", "2027-02-02", false),
+    ]
+    expect(monthBandMarkers(markers, {}, FROM, TO).map((m) => m.id)).toEqual(["b", "n", "u"])
+  })
+
+  it("drops markers entirely outside the visible range", () => {
+    const markers = [marker("before", "NOTE", "2026-12-20", "2026-12-31"), marker("after", "BLACKOUT", "2027-02-01", "2027-02-05")]
+    expect(monthBandMarkers(markers, {}, FROM, TO)).toEqual([])
+  })
+
+  it("skips an observed holiday every visible day already shows inline", () => {
+    const markers = [marker("mlk", "HOLIDAY", "2027-01-18", "2027-01-18")]
+    expect(monthBandMarkers(markers, { "2027-01-18": holidayOff("mlk") }, FROM, TO)).toEqual([])
+  })
+
+  it("bands an observed holiday on a regular day off (e.g. a Tue–Sat worker's Monday)", () => {
+    const markers = [marker("mlk", "HOLIDAY", "2027-01-18", "2027-01-18")]
+    expect(monthBandMarkers(markers, { "2027-01-18": regularOff }, FROM, TO).map((m) => m.id)).toEqual(["mlk"])
+  })
+
+  it("bands an observed holiday overridden by an explicit availability entry", () => {
+    const markers = [marker("mlk", "HOLIDAY", "2027-01-18", "2027-01-18")]
+    const working: ResolvedDay = { split: false, status: "working", source: "availability" }
+    expect(monthBandMarkers(markers, { "2027-01-18": working }, FROM, TO).map((m) => m.id)).toEqual(["mlk"])
+  })
+
+  it("bands a multi-day observed holiday when only some days show it", () => {
+    const markers = [marker("xmas", "HOLIDAY", "2027-12-24", "2027-12-26")]
+    const days = { "2027-12-24": holidayOff("xmas"), "2027-12-25": regularOff, "2027-12-26": regularOff }
+    expect(monthBandMarkers(markers, days, "2027-12-01", "2027-12-31").map((m) => m.id)).toEqual(["xmas"])
+  })
+
+  it("only checks the visible part of a holiday that crosses the month edge", () => {
+    const markers = [marker("nyd", "HOLIDAY", "2026-12-31", "2027-01-01")]
+    expect(monthBandMarkers(markers, { "2027-01-01": holidayOff("nyd") }, FROM, TO)).toEqual([])
+  })
+
+  it("counts either half of a split day as showing the holiday", () => {
+    const markers = [marker("mlk", "HOLIDAY", "2027-01-18", "2027-01-18")]
+    const split: ResolvedDay = {
+      split: true,
+      am: { status: "working", source: "availability" },
+      pm: { status: "off", reason: "holiday", markerId: "mlk", markerLabel: "mlk" },
+    }
+    expect(monthBandMarkers(markers, { "2027-01-18": split }, FROM, TO)).toEqual([])
+  })
+
+  it("bands an observed holiday whose days haven't loaded yet", () => {
+    const markers = [marker("mlk", "HOLIDAY", "2027-01-18", "2027-01-18")]
+    expect(monthBandMarkers(markers, {}, FROM, TO).map((m) => m.id)).toEqual(["mlk"])
   })
 })
